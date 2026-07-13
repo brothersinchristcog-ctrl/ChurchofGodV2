@@ -1,0 +1,108 @@
+========================================================================
+       CHURCH OF GOD MOBILE APP - COMPREHENSIVE MEMBER FEATURES DEMO
+========================================================================
+
+Welcome to the ultimate demo guide! This document provides a complete, 
+step-by-step script and cheat sheet for all Member-specific features 
+built into the Church of God (COG) mobile application.
+
+------------------------------------------------------------------------
+1. MODULES & FEATURES CHECKLIST
+------------------------------------------------------------------------
+
+The app consists of four key functional hubs tailored for members:
+
+HUB A: AUTHENTICATION, REGISTRATION & ONBOARDING (app/src/screens/auth)
+  - Splash Screen: Animated welcome featuring the premium church logo.
+  - Landing Hub: Selection for Sign In, Sign Up, or Guest Mode.
+  - Live CRM Member Verification: Auto-queries the Salesforce database 
+    in real time as the user types their 10-digit phone number.
+  - Firebase Phone OTP Verification: Sends and validates a 6-digit SMS code.
+  - Multi-Section Registration (Sign Up):
+    * Personal Info: Name, Email, DOB, Gender, dynamic Marital Status 
+      (Anniversary and Children fields appear if Married).
+    * Spiritual Journey: Baptism Check (Baptism Date and Church appear if Yes).
+    * Contact Location: Address, Mandal, City, District, State, and Pincode.
+  - Duplicate Protection: Warns if a phone number already exists in CRM.
+  - Preferred Language & Cell Group Onboarding: Prompted on first login.
+
+HUB B: PERSONAL STUDY & DASHBOARD (app/src/screens)
+  - Personalized Dashboard: Features time-based greeting and calendar date.
+  - Daily Promise Card: Synchronizes daily bible promise verses in English 
+    and Telugu, shares scripture, and displays a link to watch daily video.
+  - Personal Study / Sermon Notes (MemberNotesScreen):
+    * Write key takeaways, title, scripture references.
+    * Real-time text search filter.
+    * Offline Cache: Caches notes using local AsyncStorage.
+
+HUB C: HOUSEHOLD DIRECTORY & COMMUNITY (app/src/screens)
+  - Household Directory (MembersScreen):
+    * Displays all family members linked to the same Salesforce household account.
+    * Quick Actions: Tap-to-Call (tel:) and Tap-to-Email (mailto:).
+    * Add Family Member: Directly registers spouse, child, or parent in CRM.
+  - Prayer Wall (PrayerWallScreen):
+    * View community prayers, submit requests, and check items.
+    * Tap "I Prayed" to increase the prayer count instantly.
+
+HUB D: PROFILE, PREFERENCES & SECURITY (app/src/screens/ProfileScreen)
+  - Profile Details Sync: Edit Name, Email, City, and Address, syncing immediately to CRM.
+  - Avatar Profile Photo: Select, crop, update, or remove profile images.
+  - Live Theme Toggle: Instant layout changes between Light and Dark modes.
+  - Notification Preferences: Custom toggle preferences synced to Firestore.
+  - Bilingual Switch: Change languages between English and Telugu.
+  - Biometric Security Lock: Set up Fingerprint or Face ID verification.
+
+------------------------------------------------------------------------
+2. LIVE DEMO SCENARIO SCRIPTS
+------------------------------------------------------------------------
+
+SCENARIO 1: NEW MEMBER ONBOARDING FLOW
+  1. Open app to splash screen -> Tap "Sign up" on the landing layout.
+  2. Fill out SignUp fields. Explain dynamic behavior:
+     - Toggle Married -> anniversary & children fields appear.
+     - Toggle Baptized -> baptism date & church fields appear.
+  3. Tap "Complete Registration" -> Show the custom "Welcome Home!" screen.
+  4. Proceed to Sign In, enter the phone number, and send the OTP.
+  5. Enter OTP code -> Success.
+  6. The app opens the Onboarding Screen. Select language (Telugu), enter 
+     your name, choose a local Cell Group (e.g. Guntur East), and tap 
+     "Start My Journey" to enter the Home Screen.
+
+SCENARIO 2: HOUSHEHOLD DIRECTORY & CONNECTIONS
+  1. On the Home Dashboard, scroll down and tap "Members" in the grid.
+  2. Point out: "You" are highlighted with a gold border.
+  3. Action: Tap the phone icon of a family member to initiate a call.
+  4. Action: Tap the floating "+" button, fill out family member details, 
+     and tap "Add Member". Show the "Success!" modal.
+  5. Back on the list, see the new family member synced immediately.
+
+SCENARIO 3: DAILY DEVOTIONALS & SERMON NOTES
+  1. On the Home Screen, read "Today's Promise" in English and Telugu.
+  2. Tap "Watch Video" to see the video screen. Tap "Share" to share.
+  3. Go back to Home -> Tap "Sermon Notes" (magenta grid item).
+  4. Tap "Create First Note" -> Enter "Sunday Service Reflection" and 
+     write key notes. Save it.
+  5. Search note: Type "Reflection" in the search box to filter instantly.
+  6. Show offline stability: Explain notes are saved locally to AsyncStorage.
+
+SCENARIO 4: CUSTOMIZING PREFERENCES & SECURITY
+  1. From Home Screen, tap the top-right user profile picture.
+  2. Tap "My profile" -> Edit the city name and tap "Update Profile" (syncs to CRM).
+  3. Toggle "Dark Mode" switch -> Show how the entire screen converts.
+  4. Tap "Language" -> Switch from English to Telugu.
+  5. Tap "Notifications" -> Toggle preferences (Daily Promise, Event alerts).
+  6. Toggle "Biometric Lock" -> Authenticate via fingerprint/Face ID.
+  7. Tap "Sign Out" to securely close the session.
+
+------------------------------------------------------------------------
+3. ARCHITECTURAL INTEGRATION SUMMARY
+------------------------------------------------------------------------
+* Salesforce REST API: Syncs profile details, check phone membership, 
+  saves new member signups, and adds household contact relationships.
+* Firebase Auth: Handles secure phone OTP verification and session tokens.
+* Firebase Firestore: Stores user notifications, cell groups, and prayer requests.
+* AsyncStorage: Stores sermon notes offline and caches language preferences.
+
+========================================================================
+                      END OF DEMO GUIDE NOTICE
+========================================================================

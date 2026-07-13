@@ -1,0 +1,21 @@
+name: CI - Church of God App
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Install Root Dependencies
+        run: npm install
+      - name: Run Linting (All Workspaces)
+        run: npm run lint:all --if-present

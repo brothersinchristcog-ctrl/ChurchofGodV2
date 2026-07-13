@@ -1,0 +1,63 @@
+{
+  "project_info": {
+    "project_number": "610167013138",
+    "project_id": "church-mobile-app-b7e27",
+    "storage_bucket": "church-mobile-app-b7e27.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:610167013138:android:40f8aaf3361b5052873dcb",
+        "android_client_info": {
+          "package_name": "com.brothersinchrist.churchofgod"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "610167013138-6qmela0kuaa13ch5r8jib60c0uhi7e22.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.brothersinchrist.churchofgod",
+            "certificate_hash": "6a44d39c1a585c71636af43b3ed4de68b5cad825"
+          }
+        },
+        {
+          "client_id": "610167013138-9e5pb95i5r27emp995i0f9dctddapkme.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.brothersinchrist.churchofgod",
+            "certificate_hash": "7fade60fe8b1dffbd6d8fdb1d2c1fa6735662eaa"
+          }
+        },
+        {
+          "client_id": "610167013138-mgl29tsmhb3l7snk37k3eaqe6hbmo6qs.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.brothersinchrist.churchofgod",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "610167013138-44leu198o42ms4q6eh9o8giemj15hltn.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-KjEvxgxRydJumplmDd3STjc4UQP70Pg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "610167013138-44leu198o42ms4q6eh9o8giemj15hltn.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

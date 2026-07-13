@@ -1,0 +1,17 @@
+[
+  {
+    "name": "How_can_we_support_you__c",
+    "label": "Prayer Category",
+    "type": "picklist"
+  },
+  {
+    "name": "Is_this_prayer_request_for_you_or_someon__c",
+    "label": "Is this prayer request for you or someon",
+    "type": "picklist"
+  },
+  {
+    "name": "Detailed_Prayer_Request__c",
+    "label": "Detailed Prayer Request",
+    "type": "textarea"
+  }
+]

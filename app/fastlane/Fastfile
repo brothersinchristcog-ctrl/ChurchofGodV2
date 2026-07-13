@@ -1,0 +1,32 @@
+# Fastfile
+# This file is used to manage the delivery of the app to the store.
+
+default_platform(:android)
+
+platform :android do
+  desc "EAS Internal Test Build"
+  lane :build_internal do
+    sh("npx eas build --profile development --platform android --non-interactive")
+  end
+
+  desc "Deploy to Google Play Internal Track (Target: Week 8)"
+  lane :deploy_google_play do
+    # This requires a service-account-key.json in Week 8
+    # upload_to_play_store(
+    #   track: 'internal',
+    #   aab: '../build/app-release.aab'
+    # )
+  end
+end
+
+platform :ios do
+  desc "EAS Internal Test Build"
+  lane :build_internal do
+    sh("npx eas build --profile development --platform ios --non-interactive")
+  end
+
+  desc "Upload to TestFlight (Target: Week 8)"
+  lane :deploy_testflight do
+    # upload_to_testflight
+  end
+end

@@ -1,0 +1,27 @@
+{
+  "name": "cog_mobile",
+  "version": "1.0.0",
+  "description": "",
+  "private": true,
+  "workspaces": [
+    "app",
+    "admin",
+    "functions"
+  ],
+  "scripts": {
+    "lint:all": "npm run lint -w app -w admin",
+    "test:all": "npm test -w app -w admin",
+    "app": "npm run start -w app",
+    "admin": "npm run dev -w admin",
+    "functions:build": "npm run build -w functions"
+  },
+  "dependencies": {
+    "@expo-google-fonts/great-vibes": "^0.4.1",
+    "dayjs": "^1.11.21",
+    "expo-crypto": "~15.0.8",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native-worklets": "^0.8.3",
+    "xlsx": "^0.18.5"
+  }
+}

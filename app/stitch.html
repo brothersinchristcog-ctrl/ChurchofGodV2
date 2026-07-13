@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>About Grace &amp; Peace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&amp;family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-nav {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .prayer-border {
+            border-left: 4px solid #fed65b;
+        }
+        body {
+            background-color: #fbf9f8;
+            color: #1b1c1c;
+            -webkit-font-smoothing: antialiased;
+        }
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 24px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#abc8f8",
+                        "tertiary-container": "#4a4946",
+                        "on-secondary-container": "#745c00",
+                        "surface": "#fbf9f8",
+                        "on-tertiary-container": "#bab8b4",
+                        "on-primary-fixed": "#001c3b",
+                        "surface-container-low": "#f5f3f3",
+                        "on-primary": "#ffffff",
+                        "outline": "#74777f",
+                        "on-secondary-fixed": "#241a00",
+                        "surface-container-high": "#eae8e7",
+                        "surface-container": "#efeded",
+                        "primary-container": "#2c4a73",
+                        "tertiary-fixed-dim": "#c8c6c2",
+                        "outline-variant": "#c3c6cf",
+                        "surface-container-highest": "#e4e2e2",
+                        "surface-dim": "#dbd9d9",
+                        "on-secondary-fixed-variant": "#574500",
+                        "on-primary-container": "#9dbae9",
+                        "tertiary": "#333330",
+                        "on-tertiary-fixed-variant": "#474743",
+                        "on-error": "#ffffff",
+                        "surface-bright": "#fbf9f8",
+                        "on-surface-variant": "#43474e",
+                        "inverse-on-surface": "#f2f0f0",
+                        "surface-tint": "#425f8a",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "on-secondary": "#ffffff",
+                        "secondary-fixed": "#ffe088",
+                        "tertiary-fixed": "#e5e2dd",
+                        "on-background": "#1b1c1c",
+                        "surface-variant": "#e4e2e2",
+                        "inverse-surface": "#303030",
+                        "inverse-primary": "#abc8f8",
+                        "on-tertiary-fixed": "#1c1c19",
+                        "secondary-container": "#fed65b",
+                        "error-container": "#ffdad6",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed-variant": "#294870",
+                        "primary": "#11335b",
+                        "secondary": "#735c00",
+                        "secondary-fixed-dim": "#e9c349",
+                        "background": "#fbf9f8",
+                        "error": "#ba1a1a",
+                        "primary-fixed": "#d5e3ff",
+                        "on-surface": "#1b1c1c"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter": "20px",
+                        "xl": "80px",
+                        "lg": "48px",
+                        "sm": "12px",
+                        "xs": "4px",
+                        "md": "24px",
+                        "container-max": "1200px",
+                        "base": "8px"
+                    },
+                    "fontFamily": {
+                        "display-lg-mobile": ["EB Garamond"],
+                        "title-lg": ["Plus Jakarta Sans"],
+                        "headline-sm": ["EB Garamond"],
+                        "body-lg": ["Plus Jakarta Sans"],
+                        "headline-md": ["EB Garamond"],
+                        "body-md": ["Plus Jakarta Sans"],
+                        "label-md": ["Plus Jakarta Sans"],
+                        "display-lg": ["EB Garamond"]
+                    },
+                    "fontSize": {
+                        "display-lg-mobile": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+                        "title-lg": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "headline-sm": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "headline-md": ["32px", { "lineHeight": "40px", "fontWeight": "500" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "500" }]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-surface font-body-md text-on-surface mb-24">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md">
+<div class="flex items-center justify-between px-gutter w-full h-16 max-w-container-max mx-auto">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-2xl" data-icon="menu">menu</span>
+<span class="font-headline-sm text-headline-sm-mobile text-primary">Grace &amp; Peace</span>
+</div>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/30">
+<img alt="Church Logo" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBUbfAl1PL0ds-3mOsJTVwJdedeWF7VMjMjNzpY6MXRkoZqBTu3ioWu1QdXy1AQAg3q7Nibjg-gKxuT96UG-7iq56sYwUVHMNiAPcDi8sTeB7NLyUWGa37EeU11DHraoMm7PFLybvuJIOTuKMzEaCMfczAibhsnMez1CrdoCh0z7J6xSTJ-GKiahBA1CkxnVZ7-carZOwWE9AM6QoXhipc5lg3UpJJ1duvfkjwZ2Uiid9v_zwRBfGsS"/>
+</div>
+</div>
+</header>
+<main class="mt-20 px-gutter max-w-container-max mx-auto overflow-x-hidden">
+<!-- Hero Branding Section -->
+<section class="flex flex-col items-center text-center py-lg animate-in fade-in slide-in-from-bottom-4 duration-1000">
+<div class="w-32 h-32 mb-8 rounded-2xl overflow-hidden shadow-sm">
+<img alt="Grace &amp; Peace Church Logo" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBUbfAl1PL0ds-3mOsJTVwJdedeWF7VMjMjNzpY6MXRkoZqBTu3ioWu1QdXy1AQAg3q7Nibjg-gKxuT96UG-7iq56sYwUVHMNiAPcDi8sTeB7NLyUWGa37EeU11DHraoMm7PFLybvuJIOTuKMzEaCMfczAibhsnMez1CrdoCh0z7J6xSTJ-GKiahBA1CkxnVZ7-carZOwWE9AM6QoXhipc5lg3UpJJ1duvfkjwZ2Uiid9v_zwRBfGsS"/>
+</div>
+<h1 class="font-display-lg text-display-lg-mobile md:text-display-lg text-primary mb-xs">Grace &amp; Peace</h1>
+<p class="text-on-surface-variant font-body-lg italic">A Sanctuary for Spiritual Growth</p>
+</section>
+<!-- Our Calling Section -->
+<section class="mb-xl bg-surface-container-lowest rounded-xl p-md md:p-lg border border-outline-variant/10 shadow-[0_20px_20px_-10px_rgba(17,51,91,0.04)]">
+<div class="max-w-3xl mx-auto">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-secondary" data-icon="favorite">favorite</span>
+<h2 class="font-headline-md text-headline-md-mobile text-primary">Our Calling</h2>
+</div>
+<p class="font-body-lg text-on-surface leading-relaxed">
+                    At Grace &amp; Peace, our calling is rooted in a simple yet profound mandate: to serve and love our community as a reflection of divine compassion. We believe that every individual is a story of grace waiting to be told, and we strive to be the supportive chapter where healing and purpose meet.
+                </p>
+</div>
+</section>
+<!-- Our Vision (Asymmetric Highlight) -->
+<section class="mb-xl flex flex-col md:flex-row gap-lg items-center">
+<div class="w-full md:w-1/2 relative">
+<div class="aspect-square rounded-2xl overflow-hidden bg-surface-container-high relative">
+<div class="w-full h-full bg-cover bg-center" data-alt="A peaceful and architectural interior of a modern church sanctuary during sunrise. Light streams through high windows, illuminating rows of comfortable seating and a central podium. The atmosphere is ethereal, serene, and filled with a sense of hopeful expectation, using a palette of soft whites, warm golds, and deep blues." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDCRrQhraZUrt8P0ycMeRmUKcXWr_MqDqAmtoYG3tNj-cKX7AOm3gmFuMKAnsCN5T_8JIXBvTxbYkNIx9T-mWm891XoMFENUSJDrULVnP6UztbzMidM4pZQIZnVGW2mnMjixbvq3jSPRekUfP3-PKbRmxxQuyDCNukU8sykDm0e2NJVYuEGMo7riqcWOOsUP7SdrJt05MykucTl9oxSvQc_1MXkQN0T0_T83sNwe1aASucUgKsrvM0u')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/40 to-transparent"></div>
+</div>
+<div class="absolute -bottom-6 -right-6 md:block hidden w-48 h-48 bg-secondary-fixed-dim/30 rounded-full blur-3xl -z-10"></div>
+</div>
+<div class="w-full md:w-1/2">
+<h2 class="font-headline-md text-headline-md-mobile text-primary mb-4">Our Vision</h2>
+<div class="italic text-headline-sm text-headline-sm-mobile font-headline-sm text-on-surface-variant border-l-4 border-secondary-container pl-6 py-2">
+                    "Building a house of prayer for all nations, where every soul finds a home and every heart finds peace."
+                </div>
+<p class="mt-6 font-body-md text-on-surface-variant">
+                    We look forward to a future where the walls of the church extend into the streets, bringing hope to the hopeless and a tangible sense of belonging to all who seek it.
+                </p>
+</div>
+</section>
+<!-- Our Values (Pill Chips) -->
+<section class="mb-xl text-center">
+<h2 class="font-headline-md text-headline-md-mobile text-primary mb-8">Our Core Values</h2>
+<div class="flex flex-wrap justify-center gap-md">
+<div class="px-8 py-4 bg-primary-fixed text-on-primary-fixed rounded-full flex items-center gap-3 shadow-sm hover:scale-105 transition-transform cursor-default">
+<span class="material-symbols-outlined" data-icon="volunteer_activism">volunteer_activism</span>
+<span class="font-label-md">Compassion</span>
+</div>
+<div class="px-8 py-4 bg-secondary-fixed text-on-secondary-fixed rounded-full flex items-center gap-3 shadow-sm hover:scale-105 transition-transform cursor-default">
+<span class="material-symbols-outlined" data-icon="verified_user">verified_user</span>
+<span class="font-label-md">Integrity</span>
+</div>
+<div class="px-8 py-4 bg-surface-container-highest text-on-surface-variant rounded-full flex items-center gap-3 shadow-sm hover:scale-105 transition-transform cursor-default">
+<span class="material-symbols-outlined" data-icon="auto_awesome">auto_awesome</span>
+<span class="font-label-md">Faith</span>
+</div>
+<div class="px-8 py-4 bg-primary-fixed-dim text-on-primary-container rounded-full flex items-center gap-3 shadow-sm hover:scale-105 transition-transform cursor-default">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+<span class="font-label-md">Fellowship</span>
+</div>
+</div>
+</section>
+<!-- App Features (Bento-style Cards) -->
+<section class="mb-xl">
+<h2 class="font-headline-md text-headline-md-mobile text-primary mb-8">Connected in Spirit</h2>
+<div class="bento-grid">
+<!-- Sermons -->
+<div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant/10 hover:border-primary/20 transition-colors group">
+<div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary mb-4 group-hover:bg-primary group-hover:text-white transition-all">
+<span class="material-symbols-outlined" data-icon="auto_stories">auto_stories</span>
+</div>
+<h3 class="font-title-lg text-primary mb-2">Sermons On-Demand</h3>
+<p class="text-on-surface-variant text-sm">Revisit Sunday messages anytime. Journey through our archive of teachings wherever you are.</p>
+</div>
+<!-- Community -->
+<div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant/10 hover:border-primary/20 transition-colors group">
+<div class="w-12 h-12 bg-secondary/10 rounded-lg flex items-center justify-center text-secondary mb-4 group-hover:bg-secondary group-hover:text-white transition-all">
+<span class="material-symbols-outlined" data-icon="diversity_3">diversity_3</span>
+</div>
+<h3 class="font-title-lg text-primary mb-2">Community Groups</h3>
+<p class="text-on-surface-variant text-sm">Connect with local small groups. Growth happens best in the context of community.</p>
+</div>
+<!-- Prayer (Specialized Card) -->
+<div class="bg-surface-container-low rounded-xl p-6 prayer-border shadow-sm group">
+<div class="w-12 h-12 bg-secondary-fixed/30 rounded-lg flex items-center justify-center text-on-secondary-fixed mb-4">
+<span class="material-symbols-outlined" data-icon="hands_clapping" style="font-variation-settings: 'FILL' 1;">ads_click</span>
+</div>
+<h3 class="font-title-lg text-primary mb-2">Prayer Requests</h3>
+<p class="text-on-surface-variant text-sm italic">"Submit and join in communal prayer. Your burdens are shared, and your joys are celebrated."</p>
+</div>
+<!-- Giving -->
+<div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant/10 hover:border-primary/20 transition-colors group">
+<div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary mb-4 group-hover:bg-primary group-hover:text-white transition-all">
+<span class="material-symbols-outlined" data-icon="volunteer_activism">volunteer_activism</span>
+</div>
+<h3 class="font-title-lg text-primary mb-2">Giving &amp; Support</h3>
+<p class="text-on-surface-variant text-sm">Seamlessly support church ministries. Secure and faithful stewardship for our shared mission.</p>
+</div>
+<!-- Devotionals -->
+<div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant/10 hover:border-primary/20 transition-colors group">
+<div class="w-12 h-12 bg-tertiary-fixed-dim/40 rounded-lg flex items-center justify-center text-tertiary mb-4 group-hover:bg-tertiary group-hover:text-white transition-all">
+<span class="material-symbols-outlined" data-icon="wb_sunny">wb_sunny</span>
+</div>
+<h3 class="font-title-lg text-primary mb-2">Daily Devotionals</h3>
+<p class="text-on-surface-variant text-sm">Start your day with scripture and reflection. Morning bread for your spiritual journey.</p>
+</div>
+</div>
+</section>
+<!-- Scripture Block -->
+<section class="mb-xl py-lg text-center relative overflow-hidden rounded-2xl bg-primary text-white">
+<div class="absolute top-0 right-0 p-8 opacity-10">
+<span class="material-symbols-outlined text-8xl" data-icon="format_quote">format_quote</span>
+</div>
+<div class="max-w-2xl mx-auto px-6 relative z-10">
+<p class="font-headline-md text-headline-md-mobile italic mb-4">"And the peace of God, which transcends all understanding, will guard your hearts and your minds in Christ Jesus."</p>
+<p class="font-label-md tracking-widest uppercase opacity-80">Philippians 4:7</p>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 bg-surface/90 backdrop-blur-lg rounded-t-xl border-t border-outline-variant/20 shadow-sm flex justify-around items-center px-4 py-2 pb-safe">
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-md text-[10px]">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="auto_stories">auto_stories</span>
+<span class="font-label-md text-[10px]">Sermons</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span class="font-label-md text-[10px]">Events</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="volunteer_activism">volunteer_activism</span>
+<span class="font-label-md text-[10px]">Giving</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary font-bold transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="info" style="font-variation-settings: 'FILL' 1;">info</span>
+<span class="font-label-md text-[10px]">About</span>
+</a>
+</nav>
+<script>
+        // Simple intersection observer for reveal animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('opacity-100', 'translate-y-0');
+                    entry.target.classList.remove('opacity-0', 'translate-y-8');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('section').forEach(section => {
+            section.classList.add('transition-all', 'duration-1000', 'ease-out', 'opacity-0', 'translate-y-8');
+            observer.observe(section);
+        });
+    </script>
+</body></html>

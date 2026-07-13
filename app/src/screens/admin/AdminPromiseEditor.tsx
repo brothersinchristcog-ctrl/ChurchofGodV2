@@ -1,0 +1,640 @@
+import React, { useState, useEffect, useContext, useRef } from 'react';
+import { 
+  StyleSheet, 
+  View, 
+  Text, 
+  ScrollView, 
+  TextInput, 
+  TouchableOpacity, 
+  ActivityIndicator,
+  Platform,
+  Dimensions,
+  Alert,
+  Modal,
+  Share,
+  Image
+} from 'react-native';
+import { 
+  Calendar as CalendarIcon, 
+  BookOpen, 
+  Languages, 
+  Play, 
+  User, 
+  Eye, 
+  Save, 
+  ChevronLeft,
+  ChevronDown,
+  X,
+  ChevronRight,
+  CheckCircle2
+} from 'lucide-react-native';
+import { AdminTabContext } from '../../context/AdminTabContext';
+import * as MediaLibrary from 'expo-media-library';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import { captureRef } from 'react-native-view-shot';
+import firestore from '@react-native-firebase/firestore';
+
+import SalesforceService from '../../services/SalesforceService';
+
+const { width } = Dimensions.get('window');
+
+const THEME_COLORS = [
+  '#1a2d5a', // Navy
+  '#c0392b', // Red
+  '#15803D', // Green
+  '#7C3AED', // Purple
+  '#D97706', // Amber
+  '#0891B2', // Teal
+  '#BE185D', // Pink
+  '#4338CA', // Indigo
+  '#374151', // Gray
+  '#0F172A'  // Dark
+];
+
+const STATUS_OPTIONS = [
+  { label: 'Draft — save only, not visible', value: 'Draft' },
+  { label: 'Scheduled — auto-publish at midnight', value: 'Scheduled' },
+  { label: 'Publish now — live immediately', value: 'Published' }
+];
+
+export default function AdminPromiseEditor() {
+  const { setActiveTab, editingData, setEditingData } = useContext(AdminTabContext);
+  const [loading, setLoading] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
+  
+  const [form, setForm] = useState({
+    date: new Date().toLocaleDateString('en-CA'),
+    enRef: '',
+    enVerse: '',
+    enNote: '',
+    teVerse: '',
+    teRef: '',
+    teNote: '',
+    ytUrl: '',
+    videoTitle: '',
+    duration: '',
+    pastor: '',
+    status: 'Scheduled',
+    theme: '#1a2d5a',
+    imageUrl: ''
+  });
+
+  const stripHtml = (html?: string) => {
+    if (!html) return '';
+    return html.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').replace(/&#39;/g, "'").trim();
+  };
+
+  useEffect(() => {
+    if (editingData) {
+      const cleanEnRef = editingData.verseReferenceEn?.startsWith('DP-') ? '' : editingData.verseReferenceEn;
+      const cleanTeRef = editingData.verseReferenceTe || '';
+      
+      setForm({
+        ...form,
+        date: editingData.date || new Date().toLocaleDateString('en-CA'),
+        enVerse: stripHtml(editingData.verse) || '',
+        enRef: cleanEnRef || '',
+        teVerse: stripHtml(editingData.verseTelugu) || '',
+        teRef: cleanTeRef || '',
+        enNote: stripHtml(editingData.devotionalNote) || '',
+        ytUrl: editingData.youtubeId || '',
+        videoTitle: editingData.videoTitle || '',
+        duration: editingData.duration || '',
+        pastor: editingData.pastor || '',
+        status: editingData.status || 'Scheduled',
+        theme: editingData.theme || '#1a2d5a',
+        imageUrl: editingData.imageUrl || ''
+      });
+    } else {
+      // Reset for NEW promise
+      setForm({
+        date: new Date().toLocaleDateString('en-CA'),
+        enRef: '',
+        enVerse: '',
+        enNote: '',
+        teVerse: '',
+        teRef: '',
+        teNote: '',
+        ytUrl: '',
+        videoTitle: '',
+        duration: '',
+        pastor: '',
+        status: 'Scheduled',
+        theme: '#1a2d5a',
+        imageUrl: ''
+      });
+    }
+  }, [editingData]);
+
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [showThumbnailSuccess, setShowThumbnailSuccess] = useState(false);
+  const [showError, setShowError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const viewShotRef = useRef(null);
+
+  const handleSaveToGallery = async () => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'We need access to your gallery to save the promise card.');
+        return;
+      }
+
+      const uri = await captureRef(viewShotRef, {
+        format: 'png',
+        quality: 1.0,
+      });
+
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert('Saved!', 'The promise card has been saved to your gallery.');
+    } catch (err) {
+      console.error('Save failed:', err);
+      Alert.alert('Error', 'Failed to save image.');
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      const uri = await captureRef(viewShotRef, {
+        format: 'png',
+        quality: 1.0,
+      });
+
+      await Share.share({
+        url: uri,
+        message: `Today's Promise: ${form.enVerse} - ${form.enRef}`,
+      });
+    } catch (err) {
+      console.error('Share failed:', err);
+    }
+  };
+
+  const uploadImageToCloud = async (localUri: string): Promise<string> => {
+    const filename = localUri.split('/').pop() || `promise_${Date.now()}.jpg`;
+    const base64Data = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
+    const { functions } = require('../../services/firebaseConfig');
+    const uploadFunc = functions().httpsCallable('uploadEventImage');
+    const response = await uploadFunc({ image: base64Data, fileName: filename });
+    if (response.data?.success && response.data?.url) return response.data.url;
+    throw new Error('Cloud upload failed');
+  };
+
+  const pickThumbnail = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'images',
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setLoading(true);
+        const cloudUrl = await uploadImageToCloud(result.assets[0].uri);
+        setForm(prev => ({ ...prev, imageUrl: cloudUrl }));
+        setShowThumbnailSuccess(true);
+      }
+    } catch (err) {
+      console.error('Upload Error:', err);
+      Alert.alert('Upload Failed', 'There was an issue uploading your image.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async (statusOverride?: string) => {
+    const finalStatus = statusOverride || form.status;
+    
+    // Validation
+    if (!form.date) return Alert.alert('Error', 'Please select a promise date.');
+    if (!form.enVerse?.trim()) return Alert.alert('Error', 'Please enter the English verse.');
+    if (!form.teVerse?.trim()) return Alert.alert('Error', 'Please enter the Telugu verse.');
+
+    setLoading(true);
+    try {
+      const details = {
+        id: editingData?.id,
+        date: form.date,
+        verse: form.enVerse,
+        verseReferenceEn: form.enRef,
+        verseTelugu: form.teVerse,
+        verseReferenceTe: form.teRef,
+        devotionalNote: form.enNote,
+        youtubeId: form.ytUrl,
+        videoTitle: form.videoTitle,
+        duration: form.duration,
+        pastor: form.pastor,
+        status: finalStatus,
+        theme: form.theme,
+        imageUrl: form.imageUrl
+      };
+      
+      await SalesforceService.createDailyPromise(details);
+
+      setShowSuccess(true);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to save to Salesforce. Please check your connection.');
+      setShowError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closeSuccess = () => {
+    setShowSuccess(false);
+    setActiveTab(0);
+  };
+
+  const currentStatusLabel = STATUS_OPTIONS.find(o => o.value === form.status)?.label || form.status;
+
+  // Simple JS-based date selection (Mocking a calendar grid for simplicity & stability)
+  const renderDatePicker = () => {
+    const days = Array.from({ length: 30 }, (_, i) => i + 1);
+    return (
+      <Modal visible={showDatePicker} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerCard}>
+            <View style={styles.pickerHd}>
+              <Text style={styles.pickerTitle}>Select Date (April 2026)</Text>
+              <TouchableOpacity onPress={() => setShowDatePicker(false)}><X size={20} color="#1a2d5a" /></TouchableOpacity>
+            </View>
+            <View style={styles.calGrid}>
+              {days.map(d => (
+                <TouchableOpacity 
+                  key={d} 
+                  style={[styles.calCell, form.date === `2026-04-${String(d).padStart(2,'0')}` && styles.calCellActive]}
+                  onPress={() => {
+                    setForm({...form, date: `2026-04-${String(d).padStart(2,'0')}`});
+                    setShowDatePicker(false);
+                  }}
+                >
+                  <Text style={[styles.calCellTxt, form.date === `2026-04-${String(d).padStart(2,'0')}` && styles.calCellTxtActive]}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => setActiveTab(0)} style={styles.backBtn}>
+            <ChevronLeft size={20} color="#1a2d5a" />
+            <Text style={styles.backBtnTxt}>Promises</Text>
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>{editingData ? 'Edit Promise' : 'Create Promise'}</Text>
+            <Text style={styles.headerSub}>Bilingual · English + Telugu</Text>
+          </View>
+        </View>
+
+        {/* 1. Schedule */}
+        <View style={[styles.section, styles.secNavy]}>
+          <View style={styles.secHd}>
+            <CalendarIcon size={14} color="#1a2d5a" />
+            <Text style={styles.secHdTXT}>Schedule</Text>
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Promise date <Text style={{color:'#c0392b'}}>*</Text></Text>
+            <TouchableOpacity style={styles.inputWrap} onPress={() => setShowDatePicker(true)}>
+              <Text style={styles.inputText}>{form.date.split('-').reverse().join(' - ')}</Text>
+              <CalendarIcon size={14} color="#374151" style={styles.inputIcon} />
+            </TouchableOpacity>
+          </View>
+          {renderDatePicker()}
+          
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Background theme</Text>
+            <View style={styles.themeRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {THEME_COLORS.map(c => (
+                  <TouchableOpacity key={c} style={[styles.themeChip, { backgroundColor: c }, form.theme === c && styles.themeActive]} onPress={() => setForm({...form, theme: c})} />
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </View>
+
+        {/* 2. English Promise */}
+        <View style={[styles.section, styles.secNavy]}>
+          <View style={styles.secHd}>
+            <BookOpen size={14} color="#1a2d5a" />
+            <Text style={styles.secHdTXT}>English Promise</Text>
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Verse reference <Text style={{color:'#c0392b'}}>*</Text> <Text style={styles.fHint}>e.g. John 3:16</Text></Text>
+            <TextInput style={styles.input} value={form.enRef} onChangeText={(v) => setForm({...form, enRef: v})} placeholder="Book Chapter:Verse" />
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Verse text — English <Text style={{color:'#c0392b'}}>*</Text></Text>
+            <TextInput style={[styles.input, styles.textarea]} multiline value={form.enVerse} onChangeText={(v) => setForm({...form, enVerse: v})} placeholder="Type or paste the Bible verse in English…" />
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Devotional note — English <Text style={styles.fHint}>Optional</Text></Text>
+            <TextInput style={[styles.input, styles.textarea]} multiline value={form.enNote} onChangeText={(v) => setForm({...form, enNote: v})} placeholder="Pastor's reflection in English…" />
+          </View>
+        </View>
+
+        {/* 3. Telugu Promise */}
+        <View style={[styles.section, styles.secBlue]}>
+          <View style={styles.secHd}>
+            <Languages size={14} color="#2563eb" />
+            <Text style={[styles.secHdTXT, {color: '#2563eb'}]}>Telugu Promise - తెలుగు వాగ్దానం</Text>
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Verse reference — Telugu <Text style={styles.fHint}>e.g. యోహాను 3:16</Text></Text>
+            <TextInput style={[styles.input, styles.teIn]} value={form.teRef} onChangeText={(v) => setForm({...form, teRef: v})} placeholder="పుస్తకం అధ్యాయం:వచనం" />
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Verse text — Telugu <Text style={{color:'#c0392b'}}>*</Text></Text>
+            <TextInput style={[styles.input, styles.textarea, styles.teIn]} multiline value={form.teVerse} onChangeText={(v) => setForm({...form, teVerse: v})} placeholder="తెలుగులో బైబిల్ వచనం ఇక్కడ టైప్ చేయండి…" />
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Devotional note — Telugu <Text style={styles.fHint}>ఐచ్ఛికం</Text></Text>
+            <TextInput style={[styles.input, styles.textarea, styles.teIn]} multiline value={form.teNote} onChangeText={(v) => setForm({...form, teNote: v})} placeholder="పాస్టర్ గారి వ్యాఖ్యానం తెలుగులో…" />
+          </View>
+        </View>
+
+        {/* 3.5 Thumbnail Upload */}
+        <View style={[styles.section, { backgroundColor: '#F3F4F6', borderLeftColor: '#4B5563' }]}>
+          <View style={styles.secHd}>
+            <Eye size={14} color="#4B5563" />
+            <Text style={[styles.secHdTXT, {color: '#4B5563'}]}>Daily Promise Thumbnail</Text>
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Upload Thumbnail Image <Text style={styles.fHint}>(Visible on member home screen)</Text></Text>
+            {form.imageUrl ? (
+              <View style={styles.thumbnailPreviewContainer}>
+                <Image source={{ uri: form.imageUrl }} style={styles.thumbnailImg} resizeMode="cover" />
+                <TouchableOpacity style={styles.removeThumbnailBtn} onPress={() => setForm(prev => ({ ...prev, imageUrl: '' }))}>
+                  <Text style={styles.btnChangeThumbTxt}>Remove Image</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.btnUploadThumb} onPress={pickThumbnail}>
+                <Text style={styles.btnUploadThumbTxt}>Pick Image from Gallery</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* 4. YouTube Link */}
+        <View style={[styles.section, styles.secRed]}>
+          <View style={styles.secHd}>
+            <Play size={14} color="#c0392b" />
+            <Text style={[styles.secHdTXT, {color: '#c0392b'}]}>YouTube Link</Text>
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Video Title</Text>
+            <TextInput style={styles.input} value={form.videoTitle} onChangeText={(v) => setForm({...form, videoTitle: v})} placeholder="Devotional Video Title" />
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Duration <Text style={styles.fHint}>e.g. 1:20</Text></Text>
+            <TextInput style={styles.input} value={form.duration} onChangeText={(v) => setForm({...form, duration: v})} placeholder="Video duration" />
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>YouTube video URL <Text style={styles.fHint}>today's 1-min devotional</Text></Text>
+            <TextInput style={styles.input} value={form.ytUrl} onChangeText={(v) => setForm({...form, ytUrl: v})} placeholder="https://youtube.com/watch?v=…" />
+            <Text style={styles.fSub}>Paste full URL or the 11-character video ID</Text>
+          </View>
+        </View>
+
+        {/* 5. Pastor & Status */}
+        <View style={[styles.section, styles.secNavy]}>
+          <View style={styles.secHd}>
+            <User size={14} color="#1a2d5a" />
+            <Text style={styles.secHdTXT}>Pastor & Status</Text>
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Pastor Name</Text>
+            <TextInput style={styles.input} value={form.pastor} onChangeText={(v) => setForm({...form, pastor: v})} placeholder="Pastor Name" />
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Publish status</Text>
+            <TouchableOpacity style={styles.input} onPress={() => setShowStatusPicker(true)}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, color: '#111827' }}>{currentStatusLabel}</Text>
+                <ChevronDown size={14} color="#374151" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Status Picker Modal */}
+        <Modal visible={showStatusPicker} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.statusMenu}>
+              <View style={styles.statusMenuHd}><Text style={styles.statusMenuTitle}>Select Publish Status</Text></View>
+              {STATUS_OPTIONS.map(opt => (
+                <TouchableOpacity 
+                  key={opt.value} 
+                  style={[styles.statusItem, form.status === opt.value && styles.statusItemActive]} 
+                  onPress={() => { setForm({...form, status: opt.value}); setShowStatusPicker(false); }}
+                >
+                  <Text style={[styles.statusItemTxt, form.status === opt.value && styles.statusItemTxtActive]}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity style={styles.statusCancel} onPress={() => setShowStatusPicker(false)}>
+                <Text style={styles.statusCancelTxt}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Thumbnail Success Modal */}
+        <Modal visible={showThumbnailSuccess} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.successCard}>
+              <View style={styles.successIconBox}>
+                <CheckCircle2 size={50} color="#FCD34D" strokeWidth={2.5} />
+              </View>
+              <Text style={styles.successTitle}>Success!</Text>
+              <Text style={styles.successSub}>Thumbnail uploaded to cloud successfully! Remember to Save Changes.</Text>
+              <TouchableOpacity style={styles.successBtn} onPress={() => setShowThumbnailSuccess(false)}>
+                <Text style={styles.successBtnTxt}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Success Modal */}
+        <Modal visible={showSuccess} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.successCard}>
+              <View style={styles.successIconBox}>
+                <CheckCircle2 size={50} color="#FCD34D" strokeWidth={2.5} />
+              </View>
+              <Text style={styles.successTitle}>Success!</Text>
+              <Text style={styles.successSub}>Your daily promise has been published successfully.</Text>
+              <TouchableOpacity style={styles.successBtn} onPress={closeSuccess}>
+                <Text style={styles.successBtnTxt}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Error Modal */}
+        <Modal visible={showError} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.errorCard}>
+              <View style={styles.errorIconBox}>
+                <X size={40} color="#c0392b" strokeWidth={3} />
+              </View>
+              <Text style={styles.errorTitle}>Save Failed</Text>
+              <Text style={styles.errorSub}>{errorMsg}</Text>
+              <TouchableOpacity style={[styles.successBtn, { backgroundColor: '#c0392b' }]} onPress={() => setShowError(false)}>
+                <Text style={styles.successBtnTxt}>Try Again</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* 6. Live Preview */}
+        <View style={[styles.section, styles.secGreen]}>
+          <View style={styles.secHd}>
+            <Eye size={14} color="#15803D" />
+            <Text style={[styles.secHdTXT, {color: '#15803D'}]}>Live preview — member card</Text>
+          </View>
+          <View style={[styles.cardBtnRow, { marginTop: 15 }]}>
+            <TouchableOpacity style={styles.cardBtn} onPress={() => Alert.alert('Coming Soon', 'Save to Gallery will be active after the next app update.')}>
+              <Text style={styles.cardBtnTxt}>💾 Save to Gallery</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.cardBtn, styles.cardBtnRed]}
+              onPress={() => Alert.alert('Coming Soon', 'Share Promise will be active after the next app update.')}
+            >
+              <Text style={styles.cardBtnTxt}>↑ Share Promise</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Footer Actions */}
+        <TouchableOpacity style={styles.btnSave} onPress={() => handleSave()}>
+          <Save size={16} color="#fff" />
+          <Text style={styles.btnSaveTxt}>Save & Publish</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.btnDraft} onPress={() => handleSave('Draft')}>
+          <Save size={16} color="#fff" />
+          <Text style={styles.btnDraftTxt}>Save as Draft</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.btnBack} onPress={() => setActiveTab(0)}>
+          <Text style={styles.btnBackTxt}>← Back to list</Text>
+        </TouchableOpacity>
+
+        <View style={{ height: 60 }} />
+      </ScrollView>
+
+      {/* FAB */}
+      <TouchableOpacity style={styles.fab} onPress={() => handleSave()}>
+        <Save size={24} color="#fff" />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f0f2f7' },
+  scroll: { padding: 14, paddingBottom: 100 },
+
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#c0392b', gap: 10 },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerIcon: { fontSize: 18 },
+  headerTitle: { fontSize: 16, fontWeight: '700', color: '#1a2d5a' },
+  headerSub: { fontSize: 10, color: '#6B7280' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 4, paddingHorizontal: 2 },
+  backBtnTxt: { fontSize: 13, fontWeight: '700', color: '#1a2d5a' },
+
+  section: { borderRadius: 12, padding: 14, marginBottom: 15, borderWidth: 0.5, borderColor: '#e5e7eb', borderLeftWidth: 4 },
+  secNavy: { backgroundColor: '#EFF6FF', borderLeftColor: '#1a2d5a' },
+  secBlue: { backgroundColor: '#F8FAFF', borderLeftColor: '#2563eb' },
+  secRed: { backgroundColor: '#fdecea', borderLeftColor: '#c0392b' },
+  secGreen: { backgroundColor: '#F0FDF4', borderLeftColor: '#15803D' },
+
+  secHd: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  secHdTXT: { fontSize: 11, fontWeight: '700', color: '#1a2d5a', textTransform: 'uppercase', letterSpacing: 0.5 },
+
+  fGroup: { marginBottom: 15 },
+  fLabel: { fontSize: 11, fontWeight: '600', color: '#374151', marginBottom: 6 },
+  fHint: { fontWeight: '400', color: '#9CA3AF', fontSize: 9 },
+  fSub: { fontSize: 9, color: '#6B7280', marginTop: 4 },
+
+  inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderWidth: 0.5, borderColor: '#d1d5db', borderRadius: 8, padding: 10 },
+  inputText: { flex: 1, fontSize: 13, color: '#111827' },
+  input: { backgroundColor: '#fff', borderWidth: 0.5, borderColor: '#d1d5db', borderRadius: 8, padding: 10, fontSize: 13, color: '#111827' },
+  inputIcon: { marginLeft: 10 },
+  textarea: { minHeight: 70, textAlignVertical: 'top' },
+  teIn: { fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', color: '#1a2d5a', fontStyle: 'italic' },
+
+  themeRow: { flexDirection: 'row', marginTop: 8, gap: 10 },
+  themeChip: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, borderColor: 'transparent' },
+  themeActive: { borderColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.4, shadowRadius: 4, elevation: 6 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  pickerCard: { backgroundColor: '#fff', width: '85%', borderRadius: 20, padding: 20, elevation: 10 },
+  pickerHd: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  pickerTitle: { fontSize: 14, fontWeight: '700', color: '#1a2d5a' },
+  calGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  calCell: { width: (width * 0.85 - 70) / 7, height: 35, justifyContent: 'center', alignItems: 'center', borderRadius: 8, backgroundColor: '#f9fafb' },
+  calCellActive: { backgroundColor: '#1a2d5a' },
+  calCellTxt: { fontSize: 11, color: '#374151', fontWeight: '600' },
+  calCellTxtActive: { color: '#fff' },
+
+  statusMenu: { backgroundColor: '#fff', width: '100%', position: 'absolute', bottom: 0, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 30 },
+  statusMenuHd: { padding: 20, borderBottomWidth: 0.5, borderBottomColor: '#e5e7eb' },
+  statusMenuTitle: { fontSize: 14, fontWeight: '700', color: '#1a2d5a', textAlign: 'center' },
+  statusItem: { padding: 20, borderBottomWidth: 0.5, borderBottomColor: '#f3f4f6' },
+  statusItemActive: { backgroundColor: '#2563eb' },
+  statusItemTxt: { fontSize: 13, color: '#374151', textAlign: 'center' },
+  statusItemTxtActive: { color: '#fff', fontWeight: '700' },
+  statusCancel: { padding: 15, alignItems: 'center' },
+  statusCancelTxt: { color: '#c0392b', fontWeight: '700' },
+
+  successCard: { backgroundColor: '#1a2d5a', width: '85%', borderRadius: 24, padding: 30, alignItems: 'center', elevation: 20, shadowColor: '#1a2d5a', shadowOpacity: 0.4, shadowRadius: 15, borderWidth: 2, borderColor: '#c0392b' },
+  successIconBox: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  successTitle: { fontSize: 24, fontWeight: '800', color: '#fff', marginBottom: 10 },
+  successSub: { fontSize: 14, color: '#e5e7eb', textAlign: 'center', lineHeight: 22, marginBottom: 25 },
+  successBtn: { backgroundColor: '#c0392b', width: '100%', paddingVertical: 15, borderRadius: 12, alignItems: 'center' },
+  successBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 0.5 },
+
+  errorCard: { backgroundColor: '#fff', width: '85%', borderRadius: 24, padding: 30, alignItems: 'center', elevation: 20, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 15 },
+  errorIconBox: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#FEF2F2', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  errorTitle: { fontSize: 20, fontWeight: '800', color: '#c0392b', marginBottom: 10 },
+  errorSub: { fontSize: 13, color: '#6B7280', textAlign: 'center', lineHeight: 20, marginBottom: 25 },
+
+  cardPreview: { borderRadius: 14, padding: 20 },
+  cardLabel: { fontSize: 10, color: '#FCD34D', fontWeight: '700', marginBottom: 10, letterSpacing: 1 },
+  cardVerseEn: { color: '#fff', fontSize: 13, fontStyle: 'italic', lineHeight: 22, marginBottom: 8 },
+  cardVerseTe: { color: '#aac4e8', fontSize: 14, fontStyle: 'italic', lineHeight: 22, marginBottom: 12, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' },
+  cardRef: { color: '#FCD34D', fontSize: 11, fontWeight: '700', marginBottom: 15 },
+  cardBtnRow: { flexDirection: 'row', gap: 10 },
+  cardBtn: { flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  cardBtnRed: { backgroundColor: '#c0392b' },
+  cardBtnTxt: { color: '#fff', fontSize: 10, fontWeight: '600' },
+
+  btnSave: { backgroundColor: '#c0392b', borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 },
+  btnSaveTxt: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  btnDraft: { backgroundColor: '#1a2d5a', borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 },
+  btnDraftTxt: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  btnBack: { alignItems: 'center' },
+  btnBackTxt: { fontSize: 12, color: '#374151', fontWeight: '600' },
+
+  btnUploadThumb: { backgroundColor: '#E5E7EB', borderRadius: 8, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB', borderStyle: 'dashed' },
+  btnUploadThumbTxt: { color: '#4B5563', fontSize: 13, fontWeight: '600' },
+  thumbContainer: { flexDirection: 'row', alignItems: 'center', gap: 15 },
+  thumbnailPreviewContainer: { flexDirection: 'row', alignItems: 'center', gap: 15, marginTop: 10 },
+  thumbnailImg: { width: 80, height: 80, borderRadius: 8, backgroundColor: '#d1d5db' },
+  btnChangeThumb: { backgroundColor: '#1a2d5a', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6 },
+  removeThumbnailBtn: { backgroundColor: '#c0392b', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6 },
+  btnChangeThumbTxt: { color: '#fff', fontSize: 12, fontWeight: '600' },
+
+  fab: { position: 'absolute', right: 20, bottom: 30, width: 56, height: 56, borderRadius: 28, backgroundColor: '#c0392b', justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8 }
+});

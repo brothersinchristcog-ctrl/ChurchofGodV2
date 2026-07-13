@@ -1,0 +1,12 @@
+# app/fastlane/Appfile
+# Defines the global configuration for the application.
+
+# Package name for Android
+json_key_file("./service-account-key.json") # We will add this in Week 8
+package_name("com.brothersinchrist.churchofgod")
+
+# For iOS (Placeholder for Week 8)
+# app_identifier("com.brothersinchrist.churchofgod")
+# apple_id("church.admin@example.com")
+# itc_team_id("XXXXXXXX")
+# team_id("XXXXXXXX")

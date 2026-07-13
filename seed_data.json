@@ -1,0 +1,41 @@
+[
+  {
+    "collection": "dailyPromises",
+    "id": "2026-04-14",
+    "data": {
+      "verse": "The Lord is my shepherd; I shall not want.",
+      "reference": "Psalm 23:1",
+      "devotionalNote": "Trust in the Lord with all your heart today. He guides you besides still waters.",
+      "pastor": "Senior Pastor COG",
+      "backgroundTheme": "NatureBlue",
+      "imageUrl": "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b"
+    }
+  },
+  {
+    "collection": "events",
+    "id": "sample-event-1",
+    "data": {
+      "title": "Family Sunday Worship",
+      "description": "A special service for all families with music and fellowship.",
+      "date": "2026-04-19T10:00:00Z",
+      "time": "10:00 AM",
+      "venue": "Main Church Hall",
+      "category": "Service",
+      "posterUrl": "https://images.unsplash.com/photo-1438232992991-995b7058df31",
+      "sfCampaignId": "701xxxxxxxxx",
+      "rsvpCount": 15
+    }
+  },
+  {
+    "collection": "announcements",
+    "id": "announcement-1",
+    "data": {
+      "title": "New Youth Meeting",
+      "body": "Every Saturday at 5:00 PM in the Fellowship Hall.",
+      "imageUrl": "https://images.unsplash.com/photo-1523580494863-6f3031224c94",
+      "pinned": true,
+      "targetSegment": "Youth",
+      "createdAt": "2026-04-13T12:00:00Z"
+    }
+  }
+]

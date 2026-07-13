@@ -1,0 +1,51 @@
+# Monorepo root gitignore
+node_modules/
+.env
+.env.local
+.expo/
+*.log
+dist/
+build/
+.DS_Store
+
+# Web build outputs
+web-build/
+admin/dist/
+functions/lib/
+
+# Sensitive keys & credentials - NEVER push these
+service-account-key.json
+KEYS_FOR_SALESFORCE/
+GoogleService-Info.plist
+*.pem
+*.key
+*.crt
+*.p12
+*.keystore
+
+# Scratch / debug scripts
+app/scratch/
+app/temp_docx/
+app/delete_production_data.js
+app/seed_production_data.js
+app/discover_event_types.js
+app/scan_contact_fields.js
+app/scan_fields.ts
+app/test_*.js
+app/contact_fields.json
+functions/check_users*.js
+functions/check_users*.cjs
+functions/scratch_*.js
+
+# IDE
+.idea/
+.vscode/
+
+# Old/temp files
+old_HomeScreen.tsx
+~$*.xlsx
+*.pdf
+offer_letter_template.html
+
+test_sf*.js
+test_phone*.js

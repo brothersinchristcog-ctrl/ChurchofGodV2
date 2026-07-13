@@ -1,0 +1,142 @@
+[
+  {
+    "name": "Id",
+    "label": "Record ID"
+  },
+  {
+    "name": "OwnerId",
+    "label": "Owner ID"
+  },
+  {
+    "name": "IsDeleted",
+    "label": "Deleted"
+  },
+  {
+    "name": "Name",
+    "label": "Events Name"
+  },
+  {
+    "name": "CreatedDate",
+    "label": "Created Date"
+  },
+  {
+    "name": "CreatedById",
+    "label": "Created By ID"
+  },
+  {
+    "name": "LastModifiedDate",
+    "label": "Last Modified Date"
+  },
+  {
+    "name": "LastModifiedById",
+    "label": "Last Modified By ID"
+  },
+  {
+    "name": "SystemModstamp",
+    "label": "System Modstamp"
+  },
+  {
+    "name": "LastActivityDate",
+    "label": "Last Activity Date"
+  },
+  {
+    "name": "LastViewedDate",
+    "label": "Last Viewed Date"
+  },
+  {
+    "name": "LastReferencedDate",
+    "label": "Last Referenced Date"
+  },
+  {
+    "name": "Date__c",
+    "label": "Date"
+  },
+  {
+    "name": "Description__c",
+    "label": "Description"
+  },
+  {
+    "name": "Location__c",
+    "label": "Location"
+  },
+  {
+    "name": "Time__c",
+    "label": "Time"
+  },
+  {
+    "name": "Day__c",
+    "label": "Day"
+  },
+  {
+    "name": "Title_Telugu__c",
+    "label": "Title Telugu"
+  },
+  {
+    "name": "Event_Type__c",
+    "label": "Event Type"
+  },
+  {
+    "name": "Description_Telugu__c",
+    "label": "Description Telugu"
+  },
+  {
+    "name": "Location_Telugu__c",
+    "label": "Location Telugu"
+  },
+  {
+    "name": "Address__c",
+    "label": "Address"
+  },
+  {
+    "name": "End_Time__c",
+    "label": "End Time"
+  },
+  {
+    "name": "Event_Mode__c",
+    "label": "Event Mode"
+  },
+  {
+    "name": "RSVP_Enabled__c",
+    "label": "RSVP Enabled"
+  },
+  {
+    "name": "Audience__c",
+    "label": "Audience"
+  },
+  {
+    "name": "Status__c",
+    "label": "Status"
+  },
+  {
+    "name": "Banner_Image_URL__c",
+    "label": "Banner Image URL"
+  },
+  {
+    "name": "Banner_Color__c",
+    "label": "Banner Color"
+  },
+  {
+    "name": "Recurring_Frequency__c",
+    "label": "Recurring Frequency"
+  },
+  {
+    "name": "Show_RSVP_Count__c",
+    "label": "Show RSVP Count"
+  },
+  {
+    "name": "Attendance_Cap__c",
+    "label": "Attendance Cap"
+  },
+  {
+    "name": "Notify_Members__c",
+    "label": "Notify Members"
+  },
+  {
+    "name": "Reminder_1_Day__c",
+    "label": "Reminder 1 Day"
+  },
+  {
+    "name": "Reminder_1_Hour__c",
+    "label": "Reminder 1 Hour"
+  }
+]
