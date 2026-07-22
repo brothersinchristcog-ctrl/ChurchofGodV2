@@ -108,6 +108,8 @@ class SalesforceService {
   private loginUrl = process.env.EXPO_PUBLIC_SALESFORCE_LOGIN_URL || 'https://kristhunandusahodarulusahavasam.my.salesforce.com';
   private instanceUrl = process.env.EXPO_PUBLIC_SALESFORCE_LOGIN_URL || 'https://kristhunandusahodarulusahavasam.my.salesforce.com';
 
+  private cachedToken: { token: string; expiresAt: number } | null = null;
+
   private privateKeyPem = `-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCsg48JgGqGZGfd
 vlZob6Gb1saVVwSw9+gyjfDaK/s0wrCS2p1J6yQiUcxMv1wmOPIG8nj0N+N3zcOR
@@ -138,6 +140,10 @@ spfkUchVp71l4aWpCW50lro=
 -----END PRIVATE KEY-----`;
 
   private async getAccessToken(): Promise<string> {
+    if (this.cachedToken && Date.now() < this.cachedToken.expiresAt) {
+      return this.cachedToken.token;
+    }
+
     try {
       const header = { alg: 'RS256', typ: 'JWT' };
       const now = Math.floor(Date.now() / 1000);
@@ -158,6 +164,13 @@ spfkUchVp71l4aWpCW50lro=
       const data = await response.json();
       if (!response.ok) throw new Error(data.error_description || 'JWT Auth Failed');
       if (data.instance_url) this.instanceUrl = data.instance_url;
+      
+      // Cache token for 4m 50s (token is valid for 5m)
+      this.cachedToken = {
+        token: data.access_token,
+        expiresAt: Date.now() + (290 * 1000)
+      };
+
       return data.access_token;
     } catch (error) { throw error; }
   }
@@ -166,7 +179,7 @@ spfkUchVp71l4aWpCW50lro=
     try {
       console.log(`🔗 [SalesforceService] Executing Query: ${soql}`);
       const token = await this.getAccessToken();
-      const resp = await fetch(`${this.instanceUrl}/services/data/v60.0/query/?q=${encodeURIComponent(soql)}`, { headers: { Authorization: `Bearer ${token}` } });
+      const resp = await fetch(`${this.instanceUrl}/services/data/v60.0/query/?q=${encodeURIComponent(soql)}&_t=${Date.now()}`, { headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' } });
       const data = await resp.json();
       if (!resp.ok) {
         if (!silent) console.error('❌ [SalesforceService] Query Error:', data[0]?.message);

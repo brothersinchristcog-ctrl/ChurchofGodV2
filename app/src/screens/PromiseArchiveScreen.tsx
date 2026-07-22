@@ -17,6 +17,7 @@ import {
   InteractionManager
 } from 'react-native';
 import { 
+  ArrowLeft,
   ChevronLeft, 
   Share2, 
   Play, 
@@ -24,6 +25,8 @@ import {
   Calendar,
   ChevronRight
 } from 'lucide-react-native';
+import { useTheme } from '../context/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
 import SalesforceService, { DailyPromise } from '../services/SalesforceService';
 
 const { width } = Dimensions.get('window');
@@ -35,6 +38,7 @@ const stripHtml = (html: string | undefined): string => {
 };
 
 export default function PromiseArchiveScreen({ navigation }: any) {
+  const { isDark, colors } = useTheme();
   const [promises, setPromises] = useState<DailyPromise[]>([]);
   const [selectedPromise, setSelectedPromise] = useState<DailyPromise | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,21 +119,36 @@ export default function PromiseArchiveScreen({ navigation }: any) {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
+    <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f0f2f7' }]}>
+      <StatusBar barStyle="light-content" backgroundColor={isDark ? "#0a2350" : "#1a2d5a"} />
       
-      {/* ── Page Header ── */}
-      <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 20) + 10, paddingBottom: 16 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
-          <ChevronLeft size={24} color="#fff" />
-          <Text style={styles.backBtnTxt}>Back</Text>
-        </TouchableOpacity>
-        <View style={styles.titleCol}>
-          <Text style={styles.pageTitle}>Daily Promise</Text>
-          <Text style={styles.pageSub}>ఈ రోజు వాగ్దానం</Text>
+      {/* 🔥 Page Header 🔥 */}
+      <LinearGradient
+        colors={isDark ? ['#60a5fa', '#3b82f6', '#60a5fa'] : ['#1e40af', '#3b82f6']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{
+          borderBottomLeftRadius: 30,
+          borderBottomRightRadius: 30,
+          paddingBottom: 4,
+          elevation: 8,
+          shadowColor: '#030a1e',
+          shadowOpacity: 0.75,
+          shadowRadius: 15,
+          shadowOffset: { width: 0, height: 10 },
+        }}
+      >
+        <View style={[styles.pageHeader, { backgroundColor: isDark ? '#0a2350' : '#1a2d5a', paddingTop: Math.max(insets.top, 20) + 10, paddingBottom: 16, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
+            <ArrowLeft size={24} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.titleCol}>
+            <Text style={styles.pageTitle}>Daily Promise</Text>
+            <Text style={styles.pageSub}>ఈ రోజు వాగ్దానం</Text>
+          </View>
+          <View style={{ width: 60 }} />
         </View>
-        <View style={{ width: 60 }} />
-      </View>
+      </LinearGradient>
 
       <ScrollView 
         showsVerticalScrollIndicator={false} 
@@ -143,7 +162,7 @@ export default function PromiseArchiveScreen({ navigation }: any) {
             <Text style={styles.topDate}>{formatDisplayDate(selectedPromise.date)}</Text>
 
             {/* --- Hero Card --- */}
-            <View style={styles.heroCard}>
+            <View style={[styles.heroCard, { backgroundColor: isDark ? '#0a2350' : '#1a2d5a' }]}>
               <View style={styles.heroHeader}>
                 <Text style={styles.heroRefEn}>
                   {selectedPromise.verseReferenceEn || ''}
@@ -158,13 +177,13 @@ export default function PromiseArchiveScreen({ navigation }: any) {
               <View style={styles.heroActions}>
                 <TouchableOpacity style={styles.actionBtn}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Calendar size={18} color="#fff" />
+                    <Calendar size={16} color="#fff" />
                     <Text style={styles.actionBtnTxt}>Save card</Text>
                   </View>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#c0392b' }]} onPress={() => handleShare(selectedPromise)}>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => handleShare(selectedPromise)}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Share2 size={18} color="#fff" />
+                    <Share2 size={16} color="#fff" />
                     <Text style={styles.actionBtnTxt}>Share</Text>
                   </View>
                 </TouchableOpacity>
@@ -172,9 +191,9 @@ export default function PromiseArchiveScreen({ navigation }: any) {
             </View>
 
             {/* --- Devotional Note --- */}
-            <View style={styles.reflectionBox}>
-              <Text style={styles.reflectionTitle}>Devotional Note</Text>
-              <Text style={styles.reflectionText}>
+            <View style={[styles.reflectionBox, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#f1f5f9' }]}>
+              <Text style={[styles.reflectionTitle, { color: isDark ? '#f8fafc' : '#1a2d5a' }]}>Devotional Note</Text>
+              <Text style={[styles.reflectionText, { color: isDark ? '#cbd5e1' : '#475569' }]}>
                 {stripHtml(selectedPromise.devotionalNote) || "In all seasons of life — in trials, in weakness, in uncertainty — we are not alone."}
               </Text>
               <Text style={styles.reflectionAuthor}>— Pastor {selectedPromise.pastor || 'Daniel Raju'}</Text>
@@ -183,7 +202,7 @@ export default function PromiseArchiveScreen({ navigation }: any) {
             {/* --- 1-min Devotional Bar --- */}
             {selectedPromise.youtubeId && (
               <TouchableOpacity 
-                style={styles.devotionalBar} 
+                style={[styles.devotionalBar, isDark && { borderWidth: 1, borderColor: '#334155' }]} 
                 onPress={() => navigation.navigate('DailyVideo', { youtubeId: selectedPromise.youtubeId, videoTitle: selectedPromise.videoTitle, pastor: selectedPromise.pastor })}
               >
                 <View style={styles.playCircle}>
@@ -201,19 +220,19 @@ export default function PromiseArchiveScreen({ navigation }: any) {
             )}
           </View>
         ) : (
-          <View style={styles.noTodayCard}>
-            <View style={styles.noTodayIcon}>
+          <View style={[styles.noTodayCard, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#f1f5f9' }]}>
+            <View style={[styles.noTodayIcon, { backgroundColor: isDark ? '#334155' : '#f1f5f9' }]}>
               <BookOpen size={40} color="#1a2d5a" />
             </View>
-            <Text style={styles.noTodayTxt}>No specific promise for today.</Text>
+            <Text style={[styles.noTodayTxt, { color: isDark ? '#f8fafc' : '#1a2d5a' }]}>No specific promise for today.</Text>
             <Text style={styles.noTodaySubTe}>ఈ రోజు వాగ్దానం ఇంకా నవీకరించబడలేదు.</Text>
             <Text style={styles.noTodayHint}>Please browse our past promises below for daily inspiration.</Text>
           </View>
         )}
 
         <View style={styles.historySection}>
-          <Text style={styles.historyLabel}>Past promises</Text>
-          <View style={styles.historyCard}>
+          <Text style={[styles.historyLabel, { color: isDark ? '#f8fafc' : '#1a2d5a' }]}>Past promises</Text>
+          <View style={[styles.historyCard, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#f1f5f9' }]}>
             {promises.slice(selectedPromise && selectedPromise.date === new Date().toISOString().split('T')[0] ? 1 : 0, 10).map((item, index) => {
               const refString = `${item.verseReferenceEn || ''}${item.verseReferenceEn && item.verseReferenceTe ? ' - ' : ''}${item.verseReferenceTe || ''}` || stripHtml(item.verse).substring(0, 25) + '...';
               
@@ -223,12 +242,13 @@ export default function PromiseArchiveScreen({ navigation }: any) {
                   onPress={() => setSelectedPromise(item)}
                   style={[
                     styles.historyItem,
+                    { borderBottomColor: isDark ? '#334155' : '#f8fafc' },
                     index === Math.min(promises.length - 1, 9) && { borderBottomWidth: 0 }
                   ]}
                 >
                   <View style={styles.historyItemContent}>
-                    <Text style={styles.historyItemRef}>{refString}</Text>
-                    <Text style={styles.historyItemVakyam} numberOfLines={1}>{stripHtml(item.verseTelugu) || 'వాగ్దానము'}</Text>
+                    <Text style={[styles.historyItemRef, { color: isDark ? '#f8fafc' : '#111827' }]}>{refString}</Text>
+                    <Text style={[styles.historyItemVakyam, { color: isDark ? '#94a3b8' : '#475569' }]} numberOfLines={1}>{stripHtml(item.verseTelugu) || 'వాగ్దానము'}</Text>
                     <Text style={styles.historyItemDate}>
                       {new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {new Date(item.date).toLocaleDateString('en-US', { weekday: 'short' })}
                     </Text>
@@ -275,9 +295,8 @@ const styles = StyleSheet.create({
 
   verseEn: { fontSize: 19, fontWeight: '700', fontStyle: 'italic', color: '#fff', textAlign: 'center', lineHeight: 28, marginBottom: 15 },
   verseTe: { fontSize: 16, fontStyle: 'italic', color: '#aac4e8', textAlign: 'center', lineHeight: 26, marginBottom: 25 },
-  
   heroActions: { flexDirection: 'row', gap: 12, marginTop: 10 },
-  actionBtn: { flex: 1, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  actionBtn: { flex: 1, backgroundColor: 'transparent', borderRadius: 30, paddingVertical: 10, borderWidth: 1, borderColor: '#94a3b8', alignItems: 'center', justifyContent: 'center' },
   actionBtnTxt: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
   reflectionBox: { backgroundColor: '#fff', borderRadius: 20, padding: 22, marginTop: 15, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, borderWidth: 1, borderColor: '#f1f5f9' },

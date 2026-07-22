@@ -57,6 +57,10 @@ export declare class SalesforceBackend {
      */
     getTodayBirthdays(): Promise<any[]>;
     /**
+     * Fetches today's baptism anniversaries from Salesforce
+     */
+    getTodayBaptisms(): Promise<any[]>;
+    /**
      * Fetches today's wedding anniversaries from Salesforce
      */
     getTodayAnniversaries(): Promise<any[]>;

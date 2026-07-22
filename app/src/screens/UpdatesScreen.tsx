@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, StatusBar, Platform, ActivityIndicator, Modal, PanResponder, Animated, Dimensions, Linking, FlatList } from 'react-native';
-import { ChevronLeft, Bell, Calendar, Info, MessageCircle, AlertTriangle, X, Gift, Heart, Sparkles, Trash2, Tv, BookOpen, Music, Mic } from 'lucide-react-native';
+import { ChevronLeft, ArrowLeft, Bell, Calendar, Info, MessageCircle, AlertTriangle, X, Gift, Heart, Sparkles, Trash2, Tv, BookOpen, Music, Mic } from 'lucide-react-native';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   getFirestore, 
@@ -369,18 +370,38 @@ export default function UpdatesScreen({ navigation, route }: any) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
       
-      {/* ── Page Header ── */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <ChevronLeft size={24} color="#fff" />
-          <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity>
-        
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Church Updates</Text>
-          <Text style={styles.headerSub}>Latest announcements & news</Text>
+      {/* Premium Header */}
+      <View style={styles.headerWrapper}>
+        <View style={styles.headerShadowWrapper}>
+          <View style={styles.gradientBorderContainer}>
+            <Svg height="100%" width="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
+              <Defs>
+                <LinearGradient id="borderGrad" x1="0" y1="0" x2="1" y2="0">
+                  <Stop offset="0" stopColor="#3b82f6" />
+                  <Stop offset="0.5" stopColor="#0ea5e9" />
+                  <Stop offset="1" stopColor="#8b5cf6" />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#borderGrad)" />
+            </Svg>
+
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+                  <ArrowLeft color="#fff" size={24} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.headerCenter}>
+                <Text style={styles.headerTitle}>Church Updates</Text>
+                <Text style={styles.headerSub}>Latest announcements & news</Text>
+              </View>
+
+              <View style={styles.headerRight}>
+              </View>
+            </View>
+          </View>
         </View>
-        <View style={{ width: 60 }} />
       </View>
 
       <View style={styles.scroll}>
@@ -568,20 +589,51 @@ export default function UpdatesScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
+  headerWrapper: {
+    width: '100%',
+    position: 'relative'
+  },
+  headerShadowWrapper: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 15,
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    backgroundColor: '#1a2d5a', 
+  },
+  gradientBorderContainer: {
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    overflow: 'hidden',
+  },
   header: {
     backgroundColor: '#1a2d5a',
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
     paddingHorizontal: 16,
-    paddingBottom: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 15,
+    marginBottom: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    borderBottomLeftRadius: 33,
+    borderBottomRightRadius: 33,
+    overflow: 'hidden'
   },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, width: 60 },
-  backText: { color: '#fff', fontSize: 15, fontWeight: '500' },
-  headerCenter: { alignItems: 'center' },
-  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 11, marginTop: 2 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', width: 80 },
+  backBtn: { padding: 4, marginRight: 12 },
+  headerCenter: { 
+    position: 'absolute',
+    left: 0, 
+    right: 0,
+    bottom: 15,
+    alignItems: 'center',
+    zIndex: -1 
+  },
+  headerRight: { width: 80, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '800', textAlign: 'center' },
+  headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '600', textAlign: 'center', marginTop: 2 },
   
   scroll: { flex: 1 },
   content: { padding: 16, gap: 16 },
@@ -628,7 +680,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 24,
     width: '100%',
-    maxHeight: '80%',
+    maxHeight: '90%',
     padding: 24,
     elevation: 20,
     shadowColor: '#000',
@@ -668,7 +720,9 @@ const styles = StyleSheet.create({
   // Birthday & Anniversary Styles
   celebrationContainer: {
     alignItems: 'center',
-    paddingTop: 10
+    paddingTop: 10,
+    flexShrink: 1,
+    width: '100%'
   },
   balloonRow: {
     flexDirection: 'row',
@@ -714,6 +768,7 @@ const styles = StyleSheet.create({
   modalScroll: {
     width: '100%',
     maxHeight: 250,
+    flexShrink: 1,
     marginVertical: 10
   },
   celebrationGreeting: {
@@ -731,6 +786,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 0.5,
     borderTopColor: '#f59e0b',
     paddingTop: 16,
+    paddingBottom: 10,
     width: '100%'
   },
   footerBlessing: {

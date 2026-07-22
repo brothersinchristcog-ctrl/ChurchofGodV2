@@ -1,5 +1,9 @@
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
+import { setGlobalOptions } from 'firebase-functions/v2';
 import axios from 'axios';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+
+setGlobalOptions({ region: 'asia-south1' });
 
 export const sendWhatsAppWish = onCall({ invoker: 'public' }, async (request) => {
   try {
@@ -46,6 +50,14 @@ export const sendWhatsAppWish = onCall({ invoker: 'public' }, async (request) =>
       
       const mediaId = uploadResponse.data.id;
       
+      const cleanParam = (str: string | undefined): string => {
+        if (!str) return ' ';
+        return str.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim() || ' ';
+      };
+
+      const cleanMsg = cleanParam(messageBody);
+      const cleanVerseStr = verse ? cleanParam(`"${verse.text}" - ${verse.ref}`) : ' ';
+
       messagePayload.type = 'template';
       messagePayload.template = {
         name: 'cod_card',
@@ -61,6 +73,19 @@ export const sendWhatsAppWish = onCall({ invoker: 'public' }, async (request) =>
                 image: {
                   id: mediaId
                 }
+              }
+            ]
+          },
+          {
+            type: 'body',
+            parameters: [
+              {
+                type: 'text',
+                text: cleanMsg
+              },
+              {
+                type: 'text',
+                text: cleanVerseStr
               }
             ]
           }
@@ -85,4 +110,112 @@ export const sendWhatsAppWish = onCall({ invoker: 'public' }, async (request) =>
     console.error('sendWhatsAppWish Error:', error.response?.data || error.message);
     throw new HttpsError('internal', error.response?.data?.error?.message || error.message);
   }
+});
+
+export const whatsappWebhook = onRequest({ invoker: 'public' }, (request, response) => {
+  if (request.method === 'GET') {
+    const mode = request.query['hub.mode'];
+    const token = request.query['hub.verify_token'];
+    const challenge = request.query['hub.challenge'];
+
+    const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || 'churchofgod_secret_token';
+
+    if (mode === 'subscribe' && token === verifyToken) {
+      console.log('WEBHOOK_VERIFIED');
+      response.status(200).send(challenge);
+      return;
+    } else {
+      response.sendStatus(403);
+      return;
+    }
+  }
+
+  if (request.method === 'POST') {
+    const body = request.body;
+    console.log('Incoming webhook message:', JSON.stringify(body, null, 2));
+    
+    if (body.object === 'whatsapp_business_account' && body.entry) {
+      const db = getFirestore();
+      
+      body.entry.forEach((entry: any) => {
+        entry.changes.forEach((change: any) => {
+          const value = change.value;
+          
+          // Handle incoming messages
+          if (value.messages) {
+            value.messages.forEach(async (msg: any) => {
+              try {
+                const contact = value.contacts?.find((c: any) => c.wa_id === msg.from);
+                const name = contact?.profile?.name || 'Unknown';
+                
+                let messageText = '';
+                if (msg.type === 'text') {
+                  messageText = msg.text.body;
+                } else if (msg.type === 'button') {
+                  messageText = msg.button.text;
+                } else {
+                  messageText = `[${msg.type} message]`;
+                }
+                
+                const recentMsgSnap = await db.collection('whatsapp_messages')
+                  .where('fromPhone', '==', msg.from)
+                  .orderBy('createdAt', 'desc')
+                  .limit(1)
+                  .get();
+                
+                let adminId = 'unassigned';
+                let adminName = 'Unassigned';
+                
+                if (!recentMsgSnap.empty) {
+                  const recentMsgDoc = recentMsgSnap.docs[0];
+                  if (recentMsgDoc) {
+                    const recentMsg = recentMsgDoc.data() as any;
+                    if (recentMsg && recentMsg.adminId) {
+                      adminId = recentMsg.adminId;
+                      adminName = recentMsg.adminName || 'Admin';
+                    }
+                  }
+                }
+                
+                await db.collection('whatsapp_messages').add({
+                  fromPhone: msg.from,
+                  fromName: name,
+                  messageId: msg.id,
+                  text: messageText,
+                  timestamp: new Date(msg.timestamp * 1000),
+                  type: 'incoming',
+                  rawType: msg.type,
+                  adminId: adminId,
+                  adminName: adminName,
+                  conversationOwner: adminId,
+                  createdAt: FieldValue.serverTimestamp()
+                });
+              } catch (err) {
+                console.error('Error saving message:', err);
+              }
+            });
+          }
+          
+          // Handle delivery statuses (sent, delivered, read, failed)
+          if (value.statuses) {
+            value.statuses.forEach((status: any) => {
+               db.collection('whatsapp_delivery_status').add({
+                recipientPhone: status.recipient_id,
+                messageId: status.id,
+                status: status.status,
+                errors: status.errors || null,
+                timestamp: new Date(status.timestamp * 1000),
+                createdAt: FieldValue.serverTimestamp()
+               }).catch(err => console.error('Error saving status:', err));
+            });
+          }
+        });
+      });
+    }
+
+    response.status(200).send('EVENT_RECEIVED');
+    return;
+  }
+
+  response.sendStatus(405);
 });

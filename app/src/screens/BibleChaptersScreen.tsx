@@ -10,7 +10,8 @@ import {
   Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, Book, CheckCircle2 } from 'lucide-react-native';
+import { ChevronLeft, ArrowLeft, Book, CheckCircle2 } from 'lucide-react-native';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { useTheme } from '../context/ThemeContext';
 import { useFocusEffect } from '@react-navigation/native';
 import firestore from '@react-native-firebase/firestore';
@@ -95,15 +96,32 @@ export default function BibleChaptersScreen({ route, navigation }: any) {
       <StatusBar barStyle="light-content" />
       
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <ChevronLeft color="#fff" size={28} />
-        </TouchableOpacity>
-        <View style={styles.titleInfo}>
-          <Text style={styles.headerTitle}>{bookName}</Text>
-          <Text style={styles.headerSub}>Select Chapter · అధ్యాయాన్ని ఎంచుకోండి</Text>
+      <View style={styles.headerWrapper}>
+        <View style={styles.headerShadowWrapper}>
+          <View style={styles.gradientBorderContainer}>
+            <Svg height="100%" width="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
+              <Defs>
+                <LinearGradient id="borderGrad" x1="0" y1="0" x2="1" y2="0">
+                  <Stop offset="0" stopColor="#3b82f6" />
+                  <Stop offset="0.5" stopColor="#0ea5e9" />
+                  <Stop offset="1" stopColor="#8b5cf6" />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#borderGrad)" />
+            </Svg>
+
+            <View style={styles.header}>
+              <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+                <ArrowLeft color="#fff" size={24} />
+              </TouchableOpacity>
+              <View style={styles.titleInfo}>
+                <Text style={styles.headerTitle}>{bookName}</Text>
+                <Text style={styles.headerSub}>Select Chapter · అధ్యాయాన్ని ఎంచుకోండి</Text>
+              </View>
+              <View style={{ width: 40 }} />
+            </View>
+          </View>
         </View>
-        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -144,17 +162,39 @@ export default function BibleChaptersScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  headerWrapper: {
+    width: '100%',
+    position: 'relative'
+  },
+  headerShadowWrapper: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 15,
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    backgroundColor: '#1a2d5a', 
+  },
+  gradientBorderContainer: {
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    overflow: 'hidden',
+  },
   header: {
     backgroundColor: '#1a2d5a',
     paddingHorizontal: 16,
-    paddingVertical: 15,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 15,
+    marginBottom: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 33,
+    borderBottomRightRadius: 33,
+    overflow: 'hidden'
   },
-  backBtn: { padding: 4 },
+  backBtn: { padding: 4, width: 40, alignItems: 'flex-start' },
   titleInfo: { alignItems: 'center' },
   headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
   headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600' },

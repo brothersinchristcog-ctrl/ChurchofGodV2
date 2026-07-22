@@ -17,7 +17,8 @@ import {
   Gift,
   Smartphone,
   Info,
-  Phone
+  Phone,
+  MessageCircle
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import Theme from '../theme/Theme';
@@ -36,11 +37,11 @@ import AdminEventEditor from '../screens/admin/AdminEventEditor';
 import AdminPrayerModeration from '../screens/admin/AdminPrayerModeration';
 import AdminSongEditor from '../screens/admin/AdminSongEditor';
 import AdminMembers from '../screens/admin/AdminMembers';
-import AdminCelebrations from '../screens/admin/AdminCelebrations';
 import PastorEventNavigator from './PastorEventNavigator';
 import AdminAboutUsEditor from '../screens/admin/AdminAboutUsEditor';
 import AdminContactUsEditor from '../screens/admin/AdminContactUsEditor';
 import AdminCODCelebs from '../screens/admin/AdminCODCelebs';
+import AdminInbox from '../screens/admin/AdminInbox';
 
 const { width } = Dimensions.get('window');
 
@@ -125,12 +126,15 @@ export default function AdminNavigator() {
     { name: 'New Event', icon: PlusSquare, component: AdminEventEditor },
     { name: 'Prayers', icon: Heart, component: AdminPrayerModeration },
     { name: 'Members', icon: Users, component: AdminMembers },
-    { name: 'Celebrations', icon: Gift, component: AdminCelebrations },
-    { name: 'COD Celeb\'s', icon: Gift, component: AdminCODCelebs },
+    { name: 'WhatsApp', icon: MessageCircle, component: AdminInbox },
+    { name: 'Celebrations', icon: Gift, component: AdminCODCelebs },
     { name: 'About Us', icon: Info, component: AdminAboutUsEditor },
     { name: 'Contact Us', icon: Phone, component: AdminContactUsEditor },
   ];
   const ActiveComponent = tabs[activeTab].component;
+  const isWhatsApp = tabs[activeTab].name === 'WhatsApp';
+  const headerBgColor = isWhatsApp ? '#0b141a' : '#1a2d5a';
+
   const goBack = () => {
     requestAnimationFrame(() => {
       setActiveTab(0);
@@ -139,8 +143,8 @@ export default function AdminNavigator() {
 
   return (
     <AdminTabContext.Provider value={{ activeTab, setActiveTab, editingData, setEditingData, goBack }}>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: headerBgColor }]}>
+        <View style={[styles.header, { backgroundColor: headerBgColor }]}>
           <View style={styles.headerTop}>
             <TouchableOpacity onPress={openDrawer} style={styles.hamburgerBtn}>
               <Menu color="#fff" size={26} />

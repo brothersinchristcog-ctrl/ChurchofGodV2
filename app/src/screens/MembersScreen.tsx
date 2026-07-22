@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   Users, 
   ChevronLeft,
+  ArrowLeft,
   ChevronDown,
   Phone,
   Mail,
@@ -30,6 +31,7 @@ import {
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import SalesforceService from '../services/SalesforceService';
 
 const { width } = Dimensions.get('window');
@@ -153,23 +155,38 @@ export default function MembersScreen({ navigation }: any) {
     <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
       <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
 
-      {/* ── Page Header (Navy) ── */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <ChevronLeft size={24} color="#FCD34D" />
-            <Text style={styles.backBtnTxt}>Back</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Premium Header */}
+      <View style={styles.headerWrapper}>
+        <View style={styles.headerShadowWrapper}>
+          <View style={styles.gradientBorderContainer}>
+            <Svg height="100%" width="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
+              <Defs>
+                <LinearGradient id="borderGrad" x1="0" y1="0" x2="1" y2="0">
+                  <Stop offset="0" stopColor="#3b82f6" />
+                  <Stop offset="0.5" stopColor="#0ea5e9" />
+                  <Stop offset="1" stopColor="#8b5cf6" />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#borderGrad)" />
+            </Svg>
 
-        <View style={styles.headerContent}>
-          <View style={styles.iconCircle}>
-            <Users size={32} color="#FCD34D" />
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+                  <ArrowLeft color="#fff" size={24} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.headerCenter}>
+                <Text style={styles.headerTitle}>Household Directory</Text>
+                <Text style={styles.headerSubTe}>కుటుంబ సభ్యుల వివరాలు</Text>
+              </View>
+
+              <View style={styles.headerRight}>
+              </View>
+            </View>
           </View>
-          <Text style={styles.headerTitle}>Household Directory</Text>
-          <Text style={styles.headerSubTe}>కుటుంబ సభ్యుల వివరాలు</Text>
         </View>
-
       </View>
 
       {/* ── Main Body ── */}
@@ -541,21 +558,51 @@ export default function MembersScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { 
-    backgroundColor: '#1a2d5a', 
-    paddingTop: Platform.OS === 'ios' ? 50 : 20, 
-    paddingBottom: 30,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+  headerWrapper: {
+    width: '100%',
+    position: 'relative'
   },
-  headerTop: { flexDirection: 'row', paddingHorizontal: 20, alignItems: 'center' },
-  backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  backBtnTxt: { color: '#FCD34D', fontSize: 16, fontWeight: '700', marginLeft: 4 },
-  
-  headerContent: { alignItems: 'center', marginTop: 10 },
-  iconCircle: { width: 70, height: 70, borderRadius: 35, backgroundColor: 'rgba(252,211,77,0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  headerSubTe: { fontSize: 14, color: '#FCD34D', fontWeight: '500', marginTop: 2 },
+  headerShadowWrapper: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 15,
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    backgroundColor: '#1a2d5a', 
+  },
+  gradientBorderContainer: {
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    overflow: 'hidden',
+  },
+  header: {
+    backgroundColor: '#1a2d5a',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 58 : 38,
+    paddingBottom: 15,
+    marginBottom: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomLeftRadius: 33,
+    borderBottomRightRadius: 33,
+    overflow: 'hidden'
+  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', width: 80 },
+  backBtn: { padding: 4, marginRight: 12 },
+  headerCenter: { 
+    position: 'absolute',
+    left: 0, 
+    right: 0,
+    bottom: 15,
+    alignItems: 'center',
+    zIndex: -1 
+  },
+  headerRight: { width: 80, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '800', textAlign: 'center' },
+  headerSubTe: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '600', textAlign: 'center', marginTop: 2 },
 
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   loadingText: { fontSize: 14, fontWeight: '600', marginTop: 12 },

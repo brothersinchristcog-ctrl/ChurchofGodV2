@@ -212,7 +212,7 @@ export default function AdminEventEditor() {
     });
 
     const { functions } = require('../../services/firebaseConfig');
-    const uploadFunc = functions().httpsCallable('uploadEventImage');
+    const uploadFunc = functions().app.functions('asia-south1').httpsCallable('uploadEventImage');
     
     const response = await uploadFunc({
       image: base64Data,

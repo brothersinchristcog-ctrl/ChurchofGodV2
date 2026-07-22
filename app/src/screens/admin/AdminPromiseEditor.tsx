@@ -175,7 +175,7 @@ export default function AdminPromiseEditor() {
     const filename = localUri.split('/').pop() || `promise_${Date.now()}.jpg`;
     const base64Data = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
     const { functions } = require('../../services/firebaseConfig');
-    const uploadFunc = functions().httpsCallable('uploadEventImage');
+    const uploadFunc = functions().app.functions('asia-south1').httpsCallable('uploadEventImage');
     const response = await uploadFunc({ image: base64Data, fileName: filename });
     if (response.data?.success && response.data?.url) return response.data.url;
     throw new Error('Cloud upload failed');

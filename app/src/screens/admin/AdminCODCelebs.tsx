@@ -1,27 +1,53 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, SafeAreaView, Dimensions, ActivityIndicator, Image, Alert, Modal } from 'react-native';
-import { ChevronRight, Search, SlidersHorizontal, Image as ImageIcon, Book, Eye, Edit2, MessageCircle, Check, Gift, Cake, Focus, Cross, ArrowLeft, Home, Calendar, Plus } from 'lucide-react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, SafeAreaView, Dimensions, ActivityIndicator, Image, Alert, Modal, KeyboardAvoidingView, Platform, Linking } from 'react-native';
+import { ChevronRight, Search, SlidersHorizontal, Image as ImageIcon, Book, Eye, Edit2, MessageCircle, Check, Gift, Cake, Focus, Cross, ArrowLeft, Home, Calendar, Plus, RefreshCw } from 'lucide-react-native';
+import { FontAwesome } from '@expo/vector-icons';
+import Share from 'react-native-share';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Clipboard from 'expo-clipboard';
 import {
-  TODAY, CATEGORIES, fetchCelebrations, VERSES, THEMES, Member,
+  getToday, CATEGORIES, fetchCelebrations, VERSES, VERSES_TELUGU, THEMES, Member,
   occurrenceThisYear, stripTime, nextOccurrence, daysUntil, isToday, isPastThisYear, isThisWeek, isThisMonth, formatDate, yearsLabel, initials, paletteFor, catMeta, uniqueValues
 } from './CODCelebsData';
 
 import functions from '@react-native-firebase/functions';
+import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
+import storage from '@react-native-firebase/storage';
 import ViewShot from 'react-native-view-shot';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { useAuth } from '../../context/AuthContext';
+import Svg, { Circle } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
+
+const DEFAULT_MONTHLY_THEMES: { key: string; name: string; c: readonly [string, string, ...string[]]; bgImage?: string }[] = [
+  { key: 'month_1', name: 'January - Winter Grace', c: ['#1E3A8A', '#3B82F6'] },
+  { key: 'month_2', name: 'February - Covenant Love', c: ['#BE185D', '#F472B6'] },
+  { key: 'month_3', name: 'March - Spring Blessings', c: ['#047857', '#34D399'] },
+  { key: 'month_4', name: 'April - Resurrection Joy', c: ['#7C3AED', '#A78BFA'] },
+  { key: 'month_5', name: 'May - Family Blessings', c: ['#B45309', '#F59E0B'] },
+  { key: 'month_6', name: 'June - Summer Grace', c: ['#0369A1', '#38BDF8'] },
+  { key: 'month_7', name: 'July - Faith & Hope', c: ['#0F766E', '#2DD4BF'] },
+  { key: 'month_8', name: 'August - Harvest Praise', c: ['#854D0E', '#FACC15'] },
+  { key: 'month_9', name: 'September - Wisdom & Peace', c: ['#374151', '#9CA3AF'] },
+  { key: 'month_10', name: 'October - Golden Mercies', c: ['#BE9A3A', '#E7C767'] },
+  { key: 'month_11', name: 'November - Thanksgiving', c: ['#C2410C', '#FB923C'] },
+  { key: 'month_12', name: 'December - Christmas Hope', c: ['#991B1B', '#F87171'] },
+];
 
 type Screen = 'dashboard' | 'list' | 'details' | 'customize' | 'theme' | 'add_theme' | 'verse' | 'upload' | 'preview' | 'whatsapp' | 'confirm';
 
 export default function AdminCODCelebs() {
+  const { member: currentAdmin } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [stack, setStack] = useState<Screen[]>(['dashboard']);
   const [category, setCategory] = useState<string | null>(null);
-  const [filter, setFilter] = useState('upcoming');
+  const [filter, setFilter] = useState('today');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('nearest');
   const [showFilters, setShowFilters] = useState(false);
@@ -33,10 +59,17 @@ export default function AdminCODCelebs() {
   const [memberId, setMemberId] = useState<string | null>(null);
   const [theme, setTheme] = useState<string | null>(null);
   const [verse, setVerse] = useState<{ref: string, text: string} | null>(null);
+  const [verseLang, setVerseLang] = useState<'EN' | 'TE'>('TE');
   const [image, setImage] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const [customTitle, setCustomTitle] = useState<string | null>(null);
+  const [customName, setCustomName] = useState<string | null>(null);
+  const [layoutStyle, setLayoutStyle] = useState<'theme' | 'raw_photo'>('theme');
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   
   const [customThemes, setCustomThemes] = useState<{key: string, name: string, c: readonly [string, string, ...string[]], bgImage?: string}[]>([]);
+  const [monthlyThemes, setMonthlyThemes] = useState<{key: string, name: string, c: readonly [string, string, ...string[]], bgImage?: string}[]>(DEFAULT_MONTHLY_THEMES);
+  const [editingThemeKey, setEditingThemeKey] = useState<string | null>(null);
   const [customThemeName, setCustomThemeName] = useState('');
   const [customThemeHex, setCustomThemeHex] = useState('');
   const [customThemeBgImage, setCustomThemeBgImage] = useState<string | null>(null);
@@ -47,6 +80,7 @@ export default function AdminCODCelebs() {
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const viewShotRef = React.useRef<ViewShot>(null);
+  const scrollViewRef = React.useRef<ScrollView>(null);
 
   const currentScreen = stack[stack.length - 1];
 
@@ -76,8 +110,29 @@ export default function AdminCODCelebs() {
   };
 
   useEffect(() => {
-    AsyncStorage.getItem('cog_custom_themes').then(res => {
-      if (res) setCustomThemes(JSON.parse(res));
+    firestore().collection('settings').doc('celebration_themes').get().then(doc => {
+      if (doc.exists()) {
+        const data = doc.data();
+        if (data?.monthly) setMonthlyThemes(data.monthly);
+        if (data?.custom) setCustomThemes(data.custom);
+      } else {
+        // Initialize Firestore with defaults
+        firestore().collection('settings').doc('celebration_themes').set({
+          monthly: DEFAULT_MONTHLY_THEMES,
+          custom: []
+        }).catch(err => console.log('Error initializing themes in Firestore:', err));
+        setMonthlyThemes(DEFAULT_MONTHLY_THEMES);
+      }
+    }).catch(err => {
+      console.log('Error loading themes from Firestore, falling back to AsyncStorage/defaults:', err);
+      // Fallback to AsyncStorage
+      AsyncStorage.getItem('cog_monthly_themes').then(res => {
+        if (res) setMonthlyThemes(JSON.parse(res));
+        else setMonthlyThemes(DEFAULT_MONTHLY_THEMES);
+      });
+      AsyncStorage.getItem('cog_custom_themes').then(res => {
+        if (res) setCustomThemes(JSON.parse(res));
+      });
     });
 
     fetchCelebrations().then(data => {
@@ -105,6 +160,10 @@ export default function AdminCODCelebs() {
     if (patch.image !== undefined) setImage(patch.image);
     if (patch.message !== undefined) setMessage(patch.message);
     
+    if (patch.customTitle !== undefined) setCustomTitle(patch.customTitle);
+    if (patch.customName !== undefined) setCustomName(patch.customName);
+    if (patch.layoutStyle !== undefined) setLayoutStyle(patch.layoutStyle);
+    
     setStack([...stack, screen]);
   };
 
@@ -130,7 +189,7 @@ export default function AdminCODCelebs() {
 
     if (category === 'birthday' && age !== 'all') {
       list = list.filter(m => {
-        const memberAge = TODAY.getFullYear() - m.refYear;
+        const memberAge = getToday().getFullYear() - m.refYear;
         if (age === 'u18') return memberAge < 18;
         if (age === '18-40') return memberAge >= 18 && memberAge <= 40;
         if (age === '41-60') return memberAge >= 41 && memberAge <= 60;
@@ -148,7 +207,7 @@ export default function AdminCODCelebs() {
 
     switch (filter) {
       case 'today': list = list.filter(isToday); break;
-      case 'upcoming': list = list.filter(m => !isPastThisYear(m)); break;
+      case 'upcoming': list = list.filter(m => !isPastThisYear(m) && !isToday(m)); break;
       case 'week': list = list.filter(isThisWeek); break;
       case 'month': list = list.filter(isThisMonth); break;
       case 'past': list = list.filter(isPastThisYear); break;
@@ -164,17 +223,28 @@ export default function AdminCODCelebs() {
   }, [category, filter, search, ministry, family, age, year, sort]);
 
   const defaultMessage = (m: Member) => {
-    if(m.category==='birthday') return `Dear ${m.name.split(' ')[0]}, wishing you a joy-filled birthday surrounded by God's love and grace. May this new year of life be your best yet!`;
-    if(m.category==='wedding') return `Congratulations ${m.name} on ${TODAY.getFullYear()-m.refYear} beautiful years of marriage! May your love continue to grow deeper, rooted in faith.`;
-    if(m.category==='marriage') return `Celebrating ${m.name} today! ${TODAY.getFullYear()-m.refYear} years of covenant love — may the Lord continue to bless your journey together.`;
-    return `Celebrating ${m.name}'s baptism anniversary today — ${TODAY.getFullYear()-m.refYear} years walking in the light of Christ. God bless you always!`;
+    if (m.category === 'birthday') {
+      return `Dear ${m.name},\n\n🎉 *జన్మదిన శుభాకాంక్షలు!* 🎂\n\nఈ ప్రత్యేకమైన రోజున దేవుని అపారమైన ప్రేమ, కృప, ఆశీర్వాదాలు మీ జీవితమంతా నింపుగాక. ఆయనే మీకు మంచి ఆరోగ్యం, ఆనందం, సమాధానం, దీర్ఘాయుష్షు అనుగ్రహించి, ప్రతి అడుగులోను తన చిత్తానుసారంగా నడిపించుగాక.\n\n*మీకు హృదయపూర్వక జన్మదిన శుభాకాంక్షలు!* 🎉🎂💐`;
+    }
+    if (m.category === 'wedding' || m.category === 'marriage') {
+      return `Dear ${m.name},\n\n💍 *వివాహ వార్షికోత్సవ శుభాకాంక్షలు!* 💐\n\nదేవుడు మిమ్మల్ని ప్రేమ, ఆనందం, సమాధానం మరియు ఐక్యతతో ఎల్లప్పుడూ ఆశీర్వదించుగాక. మీ దాంపత్య జీవితం ఆయన కృపతో మరింత బలపడి, సంతోషం, ఆరోగ్యం, సమృద్ధితో నిండియుండుగాక.\n\n*మీ ఇద్దరికీ హృదయపూర్వక వివాహ వార్షికోత్సవ శుభాకాంక్షలు!* ❤️🎉`;
+    }
+    return `Dear ${m.name},\n\n💧 *బాప్తిస్మ వార్షికోత్సవ శుభాకాంక్షలు!* ✝️\n\nప్రభువైన యేసుక్రీస్తునందు మీరు తీసుకున్న విశ్వాస నిర్ణయాన్ని ఈ ప్రత్యేకమైన రోజున ఆనందంతో జ్ఞాపకం చేసుకుంటూ, దేవుని కృప, ప్రేమ, సమాధానం మీ జీవితంలో సమృద్ధిగా ఉండుగాక. ఆయన మిమ్మల్ని తన చిత్తానుసారంగా నడిపించి, ఆత్మీయంగా మరింత వృద్ధి చెందేలా ఆశీర్వదించుగాక.\n\n*మీకు హృదయపూర్వక బాప్తిస్మ వార్షికోత్సవ శుభాకాంక్షలు!* 💙🙏`;
   };
 
   const getCatIcon = (iconName: string, color: string) => {
     if (iconName === 'cake') return <Cake size={20} color={color} />;
-    if (iconName === 'rings') return <Focus size={20} color={color} />; // approximation for rings
-    if (iconName === 'dove') return <Focus size={20} color={color} />; // approximation for dove
-    if (iconName === 'cross') return <Cross size={20} color={color} />;
+    if (iconName === 'rings') {
+      return (
+        <Svg width={28} height={20} viewBox="0 0 34 24">
+          <Circle cx={12} cy={12} r={7} stroke={color} strokeWidth={2.5} fill="none" />
+          <Circle cx={22} cy={12} r={7} stroke={color} strokeWidth={2.5} fill="none" />
+        </Svg>
+      );
+    }
+    if (iconName === 'dove' || iconName === 'cross') {
+      return <Text style={{ fontSize: 22, color: color, fontWeight: 'bold', lineHeight: 22 }}>♰</Text>;
+    }
     return <Cake size={20} color={color} />;
   }
 
@@ -194,6 +264,20 @@ export default function AdminCODCelebs() {
 
     return (
       <View style={styles.screen}>
+        <View style={{flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 24, paddingTop: 12, paddingBottom: 4}}>
+          <TouchableOpacity onPress={() => {
+            setLoading(true);
+            fetchCelebrations(true).then(data => {
+              setMembers(data);
+              setLoading(false);
+            }).catch(err => {
+              console.error(err);
+              setLoading(false);
+            });
+          }}>
+            <RefreshCw size={22} color="#1E2A63" />
+          </TouchableOpacity>
+        </View>
         <View style={[styles.heroCard, { backgroundColor: ['#1E2A63', '#2B3A80', '#37469B'][0] }]}>
           <Text style={styles.heroEyebrow}>This Season</Text>
           <Text style={styles.heroTitle}>Celebrations{"\n"}worth remembering</Text>
@@ -224,7 +308,7 @@ export default function AdminCODCelebs() {
             
             return (
               <TouchableOpacity key={c.key} style={[styles.catCard, { width: idx === 0 ? '100%' : '48%', backgroundColor: c.tint.replace('0.10', '0.25').replace('0.08', '0.20'), borderColor: c.grad[1], borderWidth: 1.5 }]} onPress={() => go('list', {
-                category: c.key, filter: 'upcoming', search: '', ministry: 'all', family: 'all', age: 'all', year: 'all', showFilters: false, sort: 'nearest'
+                category: c.key, filter: 'today', search: '', ministry: 'all', family: 'all', age: 'all', year: 'all', showFilters: false, sort: 'nearest'
               })}>
                 <View style={styles.catIconFrame}>
                   {getCatIcon(c.icon, c.grad[1])}
@@ -238,7 +322,7 @@ export default function AdminCODCelebs() {
             )
           })}
         </View>
-        <Text style={styles.footerNote}>Grace Community Church · Celebrations Module</Text>
+        <Text style={styles.footerNote}>CHURCH OF GOD · Celebrations Module</Text>
       </View>
     )
   }
@@ -289,9 +373,15 @@ export default function AdminCODCelebs() {
             const [c1, c2] = paletteFor(m.id);
             return (
               <TouchableOpacity key={m.id} style={styles.memberCard} onPress={() => go('details', { memberId: m.id })}>
-                <View style={[styles.avatar, { backgroundColor: [c1, c2][0] }]}>
-                  <Text style={styles.avatarText}>{initials(m.name)}</Text>
-                </View>
+                <TouchableOpacity onPress={() => m.photoUrl && setPreviewImage(m.photoUrl)}>
+                  {m.photoUrl ? (
+                    <Image source={{ uri: m.photoUrl }} style={styles.avatar} />
+                  ) : (
+                    <View style={[styles.avatar, { backgroundColor: [c1, c2][0] }]}>
+                      <Text style={styles.avatarText}>{initials(m.name)}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
                 <View style={styles.mcInfo}>
                   <Text style={styles.mcName}>{m.name}</Text>
                   <View style={styles.mcMeta}>
@@ -326,9 +416,15 @@ export default function AdminCODCelebs() {
     return (
       <View style={styles.screen}>
         <View style={styles.detailsHero}>
-          <View style={[styles.avatarLg, { backgroundColor: [c1, c2][0] }]}>
-            <Text style={styles.avatarLgText}>{initials(m.name)}</Text>
-          </View>
+          <TouchableOpacity onPress={() => m.photoUrl && setPreviewImage(m.photoUrl)}>
+            {m.photoUrl ? (
+              <Image source={{ uri: m.photoUrl }} style={styles.avatarLg} />
+            ) : (
+              <View style={[styles.avatarLg, { backgroundColor: [c1, c2][0] }]}>
+                <Text style={styles.avatarLgText}>{initials(m.name)}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
           <View style={[styles.catTag, { backgroundColor: cat.grad[0] }]}>
             <Text style={styles.catTagText}>{cat.label}</Text>
           </View>
@@ -342,7 +438,7 @@ export default function AdminCODCelebs() {
           </View>
           <View style={styles.infoTile}>
             <Text style={styles.infoLbl}>{m.category === 'birthday' ? 'Turning' : 'Years Completed'}</Text>
-            <Text style={styles.infoVal}>{TODAY.getFullYear() - m.refYear} {m.category === 'birthday' ? 'yrs old' : 'yrs'}</Text>
+            <Text style={styles.infoVal}>{getToday().getFullYear() - m.refYear} {m.category === 'birthday' ? 'yrs old' : 'yrs'}</Text>
           </View>
           <View style={styles.infoTile}>
             <Text style={styles.infoLbl}>Ministry</Text>
@@ -358,7 +454,7 @@ export default function AdminCODCelebs() {
           </View>
         </View>
         
-        <TouchableOpacity style={styles.primaryBtnGold} onPress={() => go('customize', { memberId: m.id, message: '', verse: null, theme: null, image: null })}>
+        <TouchableOpacity style={styles.primaryBtnGold} onPress={() => go('customize', { memberId: m.id, message: defaultMessage(m), verse: null, theme: null, image: null, customTitle: null, customName: null, layoutStyle: 'theme' })}>
           <Gift size={16} color="#3a2c05" />
           <Text style={styles.primaryBtnGoldText}>Prepare Wish</Text>
         </TouchableOpacity>
@@ -372,32 +468,54 @@ export default function AdminCODCelebs() {
 
   const renderCustomize = () => {
     const m = members.find(x => x.id === memberId)!;
-    const activeMsg = message || defaultMessage(m);
-    const activeVerse = verse || VERSES[m.category][0];
-    const activeTheme = theme ? THEMES.find(t => t.key === theme) : null;
+    const activeMsg = message;
+    const activeVerse = verse || (verseLang === 'TE' ? VERSES_TELUGU[m.category][0] : VERSES[m.category][0]);
+    const allThemes = [...monthlyThemes, ...customThemes];
+    const activeTheme = theme ? allThemes.find(t => t.key === theme) : null;
     
     return (
       <View style={styles.screen}>
         <Text style={styles.sectionLabel}>Personalize the Greeting</Text>
         <Text style={styles.subtext}>for <Text style={{color: '#1B2242', fontWeight: 'bold'}}>{m.name}</Text></Text>
         
-        <TouchableOpacity style={styles.optionRow} onPress={() => go('theme', {message: activeMsg, verse: activeVerse})}>
-          <View style={styles.optionLeft}>
-            <View style={styles.optionIcon}><Eye size={18} color="#BE9A3A" /></View>
-            <View>
-              <Text style={styles.optionTitle}>Choose Theme</Text>
-              <Text style={styles.optionSub}>{activeTheme ? activeTheme.name : 'Select a greeting style'}</Text>
+        <View style={styles.dividerLabel}>
+          <Text style={styles.dividerLabelText}>CARD LAYOUT</Text>
+          <View style={styles.dividerLine} />
+        </View>
+        <View style={{ flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 4, borderWidth: 1, borderColor: 'rgba(27,34,66,0.09)', marginBottom: 20 }}>
+          <TouchableOpacity 
+            style={{ flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12, backgroundColor: layoutStyle === 'theme' ? '#1E2A63' : 'transparent' }} 
+            onPress={() => setLayoutStyle('theme')}
+          >
+            <Text style={{ fontSize: 13, fontWeight: 'bold', color: layoutStyle === 'theme' ? '#FFFFFF' : '#5B6280' }}>Theme & Circle Photo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={{ flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12, backgroundColor: layoutStyle === 'raw_photo' ? '#1E2A63' : 'transparent' }} 
+            onPress={() => setLayoutStyle('raw_photo')}
+          >
+            <Text style={{ fontSize: 13, fontWeight: 'bold', color: layoutStyle === 'raw_photo' ? '#FFFFFF' : '#5B6280' }}>Only Photo</Text>
+          </TouchableOpacity>
+        </View>
+
+        {layoutStyle === 'theme' && (
+          <TouchableOpacity style={styles.optionRow} onPress={() => go('theme', {message: activeMsg, verse: activeVerse})}>
+            <View style={styles.optionLeft}>
+              <View style={styles.optionIcon}><Eye size={18} color="#BE9A3A" /></View>
+              <View>
+                <Text style={styles.optionTitle}>Choose Theme</Text>
+                <Text style={styles.optionSub}>{activeTheme ? activeTheme.name : 'Select a greeting style'}</Text>
+              </View>
             </View>
-          </View>
-          <ChevronRight size={16} color="#5B6280" />
-        </TouchableOpacity>
+            <ChevronRight size={16} color="#5B6280" />
+          </TouchableOpacity>
+        )}
         
         <TouchableOpacity style={styles.optionRow} onPress={() => go('upload', {message: activeMsg, verse: activeVerse})}>
           <View style={styles.optionLeft}>
             <View style={styles.optionIcon}><ImageIcon size={18} color="#BE9A3A" /></View>
             <View>
               <Text style={styles.optionTitle}>Photo</Text>
-              <Text style={styles.optionSub}>{image ? image : "Use member's profile picture"}</Text>
+              <Text style={styles.optionSub}>{image ? "Custom Photo selected" : "Use member's profile picture"}</Text>
             </View>
           </View>
           <ChevronRight size={16} color="#5B6280" />
@@ -414,6 +532,31 @@ export default function AdminCODCelebs() {
           <ChevronRight size={16} color="#5B6280" />
         </TouchableOpacity>
         
+        {layoutStyle === 'theme' && (
+          <>
+            <View style={styles.dividerLabel}>
+              <Text style={styles.dividerLabelText}>CARD OVERLAYS (Optional)</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <Text style={[styles.fieldLabel, { marginTop: 10 }]}>Title Overlay</Text>
+            <TextInput 
+              style={[styles.input, { marginBottom: 10 }]} 
+              placeholder={catMeta(m.category)?.label} 
+              value={customTitle !== null ? customTitle : catMeta(m.category)?.label} 
+              onChangeText={setCustomTitle} 
+            />
+
+            <Text style={styles.fieldLabel}>Name Overlay</Text>
+            <TextInput 
+              style={[styles.input, { marginBottom: 15 }]} 
+              placeholder={m.name} 
+              value={customName !== null ? customName : m.name} 
+              onChangeText={setCustomName} 
+            />
+          </>
+        )}
+
         <View style={styles.dividerLabel}>
           <Text style={styles.dividerLabelText}>GREETING MESSAGE</Text>
           <View style={styles.dividerLine} />
@@ -461,17 +604,66 @@ export default function AdminCODCelebs() {
     }
 
     const hex = customThemeHex.trim() || '#1E2A63';
-    const newTheme = {
-      key: 'custom_' + Date.now(),
-      name: customThemeName.trim(),
-      c: [hex, '#1E2A63'] as any,
-      bgImage: finalImageUri
-    };
-    const updated = [...customThemes, newTheme];
-    setCustomThemes(updated);
-    await AsyncStorage.setItem('cog_custom_themes', JSON.stringify(updated));
-    setTheme(newTheme.key);
+
+    if (editingThemeKey) {
+      // Editing an existing theme
+      if (editingThemeKey.startsWith('month_')) {
+        const updated = monthlyThemes.map(t => {
+          if (t.key === editingThemeKey) {
+            return { ...t, name: customThemeName.trim(), c: [hex, '#1E2A63'] as any, bgImage: finalImageUri };
+          }
+          return t;
+        });
+        setMonthlyThemes(updated);
+        await AsyncStorage.setItem('cog_monthly_themes', JSON.stringify(updated));
+        await firestore().collection('settings').doc('celebration_themes').set({
+          monthly: updated,
+          custom: customThemes
+        }, { merge: true }).catch(err => console.log('Error writing themes to Firestore:', err));
+      } else {
+        const updated = customThemes.map(t => {
+          if (t.key === editingThemeKey) {
+            return { ...t, name: customThemeName.trim(), c: [hex, '#1E2A63'] as any, bgImage: finalImageUri };
+          }
+          return t;
+        });
+        setCustomThemes(updated);
+        await AsyncStorage.setItem('cog_custom_themes', JSON.stringify(updated));
+        await firestore().collection('settings').doc('celebration_themes').set({
+          monthly: monthlyThemes,
+          custom: updated
+        }, { merge: true }).catch(err => console.log('Error writing themes to Firestore:', err));
+      }
+      setTheme(editingThemeKey);
+    } else {
+      // Creating a new custom theme
+      const newTheme = {
+        key: 'custom_' + Date.now(),
+        name: customThemeName.trim(),
+        c: [hex, '#1E2A63'] as any,
+        bgImage: finalImageUri
+      };
+      const updated = [...customThemes, newTheme];
+      setCustomThemes(updated);
+      await AsyncStorage.setItem('cog_custom_themes', JSON.stringify(updated));
+      await firestore().collection('settings').doc('celebration_themes').set({
+        monthly: monthlyThemes,
+        custom: updated
+      }, { merge: true }).catch(err => console.log('Error writing themes to Firestore:', err));
+      setTheme(newTheme.key);
+    }
+
+    setEditingThemeKey(null);
     back();
+  };
+
+  const handleEditTheme = (t: any) => {
+    setEditingThemeKey(t.key);
+    setCustomThemeName(t.name);
+    setCustomThemeHex(t.c[0]);
+    setCustomThemeBgImage(t.bgImage || null);
+    setValidationError(null);
+    go('add_theme');
   };
 
   const deleteCustomTheme = (themeKey: string) => {
@@ -484,6 +676,10 @@ export default function AdminCODCelebs() {
     const updated = customThemes.filter(t => t.key !== themeToDelete.key);
     setCustomThemes(updated);
     await AsyncStorage.setItem('cog_custom_themes', JSON.stringify(updated));
+    await firestore().collection('settings').doc('celebration_themes').set({
+      monthly: monthlyThemes,
+      custom: updated
+    }, { merge: true }).catch(err => console.log('Error writing themes to Firestore:', err));
     if (theme === themeToDelete.key) {
       setTheme(null);
     }
@@ -493,39 +689,83 @@ export default function AdminCODCelebs() {
   };
 
   const renderTheme = () => {
-    const allThemes = [...THEMES, ...customThemes];
     return (
       <View style={styles.screen}>
-        <Text style={styles.sectionLabel}>Choose Celebration Theme</Text>
+        <Text style={styles.sectionLabel}>Monthly Themes</Text>
         <View style={styles.themeGrid}>
-          {allThemes.map(t => (
+          {monthlyThemes.map(t => (
+            <View key={t.key} style={styles.themeGridCard}>
+              <TouchableOpacity 
+                style={[styles.themeCard, theme === t.key && styles.themeCardSelected]} 
+                onPress={() => { setTheme(t.key); back(); }}
+              >
+                <View style={[styles.themePreview, { backgroundColor: t.c[0] }]}>
+                  {t.bgImage && <Image source={{uri: t.bgImage}} style={StyleSheet.absoluteFill} resizeMode="cover" />}
+                </View>
+                <View style={styles.themeLabelContainer}>
+                  <Text style={styles.themeLabelText}>{t.name}</Text>
+                </View>
+                {theme === t.key && <View style={styles.themeCheck}><Check size={12} color="#fff" /></View>}
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.updateBadge}
+                onPress={() => handleEditTheme(t)}
+              >
+                <Edit2 size={10} color="#1E2A63" style={{marginRight: 4}} />
+                <Text style={styles.updateBadgeText}>Update Theme</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+
+        <Text style={styles.sectionLabel}>Custom Themes</Text>
+        <View style={styles.themeGrid}>
+          {customThemes.map(t => (
+            <View key={t.key} style={styles.themeGridCard}>
+              <TouchableOpacity 
+                style={[styles.themeCard, theme === t.key && styles.themeCardSelected]} 
+                onPress={() => { setTheme(t.key); back(); }}
+                onLongPress={() => deleteCustomTheme(t.key)}
+              >
+                <View style={[styles.themePreview, { backgroundColor: t.c[0] }]}>
+                  {t.bgImage && <Image source={{uri: t.bgImage}} style={StyleSheet.absoluteFill} resizeMode="cover" />}
+                </View>
+                <View style={styles.themeLabelContainer}>
+                  <Text style={styles.themeLabelText}>{t.name}</Text>
+                </View>
+                {theme === t.key && <View style={styles.themeCheck}><Check size={12} color="#fff" /></View>}
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.updateBadge}
+                onPress={() => handleEditTheme(t)}
+              >
+                <Edit2 size={10} color="#1E2A63" style={{marginRight: 4}} />
+                <Text style={styles.updateBadgeText}>Update Theme</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+          
+          <View style={styles.themeGridCard}>
             <TouchableOpacity 
-              key={t.key} 
-              style={[styles.themeCard, theme === t.key && styles.themeCardSelected]} 
-              onPress={() => { setTheme(t.key); back(); }}
-              onLongPress={() => {
-                if (t.key.startsWith('custom_')) {
-                  deleteCustomTheme(t.key);
-                }
+              style={[styles.themeCard, { height: 136, justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 2, borderColor: '#BE9A3A', backgroundColor: '#FFFFFF' }]} 
+              onPress={() => {
+                setCustomThemeName(''); 
+                setCustomThemeHex(''); 
+                setCustomThemeBgImage(null); 
+                setEditingThemeKey(null);
+                go('add_theme');
               }}
             >
-              <View style={[styles.themePreview, { backgroundColor: t.c[0] }]}>
-                {t.bgImage && <Image source={{uri: t.bgImage}} style={StyleSheet.absoluteFill} resizeMode="cover" />}
-              </View>
-              <View style={styles.themeLabelContainer}>
-                <Text style={styles.themeLabelText}>{t.name}</Text>
-              </View>
-              {theme === t.key && <View style={styles.themeCheck}><Check size={12} color="#fff" /></View>}
+              <Plus size={24} color="#BE9A3A" />
+              <Text style={{fontSize: 12, fontWeight: 'bold', color: '#BE9A3A', marginTop: 8}}>Custom Theme</Text>
             </TouchableOpacity>
-          ))}
-          <TouchableOpacity style={[styles.themeCard, { justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed' }]} onPress={() => {setCustomThemeName(''); setCustomThemeHex(''); setCustomThemeBgImage(null); go('add_theme');}}>
-            <Plus size={24} color="#BE9A3A" />
-            <Text style={{fontSize: 12, fontWeight: 'bold', color: '#BE9A3A', marginTop: 8}}>Custom Theme</Text>
-          </TouchableOpacity>
+          </View>
         </View>
       </View>
-    )
-  }
+    );
+  };
 
   const renderAddTheme = () => {
     const SUGGESTED_COLORS = [
@@ -535,9 +775,10 @@ export default function AdminCODCelebs() {
       '#487EB0', '#E1B12C', '#44BD32', '#C23616', '#B33939', '#218C74',
       '#FDA7DF', '#D980FA', '#12CBC4', '#1289A7', '#ED4C67', '#B53471'
     ];
+    const isEditing = editingThemeKey !== null;
     return (
       <View style={styles.screen}>
-        <Text style={styles.sectionLabel}>Add Custom Theme</Text>
+        <Text style={styles.sectionLabel}>{isEditing ? 'Update Theme' : 'Add Custom Theme'}</Text>
         
         <View style={styles.fieldBlock}>
           <Text style={styles.fieldLabel}>Theme Name</Text>
@@ -579,19 +820,73 @@ export default function AdminCODCelebs() {
 
         <TouchableOpacity style={[styles.primaryBtnRoyal, {marginTop: 4}]} onPress={saveCustomTheme}>
           <Check size={16} color="#fff" />
-          <Text style={styles.primaryBtnRoyalText}>Save & Apply</Text>
+          <Text style={styles.primaryBtnRoyalText}>{isEditing ? 'Update & Apply' : 'Save & Apply'}</Text>
         </TouchableOpacity>
       </View>
-    )
-  }
+    );
+  };
 
   const renderVerse = () => {
     const m = members.find(x => x.id === memberId)!;
-    const vList = VERSES[m.category];
+    const vList = verseLang === 'TE' ? VERSES_TELUGU[m.category] : VERSES[m.category];
     return (
       <View style={styles.screen}>
         <Text style={styles.sectionLabel}>Select Bible Verse</Text>
         <Text style={styles.subtext}>Suggested for {catMeta(m.category)?.label.toLowerCase()}</Text>
+
+        <View style={{ 
+          flexDirection: 'row', 
+          backgroundColor: 'rgba(27,34,66,0.05)', 
+          borderRadius: 12, 
+          padding: 4, 
+          marginBottom: 16,
+          borderWidth: 1,
+          borderColor: 'rgba(27,34,66,0.08)'
+        }}>
+          <TouchableOpacity 
+            style={{ 
+              flex: 1, 
+              paddingVertical: 10, 
+              alignItems: 'center', 
+              borderRadius: 10, 
+              backgroundColor: verseLang === 'EN' ? '#1E2A63' : 'transparent',
+              shadowColor: verseLang === 'EN' ? '#000' : 'transparent',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: verseLang === 'EN' ? 0.1 : 0,
+              shadowRadius: 4,
+              elevation: verseLang === 'EN' ? 2 : 0
+            }}
+            onPress={() => setVerseLang('EN')}
+          >
+            <Text style={{ 
+              color: verseLang === 'EN' ? '#FFFFFF' : '#6A768F', 
+              fontWeight: 'bold',
+              fontSize: 14 
+            }}>English</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={{ 
+              flex: 1, 
+              paddingVertical: 10, 
+              alignItems: 'center', 
+              borderRadius: 10, 
+              backgroundColor: verseLang === 'TE' ? '#1E2A63' : 'transparent',
+              shadowColor: verseLang === 'TE' ? '#000' : 'transparent',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: verseLang === 'TE' ? 0.1 : 0,
+              shadowRadius: 4,
+              elevation: verseLang === 'TE' ? 2 : 0
+            }}
+            onPress={() => setVerseLang('TE')}
+          >
+            <Text style={{ 
+              color: verseLang === 'TE' ? '#FFFFFF' : '#6A768F', 
+              fontWeight: 'bold',
+              fontSize: 14 
+            }}>తెలుగు (Telugu)</Text>
+          </TouchableOpacity>
+        </View>
+
         {vList.map((v, i) => (
           <TouchableOpacity key={i} style={[styles.verseCard, verse?.ref === v.ref && styles.verseCardSelected]} onPress={() => { setVerse(v); back(); }}>
             <Text style={styles.verseText}>"{v.text}"</Text>
@@ -613,7 +908,7 @@ export default function AdminCODCelebs() {
         </TouchableOpacity>
         
         <TouchableOpacity style={[styles.primaryBtnOutline, {marginTop: 14}]} onPress={() => {
-          setImage(`https://ui-avatars.com/api/?name=${m.name.split(' ').join('+')}&size=400&background=random`);
+          setImage(m.photoUrl || `https://ui-avatars.com/api/?name=${m.name.split(' ').join('+')}&size=400&background=random`);
           back();
         }}>
           <ImageIcon size={16} color="#1E2A63" />
@@ -627,32 +922,94 @@ export default function AdminCODCelebs() {
   const renderPreview = () => {
     const m = members.find(x => x.id === memberId)!;
     const cat = catMeta(m.category)!;
-    const allThemes = [...THEMES, ...customThemes];
-    const t = theme ? allThemes.find(x => x.key === theme) : allThemes[2];
+    const allThemes = [...monthlyThemes, ...customThemes];
+    const t = (theme ? allThemes.find(x => x.key === theme) : null) || allThemes[new Date().getMonth()] || allThemes[0] || { key: 'default', name: 'Default', c: ['#1E2A63', '#1E2A63'] };
+    
+    let subHeader = 'WISHING YOU A';
+    let mainHeader = cat.label.toUpperCase();
+    let blessingText = "May God's grace and blessings be with you today and always!";
+
+    if (m.category === 'birthday') {
+      mainHeader = 'HAPPY BIRTHDAY';
+    } else if (m.category === 'wedding' || m.category === 'marriage') {
+      subHeader = 'WISHING YOU A';
+      mainHeader = 'HAPPY ANNIVERSARY';
+      blessingText = "Wishing you a lifetime of love, joy, and covenant peace!";
+    } else {
+      subHeader = 'CELEBRATING YOUR';
+      mainHeader = 'BAPTISM ANNIVERSARY';
+      blessingText = "Celebrating your walk in the light and grace of Christ!";
+    }
+
+    if (customTitle !== null) {
+      mainHeader = customTitle.toUpperCase();
+    }
+
+    const displayName = customName !== null ? customName : m.name;
+
+    const getPreviewIcon = () => {
+      const iconColor = "#FDF1D6";
+      const iconStyle = { marginBottom: 8, opacity: 0.9 };
+      if (m.category === 'birthday') {
+        return <Cake size={24} color={iconColor} style={iconStyle} />;
+      }
+      if (m.category === 'wedding' || m.category === 'marriage') {
+        return (
+          <Svg width={34} height={24} viewBox="0 0 34 24" style={iconStyle}>
+            <Circle cx={12} cy={12} r={7} stroke={iconColor} strokeWidth={2} fill="none" />
+            <Circle cx={22} cy={12} r={7} stroke={iconColor} strokeWidth={2} fill="none" />
+          </Svg>
+        );
+      }
+      return (
+        <Text style={{ fontSize: 26, color: iconColor, marginBottom: 8, opacity: 0.9, textAlign: 'center', lineHeight: 26 }}>
+          ♰
+        </Text>
+      );
+    };
     
     return (
       <View style={styles.screen}>
         <Text style={styles.sectionLabel}>Greeting Preview</Text>
         
-        <ViewShot ref={viewShotRef} options={{ format: 'jpg', quality: 0.9, result: 'base64' }} style={styles.greetingFrame}>
-          <View style={[styles.greetingBg, { backgroundColor: t!.c[0] }]}>
-            {t!.bgImage && (
-              <>
-                <Image source={{uri: t!.bgImage}} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                <View style={[StyleSheet.absoluteFill, {backgroundColor: 'rgba(0,0,0,0.45)'}]} />
-              </>
+        {layoutStyle === 'theme' ? (
+          <ViewShot ref={viewShotRef} options={{ format: 'jpg', quality: 0.9, result: 'base64' }} style={styles.greetingFrame}>
+            <View style={[styles.greetingBg, { backgroundColor: t!.c[0] }]}>
+              {t!.bgImage && (
+                <>
+                  <Image source={{uri: t!.bgImage}} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  <View style={[StyleSheet.absoluteFill, {backgroundColor: 'rgba(0,0,0,0.45)'}]} />
+                </>
+              )}
+              {/* Decorative luxury card border */}
+              <View style={{ ...StyleSheet.absoluteFillObject, margin: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', borderRadius: 20 }} />
+
+              {getPreviewIcon()}
+
+              <Text style={styles.gSubHeader}>{subHeader}</Text>
+              
+              {image && (image.startsWith('http') || image.startsWith('file')) && (
+                <Image source={{ uri: image }} style={{ width: 120, height: 120, borderRadius: 60, alignSelf: 'center', marginVertical: 12, borderWidth: 3, borderColor: 'rgba(255,255,255,0.4)' }} />
+              )}
+              {mainHeader ? <Text style={styles.gTitle}>{mainHeader}</Text> : null}
+              {displayName ? <Text style={styles.gName}>{displayName}</Text> : null}
+              
+              <View style={styles.gDivider} />
+              
+              <Text style={styles.gBlessing}>{blessingText}</Text>
+              
+              <Text style={styles.gSender}>Sent with love, CHURCH OF GOD</Text>
+            </View>
+          </ViewShot>
+        ) : (
+          <View style={[styles.greetingFrame, { backgroundColor: '#f1f3f5', minHeight: 340, justifyContent: 'center' }]}>
+            {image ? (
+              <Image source={{ uri: image }} style={{ width: '100%', minHeight: 340 }} resizeMode="cover" />
+            ) : (
+              <Text style={{ textAlign: 'center', color: '#888', padding: 20, fontSize: 16 }}>Please go back and upload a photo to use the 'Only Photo' layout.</Text>
             )}
-            <Text style={styles.gCrest}>Grace Community Church</Text>
-            {image && (image.startsWith('http') || image.startsWith('file')) && (
-              <Image source={{ uri: image }} style={{ width: 120, height: 120, borderRadius: 60, alignSelf: 'center', marginVertical: 12, borderWidth: 3, borderColor: 'rgba(255,255,255,0.4)' }} />
-            )}
-            <Text style={styles.gTitle}>{cat.label}</Text>
-            <Text style={styles.gName}>{m.name}</Text>
-            <Text style={styles.gMsg}>{message}</Text>
-            <Text style={styles.gVerse}>"{verse?.text.length! > 90 ? verse?.text.slice(0,90)+'…' : verse?.text}"{"\n"}— {verse?.ref}</Text>
-            <Text style={styles.gSender}>Sent with love, Grace Community Church</Text>
           </View>
-        </ViewShot>
+        )}
         
         <View style={styles.secondaryRow}>
           <TouchableOpacity style={[styles.primaryBtnOutline, {flex: 1}]} onPress={() => back()}>
@@ -660,15 +1017,39 @@ export default function AdminCODCelebs() {
             <Text style={styles.primaryBtnOutlineText}>Edit</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.primaryBtnRoyal, {flex: 1}]} onPress={async () => {
-            if (viewShotRef.current && viewShotRef.current.capture) {
+            if (layoutStyle === 'theme') {
+              if (viewShotRef.current && viewShotRef.current.capture) {
+                try {
+                  const b64 = await viewShotRef.current.capture();
+                  setImageBase64(b64);
+                } catch (e) {
+                  console.warn(e);
+                }
+              }
+              go('whatsapp');
+            } else {
+              if (!image) {
+                Alert.alert('Missing Photo', 'Please go back and upload a photo first.');
+                return;
+              }
               try {
-                const b64 = await viewShotRef.current.capture();
-                setImageBase64(b64);
-              } catch (e) {
+                if (image.startsWith('http')) {
+                  const tmp = FileSystem.cacheDirectory + 'tmp_raw.jpg';
+                  await FileSystem.downloadAsync(image, tmp);
+                  const b64 = await FileSystem.readAsStringAsync(tmp, { encoding: FileSystem.EncodingType.Base64 });
+                  setImageBase64(b64);
+                } else if (image.startsWith('file://')) {
+                  const b64 = await FileSystem.readAsStringAsync(image, { encoding: FileSystem.EncodingType.Base64 });
+                  setImageBase64(b64);
+                } else if (image.startsWith('data:image')) {
+                  setImageBase64(image.split(',')[1]);
+                }
+                go('whatsapp');
+              } catch(e) {
                 console.warn(e);
+                Alert.alert('Error', 'Failed to process raw image');
               }
             }
-            go('whatsapp');
           }}>
             <MessageCircle size={16} color="#fff" />
             <Text style={styles.primaryBtnRoyalText}>Next</Text>
@@ -686,13 +1067,92 @@ export default function AdminCODCelebs() {
       let cleanPhone = m.phone.replace(/[^0-9]/g, '');
       if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
       
-      const sendWish = functions().httpsCallable('sendWhatsAppWish');
+      const sendWish = functions().app.functions('asia-south1').httpsCallable('sendWhatsAppWish');
+      
+      const cleanImageBase64 = imageBase64 
+        ? (imageBase64.startsWith('data:image') ? imageBase64.split(',')[1] : imageBase64) 
+        : undefined;
+
       await sendWish({
         phoneNumber: cleanPhone,
         messageBody: message,
         verse: verse,
-        imageBase64: imageBase64
+        imageBase64: cleanImageBase64
       });
+
+      const admin = auth().currentUser;
+      const adminId = admin?.uid || 'unknown_admin';
+      
+      let adminName = currentAdmin?.name || admin?.displayName;
+      if (!adminName && admin) {
+        try {
+          const userDoc = await firestore().collection('users').doc(admin.uid).get();
+          adminName = userDoc.data()?.name;
+        } catch (e) {}
+      }
+      adminName = adminName || admin?.email?.split('@')[0] || 'Admin';
+
+      let fullText = message;
+      if (verse) {
+        fullText += `\n"${verse.text}" - ${verse.ref}`;
+      }
+      
+      let uploadedImageUrl = null;
+      if (imageBase64) {
+        try {
+          const b64Data = imageBase64.startsWith('data:image') 
+            ? imageBase64.split(',')[1] 
+            : imageBase64;
+          const fileName = `whatsapp_media/${Date.now()}_${cleanPhone}.jpg`;
+          const reference = storage().ref(fileName);
+          await reference.putString(b64Data, 'base64', { contentType: 'image/jpeg' });
+          uploadedImageUrl = await reference.getDownloadURL();
+        } catch (e) {
+          console.warn("Error uploading image to storage", e);
+        }
+      }
+      
+      await firestore().collection('whatsapp_messages').add({
+        fromPhone: cleanPhone,
+        fromName: m.name,
+        text: `[Template Sent] ${fullText}`,
+        timestamp: new Date(),
+        type: 'outgoing',
+        adminId: adminId,
+        adminName: adminName,
+        conversationOwner: adminId,
+        sendMethod: 'System Sent',
+        imageUrl: uploadedImageUrl || null,
+        createdAt: firestore.FieldValue.serverTimestamp()
+      });
+      
+      let broadcastType = m.category;
+      if (m.category === 'wedding') broadcastType = 'anniversary';
+      let broadcastTitle = `🎉 Happy ${m.category}!`;
+      if (m.category === 'birthday') broadcastTitle = `🎂 Happy Birthday, ${m.name}!`;
+      if (m.category === 'wedding') broadcastTitle = `💐 Happy Wedding Anniversary!`;
+      if (m.category === 'baptism') broadcastTitle = `✝️ Happy Baptism Anniversary, ${m.name}!`;
+      
+      await firestore().collection('broadcasts').add({
+        title: broadcastTitle,
+        content: fullText,
+        date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' }),
+        type: broadcastType,
+        targetPhone: m.phone,
+        createdAt: firestore.FieldValue.serverTimestamp()
+      });
+      
+      // Trigger push notification
+      try {
+        await functions().app.functions('asia-south1').httpsCallable('notifyMembers')({
+          title: broadcastTitle,
+          body: "Wishing you God's abundant blessings today! Tap to view your greeting.",
+          targetPhone: m.phone,
+          type: broadcastType
+        });
+      } catch (pushErr) {
+        console.warn('Failed to send push notification:', pushErr);
+      }
       
       setSendingWhatsapp(false);
       go('confirm');
@@ -703,18 +1163,22 @@ export default function AdminCODCelebs() {
   };
 
   const renderWhatsapp = () => {
-    const m = members.find(x => x.id === memberId)!;
+    const m = members.find(x => x.id === memberId) || { id: 'default', name: 'Member', phone: '', photoUrl: undefined, category: 'birthday' as any };
     const [c1, c2] = paletteFor(m.id);
-    const allThemes = [...THEMES, ...customThemes];
-    const t = theme ? allThemes.find(x => x.key === theme) : allThemes[2];
+    const allThemes = [...monthlyThemes, ...customThemes];
+    const t = (theme ? allThemes.find(x => x.key === theme) : null) || allThemes[new Date().getMonth()] || allThemes[0] || { key: 'default', name: 'Default', c: ['#1E2A63', '#1E2A63'] };
     
     return (
       <View style={styles.screen}>
         <Text style={styles.sectionLabel}>WhatsApp Preview</Text>
         <View style={styles.waHeader}>
-          <View style={[styles.waAvatar, { backgroundColor: [c1, c2][0] }]}>
-            <Text style={styles.waAvatarText}>{initials(m.name)}</Text>
-          </View>
+          {m.photoUrl ? (
+            <Image source={{ uri: m.photoUrl }} style={styles.waAvatar} />
+          ) : (
+            <View style={[styles.waAvatar, { backgroundColor: [c1, c2][0] }]}>
+              <Text style={styles.waAvatarText}>{initials(m.name)}</Text>
+            </View>
+          )}
           <View>
             <Text style={styles.waNm}>{m.name}</Text>
             <Text style={styles.waSt}>{m.phone}</Text>
@@ -722,7 +1186,13 @@ export default function AdminCODCelebs() {
         </View>
         <View style={styles.waBody}>
           <View style={styles.waBubble}>
-            <View style={[{height: 120, borderRadius: 6}, {backgroundColor: t!.c[0]}]} />
+            {layoutStyle === 'theme' ? (
+              <View style={[{height: 120, borderRadius: 6}, {backgroundColor: t!.c[0]}]} />
+            ) : (
+              <View style={{height: 120, borderRadius: 6, backgroundColor: '#f1f3f5', overflow: 'hidden'}}>
+                {image && <Image source={{ uri: image }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />}
+              </View>
+            )}
             <Text style={styles.waCaption}>{message}</Text>
             <Text style={styles.waVerse}>"{verse?.ref}"</Text>
             <Text style={styles.waTime}>9:41 AM ✓✓</Text>
@@ -730,13 +1200,121 @@ export default function AdminCODCelebs() {
         </View>
         
         <View style={styles.secondaryRow}>
-          <TouchableOpacity style={[styles.primaryBtnOutline, {flex: 1}]} onPress={() => back()} disabled={sendingWhatsapp}>
-            <Edit2 size={16} color="#1E2A63" />
-            <Text style={styles.primaryBtnOutlineText}>Edit Message</Text>
+          <TouchableOpacity style={{flex: 1, marginTop: 10, borderRadius: 20, shadowColor: '#1E2A63', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.3, shadowRadius: 4, elevation: 2, backgroundColor: 'transparent'}} onPress={async () => {
+            let fullText = message;
+            if (verse) {
+              fullText += `\n\n"${verse.text}" - ${verse.ref}`;
+            }
+            fullText += `\n\nWith Love ❤️\nChurch of God`;
+            
+            let cleanPhone = m.phone.replace(/[^0-9]/g, '');
+            if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+            
+              try {
+              let shareUrl = undefined;
+              if (imageBase64) {
+                const b64Data = imageBase64.startsWith('data:image') 
+                  ? imageBase64.split(',')[1] 
+                  : imageBase64;
+                const fileUri = FileSystem.cacheDirectory + 'whatsapp_wish.jpg';
+                await FileSystem.writeAsStringAsync(fileUri, b64Data, {
+                  encoding: FileSystem.EncodingType.Base64,
+                });
+                shareUrl = fileUri;
+              }
+
+              const shareOptions: any = {
+                social: Share.Social.WHATSAPP as any,
+                message: fullText,
+                whatsAppNumber: cleanPhone
+              };
+
+              if (shareUrl) {
+                shareOptions.url = shareUrl;
+              }
+
+              await Share.shareSingle(shareOptions);
+              
+              // Log manual open in app
+              const admin = auth().currentUser;
+              const adminId = admin?.uid || 'unknown_admin';
+              let adminName = admin?.displayName || admin?.email?.split('@')[0] || 'Admin';
+              
+              let uploadedImageUrl = null;
+              if (imageBase64) {
+                try {
+                  const b64Data = imageBase64.startsWith('data:image') 
+                    ? imageBase64.split(',')[1] 
+                    : imageBase64;
+                  const fileName = `whatsapp_media/${Date.now()}_${cleanPhone}.jpg`;
+                  const reference = storage().ref(fileName);
+                  await reference.putString(b64Data, 'base64', { contentType: 'image/jpeg' });
+                  uploadedImageUrl = await reference.getDownloadURL();
+                } catch (e) {
+                  console.warn("Error uploading image to storage", e);
+                }
+              }
+              
+              await firestore().collection('whatsapp_messages').add({
+                fromPhone: cleanPhone,
+                fromName: m.name,
+                text: `[App Opened] ${fullText}`,
+                timestamp: new Date(),
+                type: 'outgoing',
+                adminId: adminId,
+                adminName: adminName,
+                conversationOwner: adminId,
+                sendMethod: 'Manual Sent',
+                imageUrl: uploadedImageUrl || null,
+                createdAt: firestore.FieldValue.serverTimestamp()
+              });
+
+              let broadcastType = m.category;
+              if (m.category === 'wedding') broadcastType = 'anniversary';
+              let broadcastTitle = `🎉 Happy ${m.category}!`;
+              if (m.category === 'birthday') broadcastTitle = `🎂 Happy Birthday, ${m.name}!`;
+              if (m.category === 'wedding') broadcastTitle = `💐 Happy Wedding Anniversary!`;
+              if (m.category === 'baptism') broadcastTitle = `✝️ Happy Baptism Anniversary, ${m.name}!`;
+              
+              await firestore().collection('broadcasts').add({
+                title: broadcastTitle,
+                content: fullText,
+                date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' }),
+                type: broadcastType,
+                targetPhone: m.phone,
+                createdAt: firestore.FieldValue.serverTimestamp()
+              });
+              
+              // Trigger push notification
+              try {
+                await functions().app.functions('asia-south1').httpsCallable('notifyMembers')({
+                  title: broadcastTitle,
+                  body: "Wishing you God's abundant blessings today! Tap to view your greeting.",
+                  targetPhone: m.phone,
+                  type: broadcastType
+                });
+              } catch (pushErr) {
+                console.warn('Failed to send push notification:', pushErr);
+              }
+              
+            } catch (error: any) {
+              console.log("Share Error:", error);
+              if (error.message !== 'User did not share') {
+                Alert.alert('Error', `Could not open WhatsApp: ${error.message}`);
+              }
+            }
+          }} disabled={sendingWhatsapp}>
+            <LinearGradient colors={['#4F83FA', '#1E2A63']} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 20}}>
+              <FontAwesome name="whatsapp" size={16} color="#ffffff" />
+              <Text style={[styles.waBadgeBtnText, {color: '#ffffff'}]}>To Whats app</Text>
+            </LinearGradient>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.primaryBtnRoyal, {flex: 1}, sendingWhatsapp && {opacity: 0.7}]} onPress={handleSendWhatsapp} disabled={sendingWhatsapp}>
-            {sendingWhatsapp ? <ActivityIndicator size="small" color="#fff" /> : <MessageCircle size={16} color="#fff" />}
-            <Text style={styles.primaryBtnRoyalText}>{sendingWhatsapp ? 'Sending...' : 'Send via WhatsApp'}</Text>
+          
+          <TouchableOpacity style={[{flex: 1, marginTop: 10, marginLeft: 10, borderRadius: 20, shadowColor: '#128C7E', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.3, shadowRadius: 4, elevation: 2, backgroundColor: 'transparent'}, sendingWhatsapp && {opacity: 0.7}]} onPress={handleSendWhatsapp} disabled={sendingWhatsapp}>
+            <LinearGradient colors={['#25D366', '#128C7E']} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 20}}>
+              {sendingWhatsapp ? <ActivityIndicator size="small" color="#ffffff" /> : <FontAwesome name="whatsapp" size={16} color="#ffffff" />}
+              <Text style={[styles.waBadgeBtnText, {color: '#ffffff'}]}>{sendingWhatsapp ? 'Sending...' : 'Send via Whatsapp'}</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </View>
@@ -799,19 +1377,19 @@ export default function AdminCODCelebs() {
         </View>
       </View>
       
-      <ScrollView style={styles.screenRoot} contentContainerStyle={{paddingBottom: 100}}>
-        {currentScreen === 'dashboard' && renderDashboard()}
-        {currentScreen === 'list' && renderList()}
-        {currentScreen === 'details' && renderDetails()}
-        {currentScreen === 'customize' && renderCustomize()}
-        {currentScreen === 'theme' && renderTheme()}
-        {currentScreen === 'add_theme' && renderAddTheme()}
-        {currentScreen === 'verse' && renderVerse()}
-        {currentScreen === 'upload' && renderUpload()}
-        {currentScreen === 'preview' && renderPreview()}
-        {currentScreen === 'whatsapp' && renderWhatsapp()}
-        {currentScreen === 'confirm' && renderConfirm()}
-      </ScrollView>
+      <KeyboardAwareScrollView ref={scrollViewRef as any} style={styles.screenRoot} contentContainerStyle={{paddingBottom: 100}} keyboardShouldPersistTaps="handled" enableOnAndroid={true} extraScrollHeight={20}>
+          {currentScreen === 'dashboard' && renderDashboard()}
+          {currentScreen === 'list' && renderList()}
+          {currentScreen === 'details' && renderDetails()}
+          {currentScreen === 'customize' && renderCustomize()}
+          {currentScreen === 'theme' && renderTheme()}
+          {currentScreen === 'add_theme' && renderAddTheme()}
+          {currentScreen === 'verse' && renderVerse()}
+          {currentScreen === 'upload' && renderUpload()}
+          {currentScreen === 'preview' && renderPreview()}
+          {currentScreen === 'whatsapp' && renderWhatsapp()}
+          {currentScreen === 'confirm' && renderConfirm()}
+      </KeyboardAwareScrollView>
 
       <Modal visible={!!themeToDelete} transparent={true} animationType="fade">
         <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center'}}>
@@ -860,6 +1438,18 @@ export default function AdminCODCelebs() {
           <Text style={{color: '#fff', fontSize: 15, fontWeight: '600'}}>Theme successfully deleted</Text>
         </View>
       )}
+
+      <Modal visible={!!previewImage} transparent={true} animationType="fade" onRequestClose={() => setPreviewImage(null)}>
+        <TouchableOpacity style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center'}} activeOpacity={1} onPress={() => setPreviewImage(null)}>
+          {previewImage && (
+            <Image 
+              source={{ uri: previewImage }} 
+              style={{ width: width * 0.85, height: width * 0.85, borderRadius: 20 }} 
+              resizeMode="cover"
+            />
+          )}
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -957,12 +1547,39 @@ const styles = StyleSheet.create({
 
   // Theme
   themeGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  themeCard: { width: '48%', borderRadius: 22, overflow: 'hidden', marginBottom: 14, borderWidth: 2, borderColor: 'transparent' },
+  themeCard: { width: '100%', borderRadius: 22, overflow: 'hidden', borderWidth: 2, borderColor: 'transparent' },
   themeCardSelected: { borderColor: '#BE9A3A' },
   themePreview: { height: 96 },
   themeLabelContainer: { padding: 10, backgroundColor: '#FFFFFF' },
   themeLabelText: { fontSize: 12, fontWeight: 'bold', color: '#1B2242' },
   themeCheck: { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: '#BE9A3A', alignItems: 'center', justifyContent: 'center' },
+  themeGridCard: {
+    width: '48%',
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  updateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(27,34,66,0.12)',
+    borderRadius: 12,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    marginTop: 6,
+    shadowColor: '#1E2A63',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  updateBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#1E2A63',
+  },
 
   // Verse
   verseCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(27,34,66,0.09)', borderLeftWidth: 4, borderLeftColor: '#E7C767', borderRadius: 22, padding: 16, marginBottom: 12 },
@@ -980,13 +1597,13 @@ const styles = StyleSheet.create({
 
   // Preview
   greetingFrame: { borderRadius: 30, overflow: 'hidden', marginTop: 10 },
-  greetingBg: { padding: 26, alignItems: 'center', minHeight: 400, justifyContent: 'center' },
-  gCrest: { fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: '#fff', opacity: 0.85, marginBottom: 10 },
-  gTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-  gName: { fontSize: 17, fontWeight: 'bold', color: '#fff', marginBottom: 12 },
-  gMsg: { fontSize: 12.5, lineHeight: 18, color: '#fff', textAlign: 'center', marginBottom: 12 },
-  gVerse: { fontStyle: 'italic', fontSize: 13, color: '#fff', textAlign: 'center', opacity: 0.9 },
-  gSender: { fontSize: 10.5, color: '#fff', opacity: 0.75, marginTop: 14 },
+  greetingBg: { padding: 26, alignItems: 'center', minHeight: 340, justifyContent: 'center' },
+  gSubHeader: { fontSize: 10.5, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(255,255,255,0.85)', fontWeight: 'bold', marginBottom: 8, textShadowColor: 'rgba(0,0,0,0.25)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3, textAlign: 'center' },
+  gTitle: { fontSize: 26, fontWeight: '900', textTransform: 'uppercase', color: '#FDF1D6', letterSpacing: 2.2, marginBottom: 6, textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6, textAlign: 'center' },
+  gName: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginTop: 8, textShadowColor: 'rgba(0,0,0,0.25)', textShadowOffset: { width: 0, height: 1.5 }, textShadowRadius: 4, textAlign: 'center' },
+  gDivider: { width: 50, height: 2.5, backgroundColor: 'rgba(255,255,255,0.35)', marginVertical: 18, borderRadius: 1.2 },
+  gBlessing: { fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontStyle: 'italic', fontSize: 14.5, color: 'rgba(255,255,255,0.9)', textAlign: 'center', paddingHorizontal: 22, marginBottom: 12, lineHeight: 21, textShadowColor: 'rgba(0,0,0,0.2)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  gSender: { fontSize: 10.5, color: '#fff', opacity: 0.75, letterSpacing: 1.5, textTransform: 'uppercase', textAlign: 'center' },
 
   // WhatsApp
   waHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#075E54', padding: 12, borderTopLeftRadius: 16, borderTopRightRadius: 16, marginTop: 8 },
@@ -999,6 +1616,8 @@ const styles = StyleSheet.create({
   waCaption: { fontSize: 12.5, color: '#111', marginTop: 8 },
   waVerse: { fontStyle: 'italic', fontSize: 12.5, color: '#333', marginTop: 4 },
   waTime: { fontSize: 10, color: '#8b8b8b', textAlign: 'right', marginTop: 4 },
+  waBadgeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#3B82F6', borderRadius: 20, paddingVertical: 10, paddingHorizontal: 12, marginTop: 10, shadowColor: '#3B82F6', shadowOffset: {width: 0, height: 1}, shadowOpacity: 0.15, shadowRadius: 3, elevation: 1 },
+  waBadgeBtnText: { fontSize: 13, fontWeight: 'bold', color: '#1E2A63', marginLeft: 8 },
 
   // Confirm
   confirmWrap: { alignItems: 'center', paddingTop: 70 },

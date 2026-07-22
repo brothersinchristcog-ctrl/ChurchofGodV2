@@ -13,8 +13,9 @@ import {
   StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, Share2, BookMarked, Settings, Search, CheckCircle2 } from 'lucide-react-native';
+import { ChevronLeft, ArrowLeft, Share2, BookMarked, Settings, Search, CheckCircle2 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import firestore from '@react-native-firebase/firestore';
@@ -427,20 +428,41 @@ export default function BibleReaderScreen({ route, navigation }: any) {
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#fff' }]}>
       <StatusBar barStyle="light-content" />
       
-      {/* Navy Blue Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <ChevronLeft color="#fff" size={28} />
-          </TouchableOpacity>
-          <View style={styles.titleInfo}>
-            <Text style={styles.headerTitle}>
-              {lang === 'Telugu' ? `${englishBookName} · ${bookName}` : englishBookName}
-            </Text>
-            <Text style={styles.headerSub}>Chapter {chapter} · అధ్యాయం {chapter}</Text>
+      {/* Premium Header */}
+      <View style={styles.headerWrapper}>
+        <View style={styles.headerShadowWrapper}>
+          <View style={styles.gradientBorderContainer}>
+            <Svg height="100%" width="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
+              <Defs>
+                <LinearGradient id="borderGrad" x1="0" y1="0" x2="1" y2="0">
+                  <Stop offset="0" stopColor="#3b82f6" />
+                  <Stop offset="0.5" stopColor="#0ea5e9" />
+                  <Stop offset="1" stopColor="#8b5cf6" />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#borderGrad)" />
+            </Svg>
+
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+                  <ArrowLeft color="#fff" size={24} />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.headerCenter}>
+                <Text style={styles.headerTitle} numberOfLines={1} adjustsFontSizeToFit>
+                  {lang === 'Telugu' ? `${englishBookName} · ${bookName}` : englishBookName}
+                </Text>
+                <Text style={styles.headerSub}>Chapter {chapter} · అధ్యాయం {chapter}</Text>
+              </View>
+              
+              <View style={styles.headerRight}>
+                {/* Removed icons per user request, keep empty for balance */}
+              </View>
+            </View>
           </View>
         </View>
-        {/* Removed headerRight icons per user request */}
       </View>
 
       <View style={{ flex: 1 }}>
@@ -659,23 +681,44 @@ export default function BibleReaderScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  headerWrapper: {
+    width: '100%',
+    position: 'relative'
+  },
+  headerShadowWrapper: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 15,
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    backgroundColor: '#1a2d5a', 
+  },
+  gradientBorderContainer: {
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    overflow: 'hidden',
+  },
   header: {
-    backgroundColor: '#1a2d5a',
-    paddingHorizontal: 16,
-    paddingVertical: 15,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 15,
+    marginBottom: 4,
+    backgroundColor: '#1a2d5a',
+    borderBottomLeftRadius: 33,
+    borderBottomRightRadius: 33,
+    overflow: 'hidden'
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center' },
-  backBtn: { marginRight: 12 },
-  titleInfo: {},
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600' },
-  headerRight: { flexDirection: 'row', gap: 15 },
-  headerIcon: { padding: 4 },
+  headerLeft: { flex: 1, alignItems: 'flex-start' },
+  backBtn: { padding: 4 },
+  headerCenter: { flex: 3, alignItems: 'center' },
+  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  headerRight: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end' },
 
   scroll: { flex: 1 },
   readerContent: { padding: 20 },

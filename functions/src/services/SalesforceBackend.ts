@@ -158,13 +158,13 @@ export class SalesforceBackend {
       const today = new Date();
       const month = today.getMonth() + 1; // JS month is 0-indexed
       const day = today.getDate();
-      const soql = `SELECT Id, Name, Birthdate, Phone, Email FROM Contact WHERE CALENDAR_MONTH(Birthdate) = ${month} AND CALENDAR_DAY(Birthdate) = ${day} LIMIT 100`;
+      const soql = `SELECT Id, Name, Birthdate, Phone, MobilePhone, Email FROM Contact WHERE CALENDAR_MONTH(Birthdate) = ${month} AND DAY_IN_MONTH(Birthdate) = ${day} LIMIT 100`;
       const result = await this.query(soql);
       return result.records.map((rec: any) => ({
         id: rec.Id,
         name: rec.Name,
         birthdate: rec.Birthdate,
-        phone: rec.Phone,
+        phone: rec.Phone || rec.MobilePhone,
         email: rec.Email
       }));
     } catch (error) {
@@ -174,11 +174,34 @@ export class SalesforceBackend {
   }
 
   /**
+   * Fetches today's baptism anniversaries from Salesforce
+   */
+  public async getTodayBaptisms(): Promise<any[]> {
+    try {
+      const today = new Date();
+      const month = today.getMonth() + 1;
+      const day = today.getDate();
+      const soql = `SELECT Id, Name, Date_of_Baptism__c, Phone, MobilePhone, Email FROM Contact WHERE CALENDAR_MONTH(Date_of_Baptism__c) = ${month} AND DAY_IN_MONTH(Date_of_Baptism__c) = ${day} LIMIT 100`;
+      const result = await this.query(soql);
+      return result.records.map((rec: any) => ({
+        id: rec.Id,
+        name: rec.Name,
+        baptismDate: rec.Date_of_Baptism__c,
+        phone: rec.Phone || rec.MobilePhone,
+        email: rec.Email
+      }));
+    } catch (error) {
+      console.error('Error fetching today baptisms in backend:', error);
+      return [];
+    }
+  }
+
+  /**
    * Fetches today's wedding anniversaries from Salesforce
    */
   public async getTodayAnniversaries(): Promise<any[]> {
     try {
-      const soql = `SELECT Id, Name, Gender__c, AccountId, Anniversary_Date__c FROM Contact WHERE Anniversary_Date__c != null`;
+      const soql = `SELECT Id, Name, Gender__c, AccountId, Anniversary_Date__c, Phone, MobilePhone FROM Contact WHERE Anniversary_Date__c != null`;
       const result = await this.query(soql).catch(() => ({ records: [] }));
       
       const today = new Date();
@@ -207,7 +230,8 @@ export class SalesforceBackend {
           accountGroups[accId].push({
             name: rec.Name,
             gender: rec.Gender__c,
-            year: annYear
+            year: annYear,
+            phone: rec.Phone || rec.MobilePhone
           });
         }
       }
@@ -220,7 +244,9 @@ export class SalesforceBackend {
         if (!members || members.length === 0) continue;
 
         let husband = '';
+        let husbandPhone = '';
         let wife = '';
+        let wifePhone = '';
         let years = 12;
 
         const male = members.find(m => m.gender === 'Male');
@@ -228,7 +254,9 @@ export class SalesforceBackend {
 
         if (male && female) {
           husband = male.name;
+          husbandPhone = male.phone || '';
           wife = female.name;
+          wifePhone = female.phone || '';
           years = new Date().getFullYear() - male.year;
         } else if (members.length >= 2) {
           const firstIsFemale = members[0].name.toLowerCase().includes('sister') || 
@@ -237,20 +265,28 @@ export class SalesforceBackend {
                                 members[0].name.toLowerCase().includes('kumari');
           if (firstIsFemale) {
             wife = members[0].name;
+            wifePhone = members[0].phone || '';
             husband = members[1].name;
+            husbandPhone = members[1].phone || '';
           } else {
             husband = members[0].name;
+            husbandPhone = members[0].phone || '';
             wife = members[1].name;
+            wifePhone = members[1].phone || '';
           }
           years = new Date().getFullYear() - members[0].year;
         } else {
           const single = members[0];
           if (single.gender === 'Male') {
             husband = single.name;
+            husbandPhone = single.phone || '';
             wife = 'Spouse';
+            wifePhone = '';
           } else {
             husband = 'Spouse';
+            husbandPhone = '';
             wife = single.name;
+            wifePhone = single.phone || '';
           }
           years = new Date().getFullYear() - single.year;
         }
@@ -262,7 +298,9 @@ export class SalesforceBackend {
         anniversaries.push({
           id: `anniv-${index++}`,
           husband,
+          husbandPhone,
           wife,
+          wifePhone,
           years
         });
       }

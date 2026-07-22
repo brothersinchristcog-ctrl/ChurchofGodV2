@@ -17,7 +17,11 @@ import {
   Switch,
   InteractionManager
 } from 'react-native';
+import Svg, { Line, Path, Circle, Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { 
+  Star,
+  MapPin,
+  Calendar,
   ChevronRight, 
   LogOut, 
   User, 
@@ -31,7 +35,9 @@ import {
   DollarSign,
   Info,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  MessageSquare,
+  Crown
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -256,50 +262,104 @@ export default function ProfileScreen({ navigation }: any) {
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
+      <StatusBar barStyle="light-content" backgroundColor="#0a192f" />
       
-      {/* ── Hero Section (Navy) ── */}
-      <View style={styles.heroSection}>
-        <View style={styles.headerTop}>
-          <View style={{ width: 40 }} />
-          <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
-             <Text style={styles.themeToggleText}>{isDark ? '🌙 Dark' : '☀️ Light'}</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={styles.heroSectionWrapper}>
+        <View style={styles.heroShadowWrapper}>
+          <View style={styles.gradientBorderContainer}>
+            <Svg height="100%" width="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
+              <Defs>
+                <LinearGradient id="borderGrad" x1="0" y1="0" x2="1" y2="0">
+                  <Stop offset="0" stopColor="#3b82f6" />
+                  <Stop offset="0.5" stopColor="#0ea5e9" />
+                  <Stop offset="1" stopColor="#8b5cf6" />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#borderGrad)" />
+            </Svg>
 
-        <View style={styles.avatarContainer}>
-          {localPhotoUrl ? (
-            <Image source={{ uri: localPhotoUrl }} style={styles.avatarImg} />
-          ) : (
-            <View style={styles.avatarCircle}>
-               <Text style={styles.avatarText}>{getInitials(member?.name || user?.displayName || 'User')}</Text>
-            </View>
-          )}
-          <View style={styles.verifiedBadge}>
-            <Text style={{ fontSize: 10 }}>✨</Text>
+            <View style={styles.heroSection}>
+              <Svg height="800" width="800" style={{ position: 'absolute', top: 0, left: 0 }}>
+            <Defs>
+              <LinearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor="#1a2d5a" stopOpacity="1" />
+                <Stop offset="1" stopColor="#0a192f" stopOpacity="1" />
+              </LinearGradient>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#bgGrad)" />
+            <Path d="M -50 200 Q 150 100 450 250" stroke="rgba(255,255,255,0.04)" strokeWidth="1" fill="none" />
+            <Path d="M 0 50 Q 250 150 400 50" stroke="rgba(255,255,255,0.02)" strokeWidth="1" fill="none" />
+          </Svg>
+
+          <View style={[styles.headerTop, { zIndex: 10 }]}>
+            <View style={{ width: 40 }} />
+            <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
+               <Text style={{fontSize: 12, marginRight: 4}}>{isDark ? '🌙' : '☀️'}</Text>
+               <Text style={styles.themeToggleText}>{isDark ? 'Dark' : 'Light'}</Text>
+            </TouchableOpacity>
           </View>
-        </View>
 
-        <View style={styles.userInfo}>
-          <Text style={styles.userName}>{member?.name || user?.displayName || 'Beloved Member'}</Text>
-          <Text style={styles.userSub}>
-            Church of GOD{member?.mailingCity ? `, ${member.mailingCity}` : ''} · 
-            Member since {member?.joinDate ? new Date(member.joinDate).getFullYear() : '2024'}
-          </Text>
-          
-          <View style={styles.badgeRow}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Telugu</Text>
-            </View>
-            {member?.mailingCity && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{member.mailingCity}</Text>
+          <View style={styles.profileMainRow}>
+            <View style={styles.avatarWrapper}>
+              <View style={styles.avatarInner}>
+                {localPhotoUrl ? (
+                  <Image source={{ uri: localPhotoUrl }} style={styles.avatarImg} resizeMode="cover" />
+                ) : (
+                  <View style={styles.avatarCircle}>
+                     <Text style={styles.avatarText}>{getInitials(member?.name || user?.displayName || 'User')}</Text>
+                  </View>
+                )}
               </View>
-            )}
-            <View style={[styles.badge, styles.badgeActive]}>
-              <Text style={styles.badgeText}>🙏 {member?.userType || 'Active member'}</Text>
+            </View>
+
+            <View style={styles.welcomeTextContainer}>
+              <Text style={styles.welcomeSubText}>Welcome back,</Text>
+              <Text style={styles.welcomeTitleText}>{member?.name || user?.displayName || 'Beloved Member'}</Text>
+              <View style={styles.sinceBadge}>
+                <Text style={styles.sinceMemberText}>Member since {member?.joinDate ? new Date(member.joinDate).getFullYear().toString() : '2024'}</Text>
+              </View>
             </View>
           </View>
+
+          <View style={styles.infoBoxWrapper}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.infoBox}>
+              <View style={styles.infoItem}>
+                <View style={[styles.iconCircle, { backgroundColor: '#3b82f6' }]}>
+                  <MapPin size={16} color="#fff" />
+                </View>
+                <View style={styles.infoTextWrapper}>
+                  <Text style={styles.infoItemTitle}>Village</Text>
+                  <Text style={styles.infoItemValue}>{member?.mailingCity || 'N/A'}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.infoDivider} />
+
+              <View style={styles.infoItem}>
+                <View style={[styles.iconCircle, { backgroundColor: '#10b981' }]}>
+                  <Globe size={16} color="#fff" />
+                </View>
+                <View style={styles.infoTextWrapper}>
+                  <Text style={styles.infoItemTitle}>Language</Text>
+                  <Text style={styles.infoItemValue}>Telugu</Text>
+                </View>
+              </View>
+
+              <View style={styles.infoDivider} />
+
+              <View style={styles.infoItem}>
+                <View style={[styles.iconCircle, { backgroundColor: '#8b5cf6' }]}>
+                  <Crown size={16} color="#fff" />
+                </View>
+                <View style={styles.infoTextWrapper}>
+                  <Text style={styles.infoItemTitle}>Role</Text>
+                  <Text style={styles.infoItemValue}>{member?.userType === 'Admin' ? 'ADMIN' : 'MEMBER'}</Text>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+        </View>
         </View>
       </View>
 
@@ -308,9 +368,6 @@ export default function ProfileScreen({ navigation }: any) {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1a2d5a" />}
       >
-        {/* Stats removed for accuracy */}
-
-        {/* ── Account Section ── */}
         <Text style={styles.sectionLabel}>ACCOUNT</Text>
         <View style={styles.menuGroup}>
           <MenuItem 
@@ -339,7 +396,6 @@ export default function ProfileScreen({ navigation }: any) {
           />
         </View>
 
-        {/* ── Settings Section ── */}
         <Text style={styles.sectionLabel}>SETTINGS</Text>
         <View style={styles.menuGroup}>
           <MenuItem 
@@ -358,7 +414,7 @@ export default function ProfileScreen({ navigation }: any) {
             title="Language" 
             sub={`${selectedLanguage} (selected)`} 
             onPress={() => {
-              setIsNotifyModalVisible(false); // Close other modal
+              setIsNotifyModalVisible(false);
               setIsLanguageModalVisible(true);
             }}
           />
@@ -372,7 +428,6 @@ export default function ProfileScreen({ navigation }: any) {
           />
         </View>
 
-        {/* ── Security Section ── */}
         {biometricAvailable && (
           <>
             <Text style={styles.sectionLabel}>SECURITY</Text>
@@ -395,7 +450,6 @@ export default function ProfileScreen({ navigation }: any) {
           </>
         )}
 
-        {/* ── Support ── */}
         <Text style={styles.sectionLabel}>SUPPORT</Text>
         <View style={styles.menuGroup}>
           <MenuItem 
@@ -421,7 +475,6 @@ export default function ProfileScreen({ navigation }: any) {
         <Text style={styles.versionTxt}>Version 1.0.0</Text>
       </ScrollView>
 
-      {/* ── Edit Profile Modal (Using View for better reliability) ── */}
       {isEditModalVisible && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -543,7 +596,6 @@ export default function ProfileScreen({ navigation }: any) {
         </View>
       )}
 
-      {/* ── Language Selection Modal ── */}
       {isLanguageModalVisible && (
         <View style={styles.modalOverlay}>
           <View style={styles.bottomSheetContent}>
@@ -588,7 +640,6 @@ export default function ProfileScreen({ navigation }: any) {
         </View>
       )}
 
-      {/* ── Notification Preferences Modal ── */}
       {isNotifyModalVisible && (
         <View style={styles.modalOverlay}>
           <View style={styles.bottomSheetContent}>
@@ -652,7 +703,6 @@ export default function ProfileScreen({ navigation }: any) {
         </View>
       )}
 
-      {/* Give / Tithe Coming Soon Modal */}
       <Modal
         visible={showGivePopup}
         transparent={true}
@@ -718,7 +768,6 @@ export default function ProfileScreen({ navigation }: any) {
         </View>
       </Modal>
 
-      {/* Custom Alert Modal */}
       <Modal visible={alertConfig.visible} transparent animationType="fade" onRequestClose={closeAlert}>
         <View style={styles.alertOverlayBg}>
           <View style={styles.alertCard}>
@@ -781,52 +830,157 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  // Hero Section
-  heroSection: { 
-    backgroundColor: '#1a2d5a', 
-    paddingTop: Platform.OS === 'ios' ? 60 : 20, 
-    paddingBottom: 40,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    alignItems: 'center'
+  heroSectionWrapper: {
+    backgroundColor: 'transparent',
+    paddingBottom: 20,
+    width: '100%',
+    position: 'relative'
   },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, alignItems: 'center', alignSelf: 'stretch' },
-  themeToggle: { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  themeToggleText: { color: '#fff', fontSize: 10, fontWeight: '800' },
-
-  avatarContainer: { alignItems: 'center', marginTop: 10 },
-  avatarCircle: { 
-    width: 90, height: 90, borderRadius: 45, backgroundColor: '#c0392b', 
-    justifyContent: 'center', alignItems: 'center', borderWidth: 4, borderColor: '#FCD34D' 
-  },
-  avatarImg: { width: 90, height: 90, borderRadius: 45, borderWidth: 4, borderColor: '#FCD34D' },
-  avatarText: { color: '#fff', fontSize: 32, fontWeight: '800' },
-  verifiedBadge: { 
-    position: 'absolute', 
-    bottom: 0, 
-    right: -5, 
-    backgroundColor: '#FCD34D', 
-    width: 24, 
-    height: 24, 
-    borderRadius: 12, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    borderWidth: 2, 
-    borderColor: '#1a2d5a',
-    elevation: 4,
+  heroShadowWrapper: {
     shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 3
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 15,
+    borderBottomLeftRadius: 50,
+    borderBottomRightRadius: 50,
+    backgroundColor: '#0a192f', 
   },
+  gradientBorderContainer: {
+    borderBottomLeftRadius: 50,
+    borderBottomRightRadius: 50,
+    overflow: 'hidden',
+  },
+  heroSection: { 
+    paddingTop: Platform.OS === 'ios' ? 60 : 40, 
+    paddingBottom: 40,
+    marginBottom: 4,
+    backgroundColor: '#0a192f',
+    borderBottomLeftRadius: 48,
+    borderBottomRightRadius: 48,
+    overflow: 'hidden'
+  },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, alignItems: 'center' },
+  themeToggle: { 
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)', 
+    paddingHorizontal: 12, 
+    paddingVertical: 8, 
+    borderRadius: 20 
+  },
+  themeToggleText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  profileMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 35
+  },
+  avatarWrapper: {
+    width: 90,
+    height: 90,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    marginRight: 20
+  },
+  avatarInner: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#ffffff30'
+  },
+  avatarCircle: { 
+    width: '100%', height: '100%', backgroundColor: '#c0392b', 
+    justifyContent: 'center', alignItems: 'center'
+  },
+  avatarImg: { width: '100%', height: '100%', borderRadius: 43 },
+  avatarText: { color: '#fff', fontSize: 32, fontWeight: '800' },
 
-  userInfo: { alignItems: 'center', marginTop: 15 },
-  userName: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  userSub: { fontSize: 12, color: '#aac4e8', marginTop: 4 },
-  
-  badgeRow: { flexDirection: 'row', gap: 8, marginTop: 15 },
-  badge: { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  badgeActive: { backgroundColor: 'rgba(252,211,77,0.2)' },
-  badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  welcomeTextContainer: {
+    flex: 1,
+    justifyContent: 'center'
+  },
+  welcomeSubText: {
+    color: '#a78bfa',
+    fontSize: 24,
+    marginBottom: -2,
+    fontFamily: Platform.OS === 'ios' ? 'Snell Roundhand' : 'cursive',
+    fontStyle: 'italic',
+    fontWeight: '700'
+  },
+  welcomeTitleText: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: 'bold',
+    lineHeight: 28
+  },
+  sinceBadge: {
+    marginTop: 6,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  sinceMemberText: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    fontWeight: '600'
+  },
+  infoBoxWrapper: {
+    marginHorizontal: 15,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.06)', 
+    borderWidth: 0,
+    borderColor: '#94a3b8' // Light ash color
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+  },
+  iconCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+    flex: 1
+  },
+  infoTextWrapper: {
+    justifyContent: 'center',
+    flexShrink: 1
+  },
+  infoItemTitle: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 2
+  },
+  infoItemValue: {
+    color: '#94a3b8',
+    fontSize: 11
+  },
+  infoDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#94a3b8',
+    marginHorizontal: 4
+  },
 
   scrollContent: { paddingBottom: 150 },
 

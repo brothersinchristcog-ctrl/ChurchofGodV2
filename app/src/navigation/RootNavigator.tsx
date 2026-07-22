@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { Home, Heart, BookOpen, HandCoins, User } from 'lucide-react-native';
-import { ActivityIndicator, View, Text, StyleSheet, Alert, Platform, TouchableOpacity, Pressable, AppState, Image, Modal } from 'react-native';
+import { ActivityIndicator, View, Text, StyleSheet, Alert, Platform, TouchableOpacity, Pressable, AppState, Image, Modal, TouchableWithoutFeedback } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Lock, Phone, Bell } from 'lucide-react-native';
@@ -372,48 +372,43 @@ function Navigation() {
     </Stack.Navigator>
   );
 
-  // For non-admin users — just show member stack
-  if (!isActualAdmin) {
-    return memberStack;
-  }
-
-  // For admin users — pre-render BOTH views, toggle instantly with opacity
   return (
     <View style={{ flex: 1 }}>
-      {/* Admin View — always mounted, shown/hidden */}
-      <View style={{ flex: 1, display: isAdmin ? 'flex' : 'none' }}>
+      {isAdmin ? (
         <AdminNavigator />
-      </View>
-      {/* Member View — always mounted, shown/hidden */}
-      <View style={{ flex: 1, display: isAdmin ? 'none' : 'flex' }}>
-        {memberStack}
-      </View>
+      ) : (
+        memberStack
+      )}
 
       {/* Custom Foreground Push Notification Modal */}
       <Modal visible={!!pushNotification} transparent animationType="slide">
-        <View style={styles.pushOverlay}>
-          <View style={styles.pushCard}>
-            <View style={styles.pushHeader}>
-              <View style={styles.pushIconWrapper}>
-                <Bell size={20} color="#1a2d5a" />
+        <TouchableWithoutFeedback onPress={() => setPushNotification(null)}>
+          <View style={styles.pushOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.pushCard}>
+                <View style={styles.pushHeader}>
+                  <View style={styles.pushIconWrapper}>
+                    <Bell size={20} color="#1a2d5a" />
+                  </View>
+                  <Text style={styles.pushTitle} numberOfLines={1}>{pushNotification?.notification?.title || 'New Update'}</Text>
+                </View>
+                <Text style={styles.pushBody}>{pushNotification?.notification?.body}</Text>
+                
+                <View style={styles.pushActions}>
+                  <TouchableOpacity style={styles.pushBtnCancel} onPress={() => setPushNotification(null)}>
+                    <Text style={styles.pushBtnCancelTxt}>DISMISS</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.pushBtnOpen} onPress={() => {
+                    NotificationService.handleNotificationNavigation(pushNotification, navigation);
+                    setPushNotification(null);
+                  }}>
+                    <Text style={styles.pushBtnOpenTxt}>VIEW</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <Text style={styles.pushTitle} numberOfLines={1}>{pushNotification?.notification?.title || 'New Update'}</Text>
-            </View>
-            <Text style={styles.pushBody}>{pushNotification?.notification?.body}</Text>
-            
-            <View style={styles.pushActions}>
-              <TouchableOpacity style={styles.pushBtnCancel} onPress={() => setPushNotification(null)}>
-                <Text style={styles.pushBtnCancelTxt}>LATER</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.pushBtnOpen} onPress={() => {
-                NotificationService.handleNotificationNavigation(pushNotification, navigation);
-                setPushNotification(null);
-              }}>
-                <Text style={styles.pushBtnOpenTxt}>OPEN NOW</Text>
-              </TouchableOpacity>
-            </View>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );
@@ -459,31 +454,32 @@ const styles = StyleSheet.create({
   },
   pushOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
     zIndex: 9999
   },
   pushCard: {
     backgroundColor: '#fff',
-    width: '85%',
-    borderRadius: 24,
-    padding: 24,
+    width: '90%',
+    borderRadius: 16,
+    padding: 16,
     elevation: 20,
     shadowColor: '#000',
     shadowOpacity: 0.25,
-    shadowRadius: 15,
-    shadowOffset: { width: 0, height: 10 }
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    flexDirection: 'column'
   },
   pushHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16
+    marginBottom: 8
   },
   pushIconWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#f1f5f9',
     justifyContent: 'center',
     alignItems: 'center',
@@ -491,41 +487,41 @@ const styles = StyleSheet.create({
   },
   pushTitle: {
     flex: 1,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0f172a'
   },
   pushBody: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#475569',
-    lineHeight: 22,
-    marginBottom: 24
+    lineHeight: 20,
+    marginBottom: 12
   },
   pushActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 16
+    gap: 12
   },
   pushBtnCancel: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 8
   },
   pushBtnCancelTxt: {
     color: '#64748b',
     fontWeight: '700',
-    fontSize: 14
+    fontSize: 13
   },
   pushBtnOpen: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     backgroundColor: '#1a2d5a',
     borderRadius: 8
   },
   pushBtnOpenTxt: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 14
+    fontSize: 13
   }
 });
 
