@@ -10,17 +10,22 @@ import {
   StatusBar,
   Image,
   Modal,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
-import { MapPin, Clock, Calendar, Trash2, Info, CheckCircle, AlertTriangle } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MapPin, Clock, Calendar, Trash2, Info, CheckCircle, AlertTriangle, Menu } from 'lucide-react-native';
 import { AdminTabContext } from '../../context/AdminTabContext';
+import { useTheme } from '../../context/ThemeContext';
 
 import SalesforceService from '../../services/SalesforceService';
 
 const { width } = Dimensions.get('window');
 
 export default function AdminEventList() {
-  const { setActiveTab, setEditingData } = useContext(AdminTabContext);
+  const { setActiveTab, setEditingData, openDrawer } = useContext(AdminTabContext);
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors, isDark);
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAllPastEvents, setShowAllPastEvents] = useState(false);
@@ -150,14 +155,14 @@ export default function AdminEventList() {
           <Calendar size={10} color="#c0392b" />
           <Text style={[styles.eiMetaTxt, { color: '#c0392b', fontWeight: '600' }]}>{formatDate(event.date)}</Text>
           
-          <Clock size={10} color="#6B7280" style={{ marginLeft: 8 }} />
+          <Clock size={10} color={colors.textSecondary} style={{ marginLeft: 8 }} />
           <Text style={styles.eiMetaTxt}>
             {formatDisplayTime(event.startTime)}
             {event.endTime ? ` — ${formatDisplayTime(event.endTime)}` : ''}
           </Text>
         </View>
         <View style={styles.eiMetaRow}>
-          <MapPin size={10} color="#6B7280" />
+          <MapPin size={10} color={colors.textSecondary} />
           <Text style={styles.eiMetaTxt} numberOfLines={1}>{event.venueEn || event.location || 'No Venue'}</Text>
         </View>
         <View style={styles.eiFoot}>
@@ -173,7 +178,7 @@ export default function AdminEventList() {
           </TouchableOpacity>
         </View>
         <TouchableOpacity onPress={() => handleEdit(event)} style={styles.eiEdit}>
-          <Text style={{ color: '#1a2d5a', fontSize: 10, fontWeight: '800' }}>Edit →</Text>
+          <Text style={{ color: isDark ? '#93c5fd' : '#1a2d5a', fontSize: 10, fontWeight: '800' }}>Edit →</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -183,49 +188,66 @@ export default function AdminEventList() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* ── Section Heading ── */}
-        <View style={styles.secHd}>
-          <View>
-            <Text style={styles.secTitle}>📅 Event Manager</Text>
-            <Text style={styles.secSub}>Church Gatherings · కూటములు</Text>
-          </View>
-          <TouchableOpacity style={styles.newBtn} onPress={() => { setEditingData(null); setActiveTab(9); }}>
-            <Text style={styles.newBtnTxt}>+ New</Text>
-          </TouchableOpacity>
-        </View>
+      {/* ── Curved Gradient Header ── */}
+      <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.headerOuter}>
+        <LinearGradient colors={['#1a2d5a', '#23314d']} style={styles.headerInner}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+            
+            <TouchableOpacity onPress={openDrawer} style={{ padding: 4 }}>
+              <Menu size={26} color="#fff" />
+            </TouchableOpacity>
 
-        {/* ── Stats Row ── */}
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={styles.headerTitle}>Event Manager</Text>
+            </View>
+
+            <TouchableOpacity style={styles.newBtn} onPress={() => { setEditingData(null); setActiveTab(9); }}>
+              <Text style={styles.newBtnTxt}>+ New</Text>
+            </TouchableOpacity>
+
+          </View>
+        </LinearGradient>
+      </LinearGradient>
+      
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
+        {/* ── Stats Single Badge ── */}
         <View style={styles.statsRow}>
           <TouchableOpacity 
-            style={[styles.statCard, activeFilter === 'all' && styles.statCardActive]} 
+            style={[styles.statBadge, activeFilter === 'all' && styles.statBadgeActive]} 
             onPress={() => setActiveFilter('all')}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
           >
-            <Text style={[styles.statNum, { color: '#15803D' }]}>
+            <Text style={styles.statNum}>
               {events.filter(e => 
                 !e.status || 
                 e.status.toLowerCase().includes('pub') || 
                 e.status.toLowerCase().includes('act')
               ).length}
             </Text>
-            <Text style={styles.statLbl}>Published (All)</Text>
+            <Text style={styles.statLbl}>Published</Text>
           </TouchableOpacity>
+
+          <View style={styles.statDivider} />
+
           <TouchableOpacity 
-            style={[styles.statCard, activeFilter === 'upcoming' && styles.statCardActive]} 
+            style={[styles.statBadge, activeFilter === 'upcoming' && styles.statBadgeActive]} 
             onPress={() => setActiveFilter(activeFilter === 'upcoming' ? 'all' : 'upcoming')}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
           >
-            <Text style={[styles.statNum, { color: '#c0392b' }]}>{upcomingCount}</Text>
+            <Text style={styles.statNum}>{upcomingCount}</Text>
             <Text style={styles.statLbl}>Upcoming</Text>
           </TouchableOpacity>
+
+          <View style={styles.statDivider} />
+
           <TouchableOpacity 
-            style={[styles.statCard, activeFilter === 'past' && styles.statCardActive]} 
+            style={[styles.statBadge, activeFilter === 'past' && styles.statBadgeActive]} 
             onPress={() => setActiveFilter(activeFilter === 'past' ? 'all' : 'past')}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
           >
-            <Text style={[styles.statNum, { color: '#1a2d5a' }]}>{pastCount}</Text>
-            <Text style={styles.statLbl}>Past Events</Text>
+            <Text style={styles.statNum}>{pastCount}</Text>
+            <Text style={styles.statLbl}>Past</Text>
           </TouchableOpacity>
         </View>
 
@@ -249,14 +271,16 @@ export default function AdminEventList() {
                 {displayedPastEvents.map((event, idx) => renderEventCard(event, idx, false))}
                 
                 {pastEvents.length > 5 && (
-                  <TouchableOpacity 
-                    style={styles.showMoreBtn} 
-                    onPress={() => setShowAllPastEvents(!showAllPastEvents)}
-                  >
-                    <Text style={styles.showMoreTxt}>
-                      {showAllPastEvents ? 'Show less ↑' : `Show more (${pastEvents.length - 5}) ↓`}
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={{ alignItems: 'center', marginTop: 8 }}>
+                    <TouchableOpacity 
+                      style={styles.showMoreBtn} 
+                      onPress={() => setShowAllPastEvents(!showAllPastEvents)}
+                    >
+                      <Text style={styles.showMoreTxt}>
+                        {showAllPastEvents ? 'Show less ↑' : `Show more (${pastEvents.length - 5}) ↓`}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
               </>
             ) : (
@@ -307,54 +331,100 @@ export default function AdminEventList() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f2f7' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f2f7' },
+function getStyles(colors: any, isDark: boolean) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   scroll: { padding: 14, paddingBottom: 80 },
 
-  secHd: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: '#c0392b' },
-  secTitle: { fontSize: 15, fontWeight: '600', color: '#1a2d5a' },
-  secSub: { fontSize: 10, color: '#6B7280', marginTop: 2 },
-  newBtn: { backgroundColor: '#c0392b', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  newBtnTxt: { color: '#fff', fontSize: 11, fontWeight: '600' },
+  headerOuter: {
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    marginBottom: 10,
+    marginHorizontal: 0,
+    marginTop: -20,
+    paddingBottom: 4,
+  },
+  headerInner: {
+    padding: 15,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  newBtn: { backgroundColor: '#FCD34D', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 30, borderWidth: 1, borderColor: '#FBBF24' },
+  newBtnTxt: { color: '#1a2d5a', fontSize: 12, fontWeight: '800' },
 
-  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: '#e5e7eb' },
-  statCardActive: { borderColor: '#FCD34D', backgroundColor: '#FFFBEB' },
-  statNum: { fontSize: 22, fontWeight: '600' },
-  statLbl: { fontSize: 9, color: '#6B7280', marginTop: 2 },
+  statsRow: {
+    flexDirection: 'row',
+    marginBottom: 14,
+    borderRadius: 100,
+    padding: 3,
+    alignItems: 'center',
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: isDark ? '#334155' : '#d1d5db',
+    alignSelf: 'center',
+    width: '90%',
+  },
+  statBadge: {
+    flex: 1,
+    paddingVertical: 6,
+    alignItems: 'center',
+    borderRadius: 100,
+    backgroundColor: 'transparent',
+  },
+  statBadgeActive: {
+    backgroundColor: isDark ? '#334155' : '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  statDivider: { width: 1, height: 32, backgroundColor: isDark ? '#334155' : '#e2e8f0' },
+  statNum: { fontSize: 16, fontWeight: '800', color: isDark ? '#fff' : '#1a2d5a' },
+  statNumActive: { color: isDark ? '#fff' : '#1a2d5a' },
+  statLbl: { fontSize: 8, marginTop: 1, color: isDark ? '#94a3b8' : '#6b7280' },
+  statLblActive: { color: isDark ? '#93c5fd' : '#1a2d5a' },
 
-  listLabel: { fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 4 },
+  listLabel: { fontSize: 12, fontWeight: '600', color: colors.text, marginBottom: 8, marginTop: 4 },
 
-  eventItem: { backgroundColor: '#fff', borderRadius: 11, borderWidth: 0.5, borderColor: '#e5e7eb', padding: 12, paddingHorizontal: 14, marginBottom: 8, flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  featuredItem: { borderWidth: 1.5, borderColor: '#1a2d5a', backgroundColor: '#EFF6FF' },
+  eventItem: { backgroundColor: colors.card, borderRadius: 11, borderWidth: 0.5, borderColor: colors.border, padding: 12, paddingHorizontal: 14, marginBottom: 8, flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  featuredItem: { borderWidth: 1.5, borderColor: '#1a2d5a', backgroundColor: isDark ? '#1e3a5f' : '#EFF6FF' },
   eiThumb: { width: 100, height: 56, backgroundColor: '#0f172a', borderRadius: 8, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
   eiThumbImg: { width: '100%', height: '100%' },
   eiThumbTxt: { color: '#475569', fontSize: 8, fontWeight: '800' },
   eiBody: { flex: 1 },
-  eiTitle: { fontSize: 13, fontWeight: '600', color: '#111827' },
-  eiTe: { fontSize: 11, color: '#1a2d5a', fontStyle: 'italic', marginTop: 1 },
+  eiTitle: { fontSize: 13, fontWeight: '600', color: colors.text },
+  eiTe: { fontSize: 11, color: isDark ? '#93c5fd' : '#1a2d5a', fontStyle: 'italic', marginTop: 1 },
   eiMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  eiMetaTxt: { fontSize: 10, color: '#6B7280', marginLeft: 4 },
+  eiMetaTxt: { fontSize: 10, color: colors.textSecondary, marginLeft: 4 },
   eiFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, flexWrap: 'wrap', gap: 4 },
-  eiEdit: { position: 'absolute', top: 12, right: 12, backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, overflow: 'hidden' },
+  eiEdit: { position: 'absolute', top: 12, right: 12, backgroundColor: isDark ? '#1e3a5f' : '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, overflow: 'hidden' },
 
-  badgeDraft: { backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-  badgeDraftTxt: { color: '#475569', fontSize: 9, fontWeight: '800' },
+  badgeDraft: { backgroundColor: isDark ? '#334155' : '#F1F5F9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+  badgeDraftTxt: { color: isDark ? '#94a3b8' : '#475569', fontSize: 9, fontWeight: '800' },
   
-  showMoreBtn: { padding: 12, alignItems: 'center', backgroundColor: '#e2e8f0', borderRadius: 8, marginTop: 4 },
-  showMoreTxt: { color: '#334155', fontSize: 12, fontWeight: '700' },
-  emptyTxt: { fontSize: 12, color: '#64748b', fontStyle: 'italic', paddingVertical: 10 },
+  showMoreBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 100,
+    borderWidth: 1.5,
+    borderColor: isDark ? '#334155' : '#d1d5db',
+    backgroundColor: 'transparent',
+  },
+  showMoreTxt: { color: isDark ? '#94a3b8' : '#374151', fontSize: 12, fontWeight: '600' },
+  emptyTxt: { fontSize: 12, color: colors.textSecondary, fontStyle: 'italic', paddingVertical: 10 },
 
   // Custom Alert Modal
   alertOverlayBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
-  alertCard: { width: '85%', backgroundColor: '#fff', borderRadius: 28, padding: 25, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20 },
+  alertCard: { width: '85%', backgroundColor: colors.card, borderRadius: 28, padding: 25, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20 },
   alertIconWrapper: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  alertTitleTxt: { fontSize: 20, fontWeight: '800', color: '#0f172a', marginBottom: 10, textAlign: 'center' },
-  alertMsgTxt: { fontSize: 14, color: '#64748b', textAlign: 'center', marginBottom: 25, lineHeight: 22 },
+  alertTitleTxt: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 10, textAlign: 'center' },
+  alertMsgTxt: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginBottom: 25, lineHeight: 22 },
   alertActionsRow: { flexDirection: 'row', width: '100%', gap: 12 },
   alertBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  alertBtnCancelUi: { backgroundColor: '#f1f5f9' },
-  alertBtnCancelTxtUi: { color: '#64748b', fontSize: 15, fontWeight: '700' },
+  alertBtnCancelUi: { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' },
+  alertBtnCancelTxtUi: { color: colors.textSecondary, fontSize: 15, fontWeight: '700' },
   alertBtnConfirmTxtUi: { color: '#fff', fontSize: 15, fontWeight: '700' }
-});
+});}

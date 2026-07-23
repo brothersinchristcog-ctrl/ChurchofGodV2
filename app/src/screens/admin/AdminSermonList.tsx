@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -11,7 +11,8 @@ import {
   StatusBar,
   Dimensions,
   Alert,
-  Modal
+  Modal,
+  Animated
 } from 'react-native';
 import { 
   Search, 
@@ -25,17 +26,78 @@ import {
   Trash2,
   Info,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  Menu
 } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { AdminTabContext } from '../../context/AdminTabContext';
+import { useTheme } from '../../context/ThemeContext';
 
 import SalesforceService, { Sermon } from '../../services/SalesforceService';
 import { Linking } from 'react-native';
 
-const { width } = Dimensions.get('window');
+const FloatingDots = ({ isDark }: { isDark?: boolean }) => {
+  const dots = useRef([...Array(35)].map((_, i) => ({
+    id: i,
+    anim: new Animated.Value(0),
+    size: Math.random() * 4 + 2,
+    left: `${Math.random() * 95}%` as any,
+    duration: Math.random() * 4000 + 3000,
+    delay: Math.random() * 4000
+  }))).current;
+
+  useEffect(() => {
+    dots.forEach(dot => {
+      setTimeout(() => {
+        Animated.loop(
+          Animated.timing(dot.anim, {
+            toValue: 1,
+            duration: dot.duration,
+            useNativeDriver: true,
+          })
+        ).start();
+      }, dot.delay);
+    });
+  }, []);
+
+  return (
+    <View style={[StyleSheet.absoluteFillObject, { overflow: 'hidden', borderRadius: 25 }]}>
+      {dots.map(dot => {
+        const translateY = dot.anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [60, -20]
+        });
+        const opacity = dot.anim.interpolate({
+          inputRange: [0, 0.2, 0.8, 1],
+          outputRange: [0, 0.6, 0.6, 0]
+        });
+        
+        return (
+          <Animated.View 
+            key={dot.id}
+            style={{
+              position: 'absolute',
+              left: dot.left,
+              bottom: 0,
+              width: dot.size,
+              height: dot.size,
+              borderRadius: dot.size / 2,
+              backgroundColor: 'rgba(250, 204, 21, 0.5)',
+              transform: [{ translateY }],
+              opacity
+            }}
+          />
+        );
+      })}
+    </View>
+  );
+};
 
 export default function AdminSermonList() {
-  const { setActiveTab, setEditingData } = useContext(AdminTabContext);
+  const { setActiveTab, setEditingData, openDrawer } = useContext(AdminTabContext);
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
+  
   const [sermons, setSermons] = useState<Sermon[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
@@ -134,31 +196,40 @@ export default function AdminSermonList() {
       
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* ── Section Heading ── */}
-        <View style={styles.secHd}>
-          <View>
-            <Text style={styles.secTitle}>Sermons</Text>
-            <Text style={styles.secSub}>{sermons.length} sermons · {stats.series} series</Text>
-          </View>
-          <TouchableOpacity style={styles.newBtn} onPress={() => { setEditingData(null); setActiveTab(4); }}>
-            <Text style={styles.newBtnTxt}>+ Add</Text>
-          </TouchableOpacity>
-        </View>
+        <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.headerOuter}>
+          <LinearGradient colors={['#1a2d5a', '#23314d']} style={styles.headerInner}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'center', position: 'relative' }}>
+              <TouchableOpacity onPress={openDrawer} style={{ position: 'absolute', left: 0, padding: 4, zIndex: 10 }}>
+                <Menu size={26} color="#fff" />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>Sermons</Text>
+              <TouchableOpacity style={styles.newBtnTop} onPress={() => { setEditingData(null); setActiveTab(4); }}>
+                <Text style={styles.newBtnTxt}>+ Add</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </LinearGradient>
 
-        {/* ── Stats Bar ── */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={[styles.statNum, { color: '#15803D' }]}>{stats.published}</Text>
+
+
+        {/* ── Stats Badge ── */}
+        <LinearGradient colors={isDark ? ['#0f172a', '#1e293b'] : ['#1a2d5a', '#3b82f6']} style={styles.statsBadge} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+          <FloatingDots isDark={isDark} />
+          <View style={styles.statCol}>
+            <Text style={[styles.statNum, { color: '#4ade80' }]}>{stats.published}</Text>
             <Text style={styles.statLbl}>Published</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={[styles.statNum, { color: '#D97706' }]}>{stats.drafts}</Text>
+          <View style={styles.statDivider} />
+          <View style={styles.statCol}>
+            <Text style={[styles.statNum, { color: '#fbbf24' }]}>{stats.drafts}</Text>
             <Text style={styles.statLbl}>Drafts</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={[styles.statNum, { color: '#1a2d5a' }]}>{stats.series}</Text>
+          <View style={styles.statDivider} />
+          <View style={styles.statCol}>
+            <Text style={[styles.statNum, { color: '#38bdf8' }]}>{stats.series}</Text>
             <Text style={styles.statLbl}>Series</Text>
           </View>
-        </View>
+        </LinearGradient>
 
         {/* ── Filter Chips ── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
@@ -262,69 +333,92 @@ export default function AdminSermonList() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f2f7' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f2f7' },
-  scroll: { padding: 14, paddingBottom: 80 },
+function getStyles(colors: any, isDark: boolean) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+    scroll: { padding: 14, paddingBottom: 80 },
 
-  secHd: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: '#c0392b' },
-  secTitle: { fontSize: 15, fontWeight: '600', color: '#1a2d5a' },
-  secSub: { fontSize: 10, color: '#6B7280', marginTop: 2 },
-  newBtn: { backgroundColor: '#c0392b', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  newBtnTxt: { color: '#fff', fontSize: 11, fontWeight: '600' },
+    secTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
+    secSub: { fontSize: 10, color: isDark ? '#94a3b8' : '#6B7280', marginTop: 2 },
+    
+    headerOuter: {
+      borderBottomLeftRadius: 25,
+      borderBottomRightRadius: 25,
+      marginBottom: 15,
+      marginHorizontal: -14,
+      marginTop: -14,
+      paddingBottom: 3, 
+    },
+    headerInner: {
+      paddingTop: 15,
+      paddingHorizontal: 20,
+      paddingBottom: 15,
+      borderBottomLeftRadius: 25,
+      borderBottomRightRadius: 25,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+    },
+    headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff', fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' },
 
-  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 0.5, borderColor: '#e5e7eb' },
-  statNum: { fontSize: 22, fontWeight: '600' },
-  statLbl: { fontSize: 9, color: '#6B7280', marginTop: 2 },
+    newBtnTop: { position: 'absolute', right: 0, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 30, backgroundColor: '#FCD34D', borderWidth: 1, borderColor: '#FBBF24' },
+    newBtnTxt: { color: '#1a2d5a', fontSize: 11, fontWeight: '800' },
 
-  filterRow: { flexDirection: 'row', marginBottom: 12 },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 18, backgroundColor: '#fff', borderWidth: 0.5, borderColor: '#e5e7eb', marginRight: 8 },
-  filterChipActive: { backgroundColor: '#1a2d5a', borderColor: '#1a2d5a' },
-  filterChipTxt: { fontSize: 10, fontWeight: '500', color: '#374151' },
-  filterChipTxtActive: { color: '#fff' },
+    statsBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', borderRadius: 25, paddingVertical: 12, marginBottom: 16, borderWidth: 1, borderColor: isDark ? colors.border : '#1e3a8a', elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 5 },
+    statCol: { alignItems: 'center', flex: 1, zIndex: 2 },
+    statDivider: { width: 1, height: '70%', backgroundColor: 'rgba(255,255,255,0.3)', zIndex: 2 },
+    statNum: { fontSize: 20, fontWeight: '700', color: '#fff' },
+    statLbl: { fontSize: 9, color: '#e2e8f0', marginTop: 2 },
 
-  listLabel: { fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 8, marginTop: 4 },
+    filterRow: { flexDirection: 'row', marginBottom: 12 },
+    filterChip: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 18, backgroundColor: colors.card, borderWidth: 0.5, borderColor: colors.border, marginRight: 8 },
+    filterChipActive: { backgroundColor: isDark ? '#3b82f6' : '#1a2d5a', borderColor: isDark ? '#3b82f6' : '#1a2d5a' },
+    filterChipTxt: { fontSize: 10, fontWeight: '500', color: colors.text },
+    filterChipTxtActive: { color: '#fff' },
 
-  sermonItem: { backgroundColor: '#fff', borderRadius: 11, borderWidth: 0.5, borderColor: '#e5e7eb', padding: 12, paddingHorizontal: 14, marginBottom: 8, flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  featuredItem: { borderWidth: 1.5, borderColor: '#1a2d5a', backgroundColor: '#fcfdff', padding: 18 },
-  featuredThumb: { width: 70, height: 50 },
-  siThumb: { width: 50, height: 38, backgroundColor: '#0f172a', borderRadius: 7, justifyContent: 'center', alignItems: 'center' },
-  siBody: { flex: 1 },
-  siTitle: { fontSize: 13, fontWeight: '700', color: '#111827' },
-  siTe: { fontSize: 12, color: '#1a2d5a', fontStyle: 'italic', marginTop: 1, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' },
-  siMeta: { fontSize: 9, color: '#6B7280', marginTop: 4, fontWeight: '500' },
-  siFoot: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8, alignItems: 'center' },
-  siViews: { marginLeft: 'auto', fontSize: 10, color: '#6B7280', fontWeight: '600' },
+    listLabel: { fontSize: 12, fontWeight: '600', color: colors.text, marginBottom: 8, marginTop: 4 },
 
-  badgeSeries: { backgroundColor: '#EFF6FF', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 0.5, borderColor: '#dbeafe' },
-  badgeSeriesTxt: { color: '#1a2d5a', fontSize: 8, fontWeight: '700', textTransform: 'uppercase' },
-  
-  badgeIcon: { backgroundColor: '#f3f4f6', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  badgeIconTxt: { color: '#4b5563', fontSize: 8, fontWeight: '700' },
+    sermonItem: { backgroundColor: colors.card, borderRadius: 11, borderWidth: 0.5, borderColor: colors.border, padding: 12, paddingHorizontal: 14, marginBottom: 8, flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+    featuredItem: { borderWidth: 1.5, borderColor: isDark ? '#3b82f6' : '#1a2d5a', backgroundColor: isDark ? '#1e293b' : '#fcfdff', padding: 18 },
+    featuredThumb: { width: 70, height: 50 },
+    siThumb: { width: 50, height: 38, backgroundColor: isDark ? '#334155' : '#0f172a', borderRadius: 7, justifyContent: 'center', alignItems: 'center' },
+    siBody: { flex: 1 },
+    siTitle: { fontSize: 13, fontWeight: '700', color: colors.text },
+    siTe: { fontSize: 12, color: isDark ? '#93c5fd' : '#1a2d5a', fontStyle: 'italic', marginTop: 1, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' },
+    siMeta: { fontSize: 9, color: isDark ? '#94a3b8' : '#6B7280', marginTop: 4, fontWeight: '500' },
+    siFoot: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8, alignItems: 'center' },
+    siViews: { marginLeft: 'auto', fontSize: 10, color: isDark ? '#94a3b8' : '#6B7280', fontWeight: '600' },
 
-  badgeStatus: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  statusPubBg: { backgroundColor: '#F0FDF4' },
-  statusPubTxt: { color: '#16a34a' },
-  statusDraftBg: { backgroundColor: '#FFFBEB' },
-  statusDraftTxt: { color: '#D97706' },
-  badgeStatusTxt: { fontSize: 8, fontWeight: '800' },
-  
-  actionsContainer: { borderLeftWidth: 1, borderLeftColor: '#f1f5f9' },
-  editAction: { paddingLeft: 12, paddingRight: 10, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', gap: 4, flex: 1 },
-  editActionTxt: { fontSize: 9, fontWeight: '700', color: '#1a2d5a', textTransform: 'uppercase' },
-  deleteAction: { paddingLeft: 12, paddingRight: 10, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', gap: 4, flex: 1, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
-  deleteActionTxt: { fontSize: 9, fontWeight: '700', color: '#ef4444', textTransform: 'uppercase' },
+    badgeSeries: { backgroundColor: isDark ? '#1e3a8a' : '#EFF6FF', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 0.5, borderColor: isDark ? '#1e40af' : '#dbeafe' },
+    badgeSeriesTxt: { color: isDark ? '#bfdbfe' : '#1a2d5a', fontSize: 8, fontWeight: '700', textTransform: 'uppercase' },
+    
+    badgeIcon: { backgroundColor: isDark ? '#334155' : '#f3f4f6', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+    badgeIconTxt: { color: isDark ? '#cbd5e1' : '#4b5563', fontSize: 8, fontWeight: '700' },
 
-  // Custom Alert Modal
-  alertOverlayBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
-  alertCard: { width: '85%', backgroundColor: '#fff', borderRadius: 28, padding: 25, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20 },
-  alertIconWrapper: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  alertTitleTxt: { fontSize: 20, fontWeight: '800', color: '#0f172a', marginBottom: 10, textAlign: 'center' },
-  alertMsgTxt: { fontSize: 14, color: '#64748b', textAlign: 'center', marginBottom: 25, lineHeight: 22 },
-  alertActionsRow: { flexDirection: 'row', width: '100%', gap: 12 },
-  alertBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  alertBtnCancelUi: { backgroundColor: '#f1f5f9' },
-  alertBtnCancelTxtUi: { color: '#64748b', fontSize: 15, fontWeight: '700' },
-  alertBtnConfirmTxtUi: { color: '#fff', fontSize: 15, fontWeight: '700' },
-});
+    badgeStatus: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+    statusPubBg: { backgroundColor: isDark ? '#064e3b' : '#F0FDF4' },
+    statusPubTxt: { color: isDark ? '#34d399' : '#16a34a' },
+    statusDraftBg: { backgroundColor: isDark ? '#78350f' : '#FFFBEB' },
+    statusDraftTxt: { color: isDark ? '#fbbf24' : '#D97706' },
+    badgeStatusTxt: { fontSize: 8, fontWeight: '800' },
+    
+    actionsContainer: { borderLeftWidth: 1, borderLeftColor: colors.border },
+    editAction: { paddingLeft: 12, paddingRight: 10, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', gap: 4, flex: 1 },
+    editActionTxt: { fontSize: 9, fontWeight: '700', color: isDark ? '#60a5fa' : '#1a2d5a', textTransform: 'uppercase' },
+    deleteAction: { paddingLeft: 12, paddingRight: 10, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', gap: 4, flex: 1, borderTopWidth: 1, borderTopColor: colors.border },
+    deleteActionTxt: { fontSize: 9, fontWeight: '700', color: isDark ? '#f87171' : '#ef4444', textTransform: 'uppercase' },
+
+    // Custom Alert Modal
+    alertOverlayBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
+    alertCard: { width: '85%', backgroundColor: colors.card, borderRadius: 28, padding: 25, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20 },
+    alertIconWrapper: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+    alertTitleTxt: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 10, textAlign: 'center' },
+    alertMsgTxt: { fontSize: 14, color: isDark ? '#cbd5e1' : '#64748b', textAlign: 'center', marginBottom: 25, lineHeight: 22 },
+    alertActionsRow: { flexDirection: 'row', width: '100%', gap: 12 },
+    alertBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    alertBtnCancelUi: { backgroundColor: isDark ? '#334155' : '#f1f5f9' },
+    alertBtnCancelTxtUi: { color: isDark ? '#cbd5e1' : '#64748b', fontSize: 15, fontWeight: '700' },
+    alertBtnConfirmTxtUi: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  });
+}

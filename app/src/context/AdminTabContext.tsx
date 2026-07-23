@@ -6,6 +6,7 @@ export interface AdminTabContextType {
   editingData: any;
   setEditingData: (data: any) => void;
   goBack: () => void;
+  openDrawer: () => void;
 }
 
 export const AdminTabContext = createContext<AdminTabContextType>({
@@ -14,4 +15,5 @@ export const AdminTabContext = createContext<AdminTabContextType>({
   editingData: null,
   setEditingData: () => {},
   goBack: () => {},
+  openDrawer: () => {},
 });

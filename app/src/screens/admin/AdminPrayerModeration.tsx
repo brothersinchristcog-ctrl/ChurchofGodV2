@@ -32,17 +32,24 @@ import {
   MoreVertical,
   Megaphone,
   Info,
-  AlertTriangle
+  AlertTriangle,
+  Menu
 } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { AdminTabContext } from '../../context/AdminTabContext';
 import SalesforceService from '../../services/SalesforceService';
 import Theme from '../../theme/Theme';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
 export default function AdminPrayerModeration() {
   const { member } = useAuth();
   const adminName = member?.name || 'Administrator';
+  const { openDrawer } = React.useContext(AdminTabContext);
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors, isDark);
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -120,7 +127,6 @@ export default function AdminPrayerModeration() {
     category: 'Pray for me',
     postAs: adminName
   });
-
   // Update default postAs when member info loads
   useEffect(() => {
     if (member?.name) {
@@ -163,7 +169,6 @@ export default function AdminPrayerModeration() {
     
     // 2. Immediate success card
     showAlert({ title: 'Success', message: 'Prayer request status updated as Answered.', type: 'success' });
-
     // 3. Background API call
     SalesforceService.markAsAnswered(id).then(() => {
       fetchPrayers(true); // Sync fresh data in background
@@ -265,8 +270,8 @@ export default function AdminPrayerModeration() {
       <View style={styles.pTextContainer}>
         <Text style={styles.pText}>{item.text}</Text>
         {item.textTe && item.textTe.trim() !== (item.text || '').trim() && (
-          <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#e2e8f0' }}>
-            <Text style={[styles.pText, { fontStyle: 'italic', color: '#475569' }]}>
+          <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: isDark ? colors.border : '#cbd5e1' }}>
+            <Text style={[styles.pText, { fontStyle: 'italic', color: isDark ? '#cbd5e1' : '#475569' }]}>
               {item.textTe}
             </Text>
           </View>
@@ -314,7 +319,7 @@ export default function AdminPrayerModeration() {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={Theme.Colors.primary} />
-        <Text style={{ marginTop: 12, color: '#64748b' }}>Loading Prayer Wall...</Text>
+        <Text style={{ marginTop: 12, color: isDark ? '#94a3b8' : '#64748b' }}>Loading Prayer Wall...</Text>
       </View>
     );
   }
@@ -323,35 +328,41 @@ export default function AdminPrayerModeration() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
+      <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.headerOuter}>
+        <LinearGradient colors={['#1a2d5a', '#23314d']} style={styles.headerInner}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+            <TouchableOpacity onPress={openDrawer} style={{ padding: 4 }}>
+              <Menu size={24} color="#fff" />
+            </TouchableOpacity>
+            
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={styles.headerTitle}>Prayers</Text>
+            </View>
+
+            <TouchableOpacity style={styles.headerCreateBtn} onPress={() => setShowCreateModal(true)}>
+              <Plus size={14} color="#1a2d5a" />
+              <Text style={styles.headerCreateBtnTxt}>Create</Text>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </LinearGradient>
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* ── Section Heading ── */}
-        <View style={[styles.secHd, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-          <View>
-            <Text style={styles.secTitle}>🙏 Prayer Moderation</Text>
-            <Text style={styles.secSub}>Real-time requests from Salesforce</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.headerCreateBtn}
-            onPress={() => setShowCreateModal(true)}
-          >
-            <Plus size={14} color="#fff" />
-            <Text style={styles.headerCreateBtnTxt}>Create</Text>
-          </TouchableOpacity>
-        </View>
 
         {/* ── Stats Row ── */}
         <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={[styles.statVal, { color: Theme.Colors.error }]}>{pendingPrayers.length}</Text>
-            <Text style={styles.statLbl}>New Requests</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={[styles.statVal, { color: Theme.Colors.success }]}>{answeredPrayers.length}</Text>
-            <Text style={styles.statLbl}>Processed</Text>
+          <View style={styles.statsPill}>
+            <Text style={styles.statsPillText}>
+              <Text style={{ color: '#ef4444', fontWeight: '800' }}>{pendingPrayers.length}</Text> New Requests
+            </Text>
+            <Text style={styles.statsDivider}>|</Text>
+            <Text style={styles.statsPillText}>
+              <Text style={{ color: '#10b981', fontWeight: '800' }}>{answeredPrayers.length}</Text> Processed
+            </Text>
           </View>
         </View>
 
@@ -384,7 +395,7 @@ export default function AdminPrayerModeration() {
             <View style={styles.createModalHeader}>
               <Text style={styles.createModalTitle}>Create New Prayer Request</Text>
               <TouchableOpacity onPress={() => setShowCreateModal(false)} style={styles.closeBtn}>
-                <XCircle size={24} color="#64748b" />
+                <XCircle size={24} color={isDark ? '#94a3b8' : '#64748b'} />
               </TouchableOpacity>
             </View>
             
@@ -446,7 +457,7 @@ export default function AdminPrayerModeration() {
                   <Text style={styles.pickerTxt}>
                     {pastorRequest.category || 'Select Category'}
                   </Text>
-                  <MoreVertical size={14} color="#64748b" />
+                  <MoreVertical size={14} color={isDark ? '#94a3b8' : '#64748b'} />
                 </TouchableOpacity>
 
                 {showPicker && (
@@ -504,7 +515,7 @@ export default function AdminPrayerModeration() {
                   onPress={() => setShowPostAs(!showPostAs)}
                 >
                   <Text style={styles.pickerTxt}>{pastorRequest.postAs}</Text>
-                  <MoreVertical size={14} color="#64748b" />
+                  <MoreVertical size={14} color={isDark ? '#94a3b8' : '#64748b'} />
                 </TouchableOpacity>
 
                 {showPostAs && (
@@ -615,77 +626,91 @@ export default function AdminPrayerModeration() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f2f7' },
-  scroll: { padding: 14 },
+const getStyles = (colors: any, isDark: boolean) => {
+  const customBorder = isDark ? colors.border : '#cbd5e1';
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  scroll: { padding: 14, paddingTop: 10, paddingBottom: 40 },
 
-  secHd: { marginBottom: 0, paddingBottom: 15, borderBottomWidth: 1.5, borderBottomColor: Theme.Colors.accent },
-  secTitle: { fontSize: 18, fontWeight: '800', color: Theme.Colors.primary },
-  secSub: { fontSize: 11, color: '#6B7280', marginTop: 4 },
+  headerOuter: {
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    marginBottom: 0,
+    paddingBottom: 4,
+  },
+  headerInner: {
+    padding: 10,
+    paddingTop: Platform.OS === 'ios' ? 40 : 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  headerCreateBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FCD34D', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  headerCreateBtnTxt: { fontSize: 12, fontWeight: '700', color: '#1a2d5a' },
 
-  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 18, marginTop: 15 },
-  statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 12, paddingVertical: 18, alignItems: 'center', elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, borderWidth: 0.5, borderColor: '#f1f5f9' },
-  statVal: { fontSize: 24, fontWeight: '700' },
-  statLbl: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
+  statsRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 18, marginTop: 15 },
+  statsPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#334155' : '#e2e8f0', borderRadius: 30, paddingVertical: 10, paddingHorizontal: 20, borderWidth: 1, borderColor: '#000' },
+  statsPillText: { fontSize: 13, color: colors.text, fontWeight: '600' },
+  statsDivider: { fontSize: 15, color: '#94a3b8', marginHorizontal: 15 },
 
   listHd: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
   listHdTitle: { fontSize: 13, fontWeight: '700', color: Theme.Colors.error },
 
-  pCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 0.5, borderColor: '#e2e8f0' },
+  pCard: { backgroundColor: colors.card, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: customBorder },
   pCardAnswered: { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
   pCardHd: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   pAvatar: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   pAvatarTxt: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  pUserName: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
+  pUserName: { fontSize: 13, fontWeight: '700', color: colors.text },
   pTime: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
 
   ansBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   ansBadgeTxt: { fontSize: 8, fontWeight: '700', color: Theme.Colors.success },
 
-  pTextContainer: { backgroundColor: '#f9fafb', borderRadius: 12, padding: 18, marginBottom: 15, borderWidth: 0.5, borderColor: '#f1f5f9' },
-  pText: { fontSize: 13, color: '#4b5563', lineHeight: 22 },
+  pTextContainer: { backgroundColor: isDark ? '#0f172a' : '#f9fafb', borderRadius: 12, padding: 18, marginBottom: 15, borderWidth: 1, borderColor: customBorder },
+  pText: { fontSize: 13, color: isDark ? '#cbd5e1' : '#4b5563', lineHeight: 22 },
 
   pFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   catBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   catDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6366f1' },
-  catTxt: { fontSize: 10, fontWeight: '600', color: '#64748b' },
+  catTxt: { fontSize: 10, fontWeight: '600', color: isDark ? '#94a3b8' : '#64748b' },
 
   pActions: { flexDirection: 'row', gap: 8 },
-  pActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f1f5f9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
+  pActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: isDark ? '#334155' : '#f1f5f9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
   pActionBtnTxt: { fontSize: 10, fontWeight: '700', color: Theme.Colors.primary },
 
-  pastorSection: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginTop: 20, borderWidth: 0.5, borderColor: '#e2e8f0' },
+  pastorSection: { backgroundColor: colors.card, borderRadius: 16, padding: 20, marginTop: 20, borderWidth: 1, borderColor: customBorder },
   pastorSecTitle: { fontSize: 14, fontWeight: '700', color: Theme.Colors.primary, marginBottom: 20 },
   inputGroup: { marginBottom: 15 },
-  inputLabel: { fontSize: 11, fontWeight: '700', color: '#1e293b', marginBottom: 8 },
-  textArea: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, minHeight: 80, paddingHorizontal: 12, marginBottom: 10 },
-  textInput: { fontSize: 12, color: '#1e293b', paddingVertical: 12, textAlignVertical: 'top' },
-  pickerBtn: { height: 48, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15 },
-  pickerTxt: { fontSize: 13, color: '#1e293b', fontWeight: '500' },
-  categoryList: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, padding: 4, marginTop: 4, elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
-  catOption: { paddingVertical: 12, paddingHorizontal: 15, borderBottomWidth: 0.5, borderBottomColor: '#f1f5f9' },
+  inputLabel: { fontSize: 11, fontWeight: '700', color: colors.text, marginBottom: 8 },
+  textArea: { backgroundColor: colors.card, borderWidth: 1, borderColor: customBorder, borderRadius: 10, minHeight: 80, paddingHorizontal: 12, marginBottom: 10 },
+  textInput: { fontSize: 12, color: colors.text, paddingVertical: 12, textAlignVertical: 'top' },
+  pickerBtn: { height: 48, backgroundColor: colors.card, borderWidth: 1, borderColor: customBorder, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15 },
+  pickerTxt: { fontSize: 13, color: colors.text, fontWeight: '500' },
+  categoryList: { backgroundColor: colors.card, borderWidth: 1, borderColor: customBorder, borderRadius: 10, padding: 4, marginTop: 4, elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
+  catOption: { paddingVertical: 12, paddingHorizontal: 15, borderBottomWidth: 0.5, borderBottomColor: customBorder },
   catOptionActive: { backgroundColor: '#2563EB' },
-  catOptionTxt: { fontSize: 13, color: '#1e293b' },
+  catOptionTxt: { fontSize: 13, color: colors.text },
   publishBtn: { height: 56, backgroundColor: '#0f1e3a', borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: 14, marginTop: 10, elevation: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
   publishBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   // Search Styles
   searchBox: {
     height: 48,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: customBorder,
     borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 15,
     gap: 10
   },
-  searchInput: { flex: 1, fontSize: 13, color: '#1e293b' },
+  searchInput: { flex: 1, fontSize: 13, color: colors.text },
   searchResults: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: customBorder,
     borderRadius: 10,
     marginTop: 4,
     maxHeight: 200,
@@ -698,13 +723,13 @@ const styles = StyleSheet.create({
   searchItem: {
     padding: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: customBorder,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between'
   },
-  searchItemName: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
-  searchItemPhone: { fontSize: 11, color: '#64748b', marginTop: 2 },
+  searchItemName: { fontSize: 13, fontWeight: '700', color: colors.text },
+  searchItemPhone: { fontSize: 11, color: isDark ? '#94a3b8' : '#64748b', marginTop: 2 },
   selectedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -716,13 +741,10 @@ const styles = StyleSheet.create({
     marginTop: 8
   },
   selectedBadgeTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
-
-  headerCreateBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: Theme.Colors.primary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, gap: 6 },
-  headerCreateBtnTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  createModalOverlay: { flex: 1, backgroundColor: 'rgba(15, 30, 58, 0.7)', justifyContent: 'flex-end' },
-  createModalContent: { backgroundColor: '#f0f2f7', borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '85%' },
-  createModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  createModalTitle: { fontSize: 16, fontWeight: '800', color: Theme.Colors.primary },
+  createModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  createModalContent: { backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '85%' },
+  createModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderBottomWidth: 1, borderBottomColor: customBorder },
+  createModalTitle: { fontSize: 16, fontWeight: '800', color: isDark ? '#fff' : Theme.Colors.primary },
   closeBtn: { padding: 4 },
 
   // Success Modal Styles
@@ -734,7 +756,7 @@ const styles = StyleSheet.create({
     padding: 20
   },
   successCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 24,
     padding: 30,
     width: '100%',
@@ -762,13 +784,13 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#1a2d5a',
+    color: isDark ? '#93c5fd' : '#1a2d5a',
     marginBottom: 10,
     textAlign: 'center'
   },
   successSub: {
     fontSize: 14,
-    color: '#64748b',
+    color: isDark ? '#94a3b8' : '#64748b',
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 30
@@ -788,23 +810,24 @@ const styles = StyleSheet.create({
   },
   
   // Replies Styles
-  repliesContainer: { marginTop: 15, paddingTop: 15, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
-  repliesHeader: { fontSize: 12, fontWeight: '800', color: '#1a2d5a', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  replyCard: { backgroundColor: '#f8fafc', borderRadius: 10, padding: 12, marginBottom: 8 },
+  repliesContainer: { marginTop: 15, paddingTop: 15, borderTopWidth: 1, borderTopColor: customBorder },
+  repliesHeader: { fontSize: 12, fontWeight: '800', color: isDark ? '#93c5fd' : '#1a2d5a', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  replyCard: { backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderRadius: 10, padding: 12, marginBottom: 8 },
   replyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  replyAuthor: { fontSize: 12, fontWeight: '700', color: '#1a2d5a' },
+  replyAuthor: { fontSize: 12, fontWeight: '700', color: isDark ? '#93c5fd' : '#1a2d5a' },
   replyDate: { fontSize: 11, color: '#94a3b8', fontWeight: '500' },
-  replyBody: { fontSize: 13, color: '#475569', lineHeight: 20 },
+  replyBody: { fontSize: 13, color: isDark ? '#cbd5e1' : '#475569', lineHeight: 20 },
 
   // Custom Alert Modal
   alertOverlayBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
-  alertCard: { width: '85%', backgroundColor: '#fff', borderRadius: 28, padding: 25, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20 },
+  alertCard: { width: '85%', backgroundColor: colors.card, borderRadius: 28, padding: 25, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20 },
   alertIconWrapper: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  alertTitleTxt: { fontSize: 20, fontWeight: '800', color: '#0f172a', marginBottom: 10, textAlign: 'center' },
-  alertMsgTxt: { fontSize: 14, color: '#64748b', textAlign: 'center', marginBottom: 25, lineHeight: 22 },
+  alertTitleTxt: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 10, textAlign: 'center' },
+  alertMsgTxt: { fontSize: 14, color: isDark ? '#94a3b8' : '#64748b', textAlign: 'center', marginBottom: 25, lineHeight: 22 },
   alertActionsRow: { flexDirection: 'row', width: '100%', gap: 12 },
   alertBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  alertBtnCancelUi: { backgroundColor: '#f1f5f9' },
-  alertBtnCancelTxtUi: { color: '#64748b', fontSize: 15, fontWeight: '700' },
+  alertBtnCancelUi: { backgroundColor: isDark ? '#334155' : '#f1f5f9' },
+  alertBtnCancelTxtUi: { color: isDark ? '#94a3b8' : '#64748b', fontSize: 15, fontWeight: '700' },
   alertBtnConfirmTxtUi: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
+}

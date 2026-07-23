@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { colors, spacing, radius, typography, shadow } from '../../../theme/Theme';
+import { spacing, radius, typography, shadow } from '../../../theme/Theme';
+import { useTheme } from '../../../context/ThemeContext';
 import SalesforceService from '../../../services/SalesforceService';
 import { useAuth } from '../../../context/AuthContext';
 import { CustomAlert, AlertButton } from '../../../components/CustomAlert';
@@ -22,6 +23,8 @@ import { checkScheduleConflicts, checkTravelConflicts } from '../../../utils/sch
 
 export const CreatePastorEvent = ({ route, navigation }: { route: any; navigation: any }) => {
   const { member } = useAuth();
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors, isDark);
   const [loading, setLoading] = useState(false);
   const [fallbackContactId, setFallbackContactId] = useState<string | null>(null);
 
@@ -311,7 +314,7 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.bgPrimary} />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.card} />
       
       <CustomAlert 
         visible={alertConfig.visible}
@@ -325,7 +328,7 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{editEvent ? 'Edit Pastor Event' : 'Create Pastor Event'}</Text>
         <View style={{ width: 40 }} />
@@ -360,7 +363,7 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
               <Text style={styles.label}>Event Title *</Text>
               <TextInput
                 style={[styles.input, errors.title && { borderColor: '#ef4444', borderWidth: 1 }]}
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.textSecondary}
                 placeholder="e.g. Sunday Service & Prayer"
                 value={title}
                 onChangeText={(text) => {
@@ -375,7 +378,7 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
               <Text style={styles.label}>Event Type</Text>
               <TextInput
                 style={styles.input}
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.textSecondary}
                 placeholder="e.g. Worship Service, Prayer Meeting"
                 value={eventType}
                 onChangeText={setEventType}
@@ -458,8 +461,8 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
 
             <View style={[styles.inputGroup, { marginTop: spacing.md }]}>
               <Text style={styles.label}>Meeting Length (Calculated)</Text>
-              <View style={[styles.input, { backgroundColor: colors.bgSecondary, justifyContent: 'center' }]}>
-                <Text style={{ color: colors.textPrimary }}>
+              <View style={[styles.input, { backgroundColor: colors.background, justifyContent: 'center' }]}>
+                <Text style={{ color: colors.text }}>
                   {durationHoursDerived} Hour{parseFloat(durationHoursDerived) !== 1 ? 's' : ''}
                 </Text>
               </View>
@@ -475,7 +478,7 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
               <Text style={styles.label}>Venue Name *</Text>
               <TextInput
                 style={[styles.input, errors.venue && { borderColor: '#ef4444', borderWidth: 1 }]}
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.textSecondary}
                 placeholder="e.g. Calvary Temple"
                 value={venue}
                 onChangeText={(text) => {
@@ -490,7 +493,7 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
               <Text style={styles.label}>Town / Village * (For Live Tracker Landmark)</Text>
               <TextInput
                 style={[styles.input, errors.city && { borderColor: '#ef4444', borderWidth: 1 }]}
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.textSecondary}
                 placeholder="e.g. Guntur"
                 value={city}
                 onChangeText={(text) => {
@@ -505,7 +508,7 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
               <Text style={styles.label}>Full Address * (Used for Maps Routing)</Text>
               <TextInput
                 style={[styles.input, styles.textArea, errors.address && { borderColor: '#ef4444', borderWidth: 1 }]}
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.textSecondary}
                 placeholder="e.g. Ring Road, Arundelpet, Guntur, AP, 522002"
                 multiline
                 numberOfLines={3}
@@ -528,7 +531,7 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
               <Text style={styles.label}>Description</Text>
               <TextInput
                 style={[styles.input, { height: 120, textAlignVertical: 'top' }]}
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.textSecondary}
                 placeholder="What is this itinerary appointment for?"
                 multiline
                 numberOfLines={6}
@@ -541,7 +544,7 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
               <Text style={styles.label}>Special Notes</Text>
               <TextInput
                 style={[styles.input, { height: 120, textAlignVertical: 'top' }]}
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.textSecondary}
                 placeholder="Any items to bring, contacts to meet, or preparations to make?"
                 multiline
                 numberOfLines={6}
@@ -563,7 +566,6 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
           {step < 3 ? (
             <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
               <Text style={styles.saveButtonText}>Next</Text>
-              <Ionicons name="arrow-forward" size={20} color="#FFF" />
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -587,10 +589,10 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
   );
 };
 
-const styles = StyleSheet.create({
+function getStyles(colors: any, isDark: boolean) { return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bgSecondary
+    backgroundColor: colors.background
   },
   header: {
     flexDirection: 'row',
@@ -598,7 +600,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     height: 56,
-    backgroundColor: colors.bgPrimary,
+    backgroundColor: colors.card,
     borderBottomWidth: 1,
     borderBottomColor: colors.border
   },
@@ -607,7 +609,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...typography.h2,
-    color: colors.textPrimary,
+    color: colors.text,
     flex: 1,
     textAlign: 'center'
   },
@@ -616,7 +618,7 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   card: {
-    backgroundColor: colors.bgPrimary,
+    backgroundColor: colors.card,
     borderRadius: radius.md,
     padding: spacing.md,
     borderWidth: 1,
@@ -625,10 +627,10 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     ...typography.h3,
-    color: colors.primaryDark,
+    color: colors.text,
     marginBottom: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.bgTertiary,
+    borderBottomColor: colors.border,
     paddingBottom: spacing.xs
   },
   inputGroup: {
@@ -647,8 +649,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 10,
     fontSize: 14,
-    color: colors.textPrimary,
-    backgroundColor: colors.bgSecondary
+    color: colors.text,
+    backgroundColor: colors.background
   },
   textArea: {
     height: 80,
@@ -666,32 +668,32 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: 10,
-    backgroundColor: colors.bgSecondary
+    backgroundColor: colors.background
   },
   dropdownText: {
     fontSize: 14,
-    color: colors.textPrimary
+    color: colors.text
   },
   dropdownMenu: {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.sm,
     marginTop: spacing.xs,
-    backgroundColor: colors.bgPrimary,
+    backgroundColor: colors.card,
     ...shadow.card
   },
   dropdownItem: {
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.bgTertiary
+    borderBottomColor: colors.border
   },
   dropdownItemActive: {
-    backgroundColor: colors.primaryLight
+    backgroundColor: colors.border
   },
   dropdownItemText: {
     fontSize: 14,
-    color: colors.textPrimary
+    color: colors.text
   },
   dropdownItemTextActive: {
     color: colors.primary,
@@ -702,7 +704,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    borderRadius: radius.md,
+    borderRadius: 30,
     paddingVertical: 14,
     gap: 8,
     marginTop: spacing.sm,
@@ -710,7 +712,7 @@ const styles = StyleSheet.create({
     ...shadow.card
   },
   saveButtonDisabled: {
-    backgroundColor: colors.textTertiary
+    backgroundColor: colors.textSecondary
   },
   saveButtonText: {
     color: '#FFF',
@@ -723,13 +725,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
-    backgroundColor: colors.bgSecondary,
+    backgroundColor: colors.background,
   },
   stepCircle: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: colors.bgTertiary,
+    backgroundColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -762,7 +764,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xs,
     paddingBottom: spacing.sm,
-    backgroundColor: colors.bgSecondary,
+    backgroundColor: colors.background,
   },
   stepLabelText: {
     fontSize: 12,
@@ -776,31 +778,31 @@ const styles = StyleSheet.create({
   },
   navigationRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     marginTop: spacing.md,
     marginBottom: spacing.xl,
     gap: spacing.md
   },
   prevButton: {
-    flex: 1,
     paddingVertical: 14,
+    paddingHorizontal: 32,
     borderRadius: radius.md,
-    backgroundColor: colors.bgPrimary,
+    backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center'
   },
   prevButtonText: {
-    color: colors.textPrimary,
+    color: colors.text,
     fontSize: 15,
     fontWeight: '600'
   },
   nextButton: {
-    flex: 1,
     flexDirection: 'row',
     paddingVertical: 14,
-    borderRadius: radius.md,
+    paddingHorizontal: 32,
+    borderRadius: 30,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -814,5 +816,6 @@ const styles = StyleSheet.create({
     marginLeft: 4
   }
 });
+}
 
 export default CreatePastorEvent;

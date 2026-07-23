@@ -15,8 +15,10 @@ import {
   Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Music, Save, ChevronDown, CheckCircle, Pencil, X, List, Eye, Square, Trash2, Star } from 'lucide-react-native';
+import { Music, Save, ChevronDown, CheckCircle, Pencil, X, List, Eye, Square, Trash2, Star, Menu } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '../../context/ThemeContext';
 import { AdminTabContext } from '../../context/AdminTabContext';
 import SalesforceService, { WorshipSong } from '../../services/SalesforceService';
 import {
@@ -51,7 +53,9 @@ const KEYS = [
 ];
 
 export default function AdminSongEditor() {
-  const { setActiveTab } = useContext(AdminTabContext);
+  const { setActiveTab, openDrawer } = useContext(AdminTabContext);
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors, isDark);
 
   // Screen-level tab
   const [screenTab, setScreenTab] = useState<'post' | 'list' | 'member'>('post');
@@ -490,8 +494,8 @@ export default function AdminSongEditor() {
                 <TouchableOpacity
                   key={cat}
                   style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5,
-                    borderColor: isSelected ? (isThemeCat ? '#f59e0b' : '#1a2d5a') : '#e2e8f0',
-                    backgroundColor: isSelected ? (isThemeCat ? '#fef3c7' : '#1a2d5a') : '#f8fafc' }]}
+                    borderColor: isSelected ? (isThemeCat ? '#f59e0b' : (isDark ? '#3b82f6' : '#1a2d5a')) : (isDark ? '#334155' : '#e2e8f0'),
+                    backgroundColor: isSelected ? (isThemeCat ? (isDark ? '#78350f' : '#fef3c7') : (isDark ? '#3b82f6' : '#1a2d5a')) : (isDark ? '#1e293b' : '#f8fafc') }]}
                   onPress={() => {
                     setCategories(prev =>
                       prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
@@ -499,7 +503,7 @@ export default function AdminSongEditor() {
                   }}
                 >
                   <Text style={{ fontSize: 11, fontWeight: '700',
-                    color: isSelected ? (isThemeCat ? '#d97706' : '#fff') : '#64748b' }}>{cat}</Text>
+                    color: isSelected ? (isThemeCat ? (isDark ? '#fcd34d' : '#d97706') : '#fff') : (isDark ? '#94a3b8' : '#64748b') }}>{cat}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -599,12 +603,16 @@ export default function AdminSongEditor() {
       <StatusBar barStyle="light-content" />
 
       {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Music size={20} color="#FCD34D" />
-          <Text style={styles.headerTitle}>Song Manager</Text>
-        </View>
-      </View>
+      <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.headerOuter}>
+        <LinearGradient colors={['#1a2d5a', '#23314d']} style={styles.headerInner}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'center', position: 'relative' }}>
+            <TouchableOpacity onPress={openDrawer} style={{ position: 'absolute', left: 0, padding: 4, zIndex: 10 }}>
+              <Menu size={26} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Song Manager</Text>
+          </View>
+        </LinearGradient>
+      </LinearGradient>
 
       {/* Screen Tabs */}
       <View style={styles.screenTabBar}>
@@ -765,98 +773,95 @@ export default function AdminSongEditor() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9' },
-  header: {
-    backgroundColor: '#1a2d5a',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomWidth: 3,
-    borderBottomColor: '#c0392b'
-  },
+function getStyles(colors: any, isDark: boolean) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  headerOuter: { borderBottomLeftRadius: 30, borderBottomRightRadius: 30, marginBottom: 10, marginHorizontal: 0, marginTop: -20, paddingBottom: 4 },
+  headerInner: { padding: 15, paddingTop: Platform.OS === 'ios' ? 60 : 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
 
   // Screen Tab Bar
   screenTabBar: {
     flexDirection: 'row',
-    backgroundColor: '#e2e8f0',
+    backgroundColor: isDark ? '#1e293b' : '#f8fafc',
     margin: 16,
     borderRadius: 25,
     padding: 4,
-    gap: 4
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.border
   },
   screenTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 21, gap: 6 },
-  screenTabActive: { backgroundColor: '#1a2d5a' },
-  screenTabTxt: { fontSize: 13, fontWeight: '700', color: '#64748b' },
+  screenTabActive: { backgroundColor: isDark ? '#3b82f6' : '#1a2d5a' },
+  screenTabTxt: { fontSize: 13, fontWeight: '700', color: isDark ? '#94a3b8' : '#64748b' },
   screenTabTxtActive: { color: '#fff' },
 
   scroll: { padding: 16 },
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
-  sectionTitle: { fontSize: 12, fontWeight: '800', color: '#1a2d5a', letterSpacing: 1, marginBottom: 20 },
+  card: { backgroundColor: colors.card, borderRadius: 16, padding: 20, marginBottom: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, borderWidth: 1, borderColor: colors.border },
+  sectionTitle: { fontSize: 12, fontWeight: '800', color: isDark ? '#bfdbfe' : '#1a2d5a', letterSpacing: 1, marginBottom: 20 },
 
   inputGroup: { marginBottom: 16 },
   row: { flexDirection: 'row', alignItems: 'flex-start' },
-  label: { fontSize: 10, fontWeight: '800', color: '#64748b', marginBottom: 8, letterSpacing: 0.5 },
+  label: { fontSize: 10, fontWeight: '800', color: colors.text, marginBottom: 8, letterSpacing: 0.5 },
   textInput: {
-    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0',
-    borderRadius: 8, paddingHorizontal: 14, height: 48, fontSize: 13, color: '#1e293b', fontWeight: '600'
+    backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderWidth: 1, borderColor: colors.border,
+    borderRadius: 8, paddingHorizontal: 14, height: 48, fontSize: 13, color: colors.text, fontWeight: '600'
   },
-  pickerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 12, height: 48 },
-  pickerTxt: { fontSize: 13, color: '#1e293b', fontWeight: '700', flex: 1 },
+  pickerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, height: 48 },
+  pickerTxt: { fontSize: 13, color: colors.text, fontWeight: '700', flex: 1 },
 
   statusSelectRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  statusLabel: { fontSize: 13, color: '#334155', fontWeight: '700' },
+  statusLabel: { fontSize: 13, color: colors.text, fontWeight: '700' },
   statusBtnGroup: { flexDirection: 'row', gap: 8 },
-  statusBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#f1f5f9' },
-  statusBtnActive: { backgroundColor: '#1a2d5a' },
-  statusBtnActiveDraft: { backgroundColor: '#64748b' },
-  statusBtnTxt: { fontSize: 12, color: '#475569', fontWeight: '700' },
+  statusBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: isDark ? '#1e293b' : '#f1f5f9' },
+  statusBtnActive: { backgroundColor: isDark ? '#3b82f6' : '#1a2d5a' },
+  statusBtnActiveDraft: { backgroundColor: isDark ? '#4b5563' : '#64748b' },
+  statusBtnTxt: { fontSize: 12, color: isDark ? '#cbd5e1' : '#475569', fontWeight: '700' },
   statusBtnTxtActive: { color: '#fff' },
 
-  infoBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#ecfdf5', padding: 15, borderRadius: 12, borderWidth: 0.5, borderColor: '#a7f3d0', marginBottom: 20 },
-  infoText: { flex: 1, fontSize: 11, color: '#065f46', lineHeight: 18, fontWeight: '500' },
+  infoBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: isDark ? '#064e3b' : '#ecfdf5', padding: 15, borderRadius: 12, borderWidth: 0.5, borderColor: isDark ? '#059669' : '#a7f3d0', marginBottom: 20 },
+  infoText: { flex: 1, fontSize: 11, color: isDark ? '#a7f3d0' : '#065f46', lineHeight: 18, fontWeight: '500' },
 
-  saveBtn: { backgroundColor: '#c0392b', height: 54, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, elevation: 4, shadowColor: '#c0392b', shadowOpacity: 0.3, shadowRadius: 5 },
+  saveBtn: { alignSelf: 'center', width: '75%', backgroundColor: isDark ? '#10b981' : '#059669', height: 54, borderRadius: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, elevation: 4, shadowColor: isDark ? '#10b981' : '#059669', shadowOpacity: 0.3, shadowRadius: 5 },
   saveBtnTxt: { color: '#fff', fontSize: 14, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   // List
   listHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  listHeaderTitle: { fontSize: 15, fontWeight: '800', color: '#1a2d5a' },
-  countBadge: { backgroundColor: '#ecfdf5', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
-  countTxt: { fontSize: 11, fontWeight: '800', color: '#059669' },
-  songItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10, elevation: 2, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 3 },
-  songIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#f0f4ff', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  songItemTitle: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
-  songItemSub: { fontSize: 11, color: '#64748b', marginTop: 2, fontWeight: '500' },
-  editBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#f0f4ff', justifyContent: 'center', alignItems: 'center' },
+  listHeaderTitle: { fontSize: 15, fontWeight: '800', color: isDark ? '#fff' : '#1a2d5a' },
+  countBadge: { backgroundColor: isDark ? '#064e3b' : '#ecfdf5', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
+  countTxt: { fontSize: 11, fontWeight: '800', color: isDark ? '#a7f3d0' : '#059669' },
+  songItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, padding: 14, marginBottom: 10, elevation: 2, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 3, borderWidth: 1, borderColor: colors.border },
+  songIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: isDark ? '#1e293b' : '#f0f4ff', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  songItemTitle: { fontSize: 13, fontWeight: '700', color: colors.text },
+  songItemSub: { fontSize: 11, color: isDark ? '#94a3b8' : '#64748b', marginTop: 2, fontWeight: '500' },
+  editBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: isDark ? '#1e293b' : '#f0f4ff', justifyContent: 'center', alignItems: 'center' },
 
   // Picker Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  pickerModalBox: { backgroundColor: '#fff', borderRadius: 16, width: '100%', maxWidth: 320, maxHeight: '65%', paddingVertical: 15, elevation: 10 },
-  pickerModalTitle: { fontSize: 13, fontWeight: '800', color: '#64748b', paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', marginBottom: 5, letterSpacing: 0.5 },
-  pickerModalItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
-  pickerModalTxt: { fontSize: 15, color: '#1e293b', fontWeight: '600' },
+  pickerModalBox: { backgroundColor: colors.card, borderRadius: 16, width: '100%', maxWidth: 320, maxHeight: '65%', paddingVertical: 15, elevation: 10 },
+  pickerModalTitle: { fontSize: 13, fontWeight: '800', color: isDark ? '#94a3b8' : '#64748b', paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 5, letterSpacing: 0.5 },
+  pickerModalItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
+  pickerModalTxt: { fontSize: 15, color: colors.text, fontWeight: '600' },
 
   // Edit Modal
   editModalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  editModalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, height: height * 0.88 },
-  editModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  editModalTitle: { fontSize: 17, fontWeight: '900', color: '#1e293b' },
-  editCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
+  editModalCard: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: height * 0.88 },
+  editModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
+  editModalTitle: { fontSize: 17, fontWeight: '900', color: colors.text },
+  editCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: isDark ? '#1e293b' : '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
 
   // Success Modal
   successBg: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.75)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  successCard: { backgroundColor: '#fff', borderRadius: 24, padding: 24, width: '100%', maxWidth: 400, alignItems: 'center', elevation: 10 },
-  successIconOuter: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#ecfdf5', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  successCard: { backgroundColor: colors.card, borderRadius: 24, padding: 24, width: '100%', maxWidth: 400, alignItems: 'center', elevation: 10 },
+  successIconOuter: { width: 80, height: 80, borderRadius: 40, backgroundColor: isDark ? '#064e3b' : '#ecfdf5', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   successIconInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#10b981', justifyContent: 'center', alignItems: 'center' },
-  successTitle: { fontSize: 20, fontWeight: '900', color: '#1e293b', marginBottom: 8, textAlign: 'center' },
-  successDesc: { fontSize: 13, color: '#475569', textAlign: 'center', lineHeight: 20, marginBottom: 20 },
-  summaryBox: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, width: '100%', borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 20 },
-  summaryLbl: { fontSize: 9, fontWeight: '800', color: '#94a3b8', letterSpacing: 0.5, marginBottom: 6 },
-  receiptText: { fontSize: 11, color: '#64748b', marginTop: 2 },
-  successActionBtn: { backgroundColor: '#1a2d5a', height: 48, borderRadius: 12, width: '100%', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  successTitle: { fontSize: 20, fontWeight: '900', color: colors.text, marginBottom: 8, textAlign: 'center' },
+  successDesc: { fontSize: 13, color: isDark ? '#cbd5e1' : '#475569', textAlign: 'center', lineHeight: 20, marginBottom: 20 },
+  summaryBox: { backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderRadius: 12, padding: 14, width: '100%', borderWidth: 1, borderColor: colors.border, marginBottom: 20 },
+  summaryLbl: { fontSize: 9, fontWeight: '800', color: isDark ? '#94a3b8' : '#94a3b8', letterSpacing: 0.5, marginBottom: 6 },
+  receiptText: { fontSize: 11, color: isDark ? '#cbd5e1' : '#64748b', marginTop: 2 },
+  successActionBtn: { backgroundColor: isDark ? '#3b82f6' : '#1a2d5a', height: 48, borderRadius: 12, width: '100%', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
   successActionTxt: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  successSecBtn: { height: 48, borderRadius: 12, width: '100%', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' },
-  successSecTxt: { color: '#475569', fontSize: 13, fontWeight: '800' },
+  successSecBtn: { height: 48, borderRadius: 12, width: '100%', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  successSecTxt: { color: colors.text, fontSize: 13, fontWeight: '800' },
 });
+}

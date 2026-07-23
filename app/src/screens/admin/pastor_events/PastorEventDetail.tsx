@@ -13,9 +13,10 @@ import {
   Platform
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-
 const isMapsAvailable = Platform.OS !== 'android';
-import { colors, spacing, radius, typography, shadow } from '../../../theme/Theme';
+
+import { spacing, radius, typography, shadow } from '../../../theme/Theme';
+import { useTheme } from '../../../context/ThemeContext';
 import SalesforceService from '../../../services/SalesforceService';
 import { CustomAlert, AlertButton } from '../../../components/CustomAlert';
 import { PastorEvent } from '../../../types/event';
@@ -30,6 +31,8 @@ import { Image } from 'react-native';
 
 export const PastorEventDetail = ({ route, navigation }: { route: any; navigation: any }) => {
   const { event, allEvents = [] } = route.params as { event: PastorEvent; allEvents: PastorEvent[] };
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors, isDark);
   const [deleting, setDeleting] = React.useState(false);
 
   const [alertConfig, setAlertConfig] = React.useState<{
@@ -190,7 +193,7 @@ export const PastorEventDetail = ({ route, navigation }: { route: any; navigatio
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.bgPrimary} />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.card} />
       
       <CustomAlert 
         visible={alertConfig.visible}
@@ -204,7 +207,7 @@ export const PastorEventDetail = ({ route, navigation }: { route: any; navigatio
       {/* Top Navigation Bar */}
       <View style={styles.navBar}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.navTitle} numberOfLines={1}>Event Details</Text>
         <View style={{ width: 40 }} />
@@ -233,7 +236,7 @@ export const PastorEventDetail = ({ route, navigation }: { route: any; navigatio
 
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Ionicons name="hourglass-outline" size={18} color={colors.primary} />
-              <Text style={[styles.timeVal, { marginLeft: 8, color: colors.textSecondary }]}>
+              <Text style={[styles.timeVal, { marginLeft: 8, color: '#64748b' }]}>
                 Meeting length: {event.durationMins >= 60 ? `${Math.round(event.durationMins / 60 * 10) / 10} hours` : `${event.durationMins} mins`}
               </Text>
             </View>
@@ -295,7 +298,7 @@ export const PastorEventDetail = ({ route, navigation }: { route: any; navigatio
                         ))}
                       </View>
                       <Ionicons name="map" size={36} color={colors.primary} style={{ opacity: 0.8 }} />
-                      <Text style={{ marginTop: 8, fontSize: 13, fontWeight: '600', color: colors.primaryDark }}>
+                      <Text style={{ marginTop: 8, fontSize: 13, fontWeight: '600', color: '#111827' }}>
                         {event.venue || 'View Location'}
                       </Text>
                     </>
@@ -364,14 +367,14 @@ export const PastorEventDetail = ({ route, navigation }: { route: any; navigatio
             <View style={{ marginBottom: spacing.md }}>
               <Text style={styles.venueTitle}>{globalNextEvent.title}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
-                <Text style={[styles.timeVal, { marginLeft: 6, fontSize: 13, color: colors.textSecondary }]}>
+                <Ionicons name="calendar-outline" size={14} color="#64748b" />
+                <Text style={[styles.timeVal, { marginLeft: 6, fontSize: 13, color: '#64748b' }]}>
                   {formatDate(globalNextEvent.date)} • {globalNextEvent.startTime}
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-                <Text style={[styles.timeVal, { marginLeft: 6, fontSize: 13, color: colors.textSecondary }]}>
+                <Ionicons name="location-outline" size={14} color="#64748b" />
+                <Text style={[styles.timeVal, { marginLeft: 6, fontSize: 13, color: '#64748b' }]}>
                   {globalNextEvent.city ? `${globalNextEvent.city} • ` : ''}{globalNextEvent.venue || globalNextEvent.address || 'Location TBD'}
                 </Text>
               </View>
@@ -382,7 +385,7 @@ export const PastorEventDetail = ({ route, navigation }: { route: any; navigatio
             ) : (
               <View style={{ gap: spacing.md, marginTop: spacing.md }}>
                   <View>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6, marginLeft: 4 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 6, marginLeft: 4 }}>
                       {event.city ? `${event.city} (${event.venue || 'Event'})` : event.venue || 'Current'} <Ionicons name="arrow-forward" size={10} /> {globalNextEvent.city ? `${globalNextEvent.city} (${globalNextEvent.venue || 'Event'})` : globalNextEvent.venue || 'Next'}
                     </Text>
                     <View style={[styles.travelBadge, { justifyContent: 'flex-start', paddingHorizontal: 12 }]}>
@@ -394,7 +397,7 @@ export const PastorEventDetail = ({ route, navigation }: { route: any; navigatio
                   </View>
                 
                   <View>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6, marginLeft: 4 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 6, marginLeft: 4 }}>
                       {homeLocation?.name || 'Home'} <Ionicons name="arrow-forward" size={10} /> {globalNextEvent.city ? `${globalNextEvent.city} (${globalNextEvent.venue || 'Event'})` : globalNextEvent.venue || 'Next'}
                     </Text>
                     <View style={[styles.travelBadge, { justifyContent: 'flex-start', paddingHorizontal: 12 }]}>
@@ -416,7 +419,7 @@ export const PastorEventDetail = ({ route, navigation }: { route: any; navigatio
             onPress={handleEdit}
             disabled={deleting}
           >
-            <Ionicons name="pencil" size={16} color={colors.primary} />
+            <Ionicons name="pencil" size={16} color="#FFF" />
             <Text style={styles.editBadgeText}>Edit Event</Text>
           </TouchableOpacity>
 
@@ -426,10 +429,10 @@ export const PastorEventDetail = ({ route, navigation }: { route: any; navigatio
             disabled={deleting}
           >
             {deleting ? (
-              <ActivityIndicator color={colors.error} size="small" />
+              <ActivityIndicator color="#FFF" size="small" />
             ) : (
               <>
-                <Ionicons name="trash" size={16} color={colors.error} />
+                <Ionicons name="trash" size={16} color="#FFF" />
                 <Text style={styles.deleteBadgeText}>Delete Event</Text>
               </>
             )}
@@ -440,10 +443,10 @@ export const PastorEventDetail = ({ route, navigation }: { route: any; navigatio
   );
 };
 
-const styles = StyleSheet.create({
+function getStyles(colors: any, isDark: boolean) { return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bgSecondary
+    backgroundColor: colors.background
   },
   gridLinesContainer: {
     ...StyleSheet.absoluteFillObject,
@@ -473,7 +476,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     height: 56,
-    backgroundColor: colors.bgPrimary,
+    backgroundColor: colors.card,
     borderBottomWidth: 1,
     borderBottomColor: colors.border
   },
@@ -482,7 +485,7 @@ const styles = StyleSheet.create({
   },
   navTitle: {
     ...typography.h2,
-    color: colors.textPrimary,
+    color: colors.text,
     flex: 1,
     textAlign: 'center'
   },
@@ -491,11 +494,11 @@ const styles = StyleSheet.create({
     gap: spacing.md
   },
   card: {
-    backgroundColor: colors.bgPrimary,
+    backgroundColor: '#FFF',
     borderRadius: radius.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#e2e8f0',
     ...shadow.card
   },
   badgeRow: {
@@ -506,11 +509,11 @@ const styles = StyleSheet.create({
   },
   dateText: {
     ...typography.caption,
-    color: colors.textSecondary
+    color: '#64748b'
   },
   mainTitle: {
     ...typography.h2,
-    color: colors.textPrimary,
+    color: '#111827',
     marginBottom: spacing.md
   },
   timeRow: {
@@ -521,41 +524,41 @@ const styles = StyleSheet.create({
   timeVal: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.textPrimary
+    color: '#111827'
   },
   travelCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.border,
     borderColor: colors.primaryMid
   },
   sectionLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: colors.primaryDark,
+    color: '#111827',
     textTransform: 'uppercase'
   },
   travelText: {
     fontSize: 12,
-    color: colors.primaryDark,
+    color: '#111827',
     marginTop: 2
   },
   cardLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: colors.textTertiary,
+    color: '#64748b',
     textTransform: 'uppercase',
     marginBottom: spacing.xs
   },
   venueTitle: {
     ...typography.h3,
-    color: colors.textPrimary,
+    color: '#111827',
     marginBottom: 2
   },
   addressText: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: '#64748b',
     marginBottom: spacing.md
   },
   mapsButton: {
@@ -589,7 +592,7 @@ const styles = StyleSheet.create({
   travelBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.primaryDark,
+    color: '#111827',
     marginLeft: 4
   },
   divider: {
@@ -600,7 +603,7 @@ const styles = StyleSheet.create({
   bodyText: {
     fontSize: 13,
     lineHeight: 18,
-    color: colors.textSecondary
+    color: '#64748b'
   },
   notesCard: {
     borderColor: colors.primaryMid,
@@ -618,29 +621,29 @@ const styles = StyleSheet.create({
   contactName: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.textPrimary
+    color: '#111827'
   },
   contactPhone: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: '#64748b',
     marginTop: 2
   },
   callButton: {
     width: 36,
     height: 36,
     borderRadius: radius.full,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center'
   },
   nextEventTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.textPrimary
+    color: '#111827'
   },
   nextEventTime: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: '#64748b',
     marginTop: 2,
     marginBottom: spacing.sm
   },
@@ -659,16 +662,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: `${colors.primary}1A`, // 10% opacity primary
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     paddingHorizontal: spacing.md,
     borderRadius: 100,
-    borderWidth: 1,
-    borderColor: colors.primary,
+    borderWidth: 0,
   },
   editBadgeText: {
     marginLeft: 6,
-    color: colors.primary,
+    color: '#FFF',
     fontWeight: '700',
     fontSize: 14,
   },
@@ -677,19 +679,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: `${colors.error}1A`, // 10% opacity error
+    backgroundColor: '#ef4444',
     paddingVertical: 12,
     paddingHorizontal: spacing.md,
     borderRadius: 100,
-    borderWidth: 1,
-    borderColor: colors.error,
+    borderWidth: 0,
   },
   deleteBadgeText: {
     marginLeft: 6,
-    color: colors.error,
+    color: '#FFF',
     fontWeight: '700',
     fontSize: 14,
   }
 });
+}
 
 export default PastorEventDetail;

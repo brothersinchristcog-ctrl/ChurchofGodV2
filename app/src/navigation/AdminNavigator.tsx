@@ -18,9 +18,12 @@ import {
   Smartphone,
   Info,
   Phone,
-  MessageCircle
+  MessageCircle,
+  Sun,
+  Moon
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import Theme from '../theme/Theme';
 import { AdminTabContext } from '../context/AdminTabContext';
 
@@ -47,6 +50,7 @@ const { width } = Dimensions.get('window');
 
 export default function AdminNavigator() {
   const { signOut, user, member, setViewMode } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [editingData, setEditingData] = useState(null);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
@@ -142,29 +146,18 @@ export default function AdminNavigator() {
   };
 
   return (
-    <AdminTabContext.Provider value={{ activeTab, setActiveTab, editingData, setEditingData, goBack }}>
+    <AdminTabContext.Provider value={{ activeTab, setActiveTab, editingData, setEditingData, goBack, openDrawer }}>
       <SafeAreaView style={[styles.safeArea, { backgroundColor: headerBgColor }]}>
-        <View style={[styles.header, { backgroundColor: headerBgColor }]}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity onPress={openDrawer} style={styles.hamburgerBtn}>
-              <Menu color="#fff" size={26} />
-            </TouchableOpacity>
-            <View style={styles.logoCircle}>
-              <Image 
-                source={require('../../assets/logo.png')} 
-                style={styles.logoImage}
-                resizeMode="contain"
-              />
-            </View>
-            <View style={styles.headerText}>
-              <Text style={styles.headerTitle}>Church of GOD</Text>
-              <Text style={styles.headerSub}>Admin Dashboard</Text>
-            </View>
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleTxt}>Pastor</Text>
+        {![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15].includes(activeTab) && (
+          <View style={[styles.header, { backgroundColor: headerBgColor }]}>
+            <View style={styles.headerTop}>
+              <TouchableOpacity onPress={openDrawer} style={styles.hamburgerBtn}>
+                <Menu color="#fff" size={26} />
+              </TouchableOpacity>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff', marginLeft: 15 }}>{tabs[activeTab].name}</Text>
             </View>
           </View>
-        </View>
+        )}
 
         <View style={styles.content}>
           <ActiveComponent />
@@ -187,8 +180,13 @@ export default function AdminNavigator() {
                 <View style={styles.drawerAvatar}>
                   <Image source={require('../../assets/logo.png')} style={{ width: 56, height: 56 }} resizeMode="cover" />
                 </View>
-                <View>
-                  <Text style={styles.drawerName}>Church of GOD</Text>
+                <View style={{ flex: 1, paddingRight: 20 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={styles.drawerName}>Church of GOD</Text>
+                    <TouchableOpacity onPress={toggleTheme}>
+                      {isDark ? <Sun color="#FCD34D" size={20} /> : <Moon color="#fff" size={20} />}
+                    </TouchableOpacity>
+                  </View>
                   <Text style={styles.drawerEmail}>{member?.name || user?.displayName || 'Admin Member'}</Text>
                 </View>
               </View>

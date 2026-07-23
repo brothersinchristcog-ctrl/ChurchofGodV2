@@ -230,51 +230,26 @@ const EventMarquee = ({ events, onEventPress }: { events: any[], onEventPress: (
 const InfographicNav = ({ navigation, setShowMorePopup, isDark }: any) => {
   const { width } = Dimensions.get('window');
   
-  // Math for the perfect tangent S-curve, with smaller radius
-  const R = (width - 40) / 6.2; 
-  const strokeW = 10; 
-  const H = R * 3.5;
-  const cx2 = width / 2;
-  const cy2 = H - R - 20; 
+  // Height of the container
+  const H = 140; 
   
-  // Increased dx to push ABOUT US (left) and MORE (right) further outwards
-  const dx = 2.15 * R;
-  const dy = R;
+  // Curve points for the arch
+  const startX = -20;
+  const startY = 70;
+  const endX = width + 20;
+  const endY = 70;
+  const controlX = width / 2;
+  const controlY = -30;
 
-  const cx1 = cx2 - dx;
-  const cy1 = cy2 - dy;
+  const dCombined = `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
 
-  const cx3 = cx2 + dx;
-  const cy3 = cy2 - dy;
-
-  // Hug C1 from bottom-left to right
-  const startX1 = cx1 - 0.866025 * R;
-  const startY1 = cy1 + 0.5 * R;
-  const endC1X = cx1 + R;
-  const endC1Y = cy1;
-
-  // Hug C2 from left to right (underneath)
-  const startC2X = cx2 - R;
-  const startC2Y = cy2;
-  const endC2X = cx2 + R;
-  const endC2Y = cy2;
-
-  // Hug C3 from left to bottom-right
-  const startC3X = cx3 - R;
-  const startC3Y = cy3;
-  const endX3 = cx3 + 0.866025 * R;
-  const endY3 = cy3 + 0.5 * R;
-
-  // Bezier tension for smooth connection
-  const tX = dx * 0.35; 
-
-  const dCombined = 
-    `M ${startX1} ${startY1} ` + 
-    `A ${R} ${R} 0 1 1 ${endC1X} ${endC1Y} ` + // Arc over C1
-    `C ${endC1X + tX} ${endC1Y}, ${startC2X - tX} ${startC2Y}, ${startC2X} ${startC2Y} ` + // Bezier to C2
-    `A ${R} ${R} 0 0 0 ${endC2X} ${endC2Y} ` + // Arc under C2
-    `C ${endC2X + tX} ${endC2Y}, ${startC3X - tX} ${startC3Y}, ${startC3X} ${startC3Y} ` + // Bezier to C3
-    `A ${R} ${R} 0 1 1 ${endX3} ${endY3}`; // Arc over C3
+  // Positions for the buttons
+  const cyMid = 25; 
+  const cySide = 50;
+  
+  const cx1 = width * 0.20;
+  const cx2 = width * 0.5;
+  const cx3 = width * 0.80;
 
   const renderNode = (
     cx: number, cy: number, 
@@ -283,34 +258,34 @@ const InfographicNav = ({ navigation, setShowMorePopup, isDark }: any) => {
     icon: any, 
     onPress: () => void
   ) => {
-    const innerSize = R * 2 - strokeW + 2;
-
+    const r = 26; // radius of the button
+    
     return (
-      <View style={{ position: 'absolute', left: cx - R, top: cy - R, width: R * 2, height: R * 2, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ position: 'absolute', left: cx - 60, top: cy - r, width: 120, alignItems: 'center' }}>
         <TouchableOpacity 
           style={{ 
-            width: innerSize, 
-            height: innerSize, 
-            borderRadius: innerSize / 2, 
+            width: r * 2, 
+            height: r * 2, 
+            borderRadius: r, 
             backgroundColor: isDark ? '#1e293b' : '#fff', 
             alignItems: 'center', 
             justifyContent: 'center',
-            padding: 4,
-            shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8
+            shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 6,
+            marginBottom: 10
           }}
           onPress={onPress}
           activeOpacity={0.8}
         >
-          <View style={{ marginBottom: 4 }}>{icon}</View>
-          <Text style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#f8fafc' : '#0f172a', textAlign: 'center', marginBottom: 2 }}>{title}</Text>
-          <Text style={{ fontSize: 7, color: isDark ? '#94a3b8' : '#64748b', textAlign: 'center', lineHeight: 10 }} numberOfLines={3}>{desc}</Text>
+          {icon}
         </TouchableOpacity>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#f8fafc' : '#1a2d5a', textAlign: 'center', marginBottom: 2 }}>{title}</Text>
+        <Text style={{ fontSize: 10, color: isDark ? '#94a3b8' : '#64748b', textAlign: 'center' }}>{desc}</Text>
       </View>
     );
   };
 
   return (
-    <View style={{ width, height: H, alignSelf: 'center', marginVertical: 15 }}>
+    <View style={{ width, height: H, alignSelf: 'center', marginVertical: 10 }}>
       <Svg width={width} height={H} style={{ position: 'absolute' }}>
         <Defs>
           {isDark ? (
@@ -329,12 +304,13 @@ const InfographicNav = ({ navigation, setShowMorePopup, isDark }: any) => {
             </SvgLinearGradient>
           )}
         </Defs>
-        <Path d={dCombined} fill="none" stroke="url(#gradCurved)" strokeWidth={strokeW} strokeLinecap="round" />
+        {/* Simple dashed arch curve */}
+        <Path d={dCombined} fill="none" stroke="url(#gradCurved)" strokeWidth={2} strokeDasharray="6,6" strokeLinecap="round" />
       </Svg>
 
-      {renderNode(cx1, cy1, 'ABOUT US', 'Learn our mission and vision.', <Info size={22} color="#ff512f" />, () => navigation.navigate('AboutUs'))}
-      {renderNode(cx2, cy2, 'CONTACT US', 'Get in touch with us.', <Phone size={22} color="#8b5cf6" />, () => navigation.navigate('ContactUs'))}
-      {renderNode(cx3, cy3, 'MORE', 'Explore other features.', <MoreHorizontal size={22} color="#2dd4bf" />, () => setShowMorePopup(true))}
+      {renderNode(cx1, cySide, 'About us', 'Our mission', <Info size={22} color="#ff512f" />, () => navigation.navigate('AboutUs'))}
+      {renderNode(cx2, cyMid, 'Contact us', 'Get in touch', <Phone size={22} color="#8b5cf6" />, () => navigation.navigate('ContactUs'))}
+      {renderNode(cx3, cySide, 'More', 'All features', <MoreHorizontal size={22} color="#2dd4bf" />, () => setShowMorePopup(true))}
     </View>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, SafeAreaView, Dimensions, ActivityIndicator, Image, Alert, Modal, KeyboardAvoidingView, Platform, Linking } from 'react-native';
-import { ChevronRight, Search, SlidersHorizontal, Image as ImageIcon, Book, Eye, Edit2, MessageCircle, Check, Gift, Cake, Focus, Cross, ArrowLeft, Home, Calendar, Plus, RefreshCw } from 'lucide-react-native';
+import { ChevronRight, Search, SlidersHorizontal, Image as ImageIcon, Book, Eye, Edit2, MessageCircle, Check, Gift, Cake, Focus, Cross, ArrowLeft, Home, Calendar, Plus, RefreshCw, Menu } from 'lucide-react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import Share from 'react-native-share';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,6 +21,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { useAuth } from '../../context/AuthContext';
 import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import { AdminTabContext } from '../../context/AdminTabContext';
 
 const { width } = Dimensions.get('window');
 
@@ -42,6 +43,7 @@ const DEFAULT_MONTHLY_THEMES: { key: string; name: string; c: readonly [string, 
 type Screen = 'dashboard' | 'list' | 'details' | 'customize' | 'theme' | 'add_theme' | 'verse' | 'upload' | 'preview' | 'whatsapp' | 'confirm';
 
 export default function AdminCODCelebs() {
+  const { openDrawer } = React.useContext(AdminTabContext);
   const { member: currentAdmin } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -264,20 +266,8 @@ export default function AdminCODCelebs() {
 
     return (
       <View style={styles.screen}>
-        <View style={{flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 24, paddingTop: 12, paddingBottom: 4}}>
-          <TouchableOpacity onPress={() => {
-            setLoading(true);
-            fetchCelebrations(true).then(data => {
-              setMembers(data);
-              setLoading(false);
-            }).catch(err => {
-              console.error(err);
-              setLoading(false);
-            });
-          }}>
-            <RefreshCw size={22} color="#1E2A63" />
-          </TouchableOpacity>
-        </View>
+        {/* Header Section */}
+            
         <View style={[styles.heroCard, { backgroundColor: ['#1E2A63', '#2B3A80', '#37469B'][0] }]}>
           <Text style={styles.heroEyebrow}>This Season</Text>
           <Text style={styles.heroTitle}>Celebrations{"\n"}worth remembering</Text>
@@ -298,8 +288,7 @@ export default function AdminCODCelebs() {
             </View>
           </View>
         </View>
-        
-        <Text style={styles.sectionLabel}>Celebration Categories</Text>
+      <Text style={styles.sectionLabel}>Celebration Categories</Text>
         
         <View style={styles.catGrid}>
           {CATEGORIES.map((c, idx) => {
@@ -1363,19 +1352,44 @@ export default function AdminCODCelebs() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.appbar}>
-        {stack.length > 1 ? (
-          <TouchableOpacity style={styles.backBtn} onPress={back}>
-            <ArrowLeft size={20} color="#1E2A63" />
-          </TouchableOpacity>
-        ) : (
-          <View style={[styles.backBtn, {opacity: 0}]} />
-        )}
-        <View style={styles.titleContainer}>
-          <Text style={styles.eyebrow}>{eb}</Text>
-          <Text style={styles.appTitle}>{ti}</Text>
-        </View>
-      </View>
+      {/* Unified Header */}
+      <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.headerOuter}>
+        <LinearGradient colors={['#1a2d5a', '#23314d']} style={styles.headerInner}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+            {stack.length > 1 ? (
+              <TouchableOpacity onPress={back} style={{ padding: 4 }}>
+                <ArrowLeft size={24} color="#fff" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={openDrawer} style={{ padding: 4 }}>
+                <Menu size={24} color="#fff" />
+              </TouchableOpacity>
+            )}
+            
+            <View style={{ alignItems: 'center', flex: 1 }}>
+              <Text style={styles.headerTitle}>{ti}</Text>
+              <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginTop: 2 }}>{eb}</Text>
+            </View>
+            
+            {currentScreen === 'dashboard' ? (
+              <TouchableOpacity onPress={() => {
+                setLoading(true);
+                fetchCelebrations(true).then(data => {
+                  setMembers(data);
+                  setLoading(false);
+                }).catch(err => {
+                  console.error(err);
+                  setLoading(false);
+                });
+              }} style={{ padding: 4 }}>
+                <RefreshCw size={22} color="#fff" />
+              </TouchableOpacity>
+            ) : (
+              <View style={{ width: 30 }} />
+            )}
+          </View>
+        </LinearGradient>
+      </LinearGradient>
       
       <KeyboardAwareScrollView ref={scrollViewRef as any} style={styles.screenRoot} contentContainerStyle={{paddingBottom: 100}} keyboardShouldPersistTaps="handled" enableOnAndroid={true} extraScrollHeight={20}>
           {currentScreen === 'dashboard' && renderDashboard()}
@@ -1455,6 +1469,9 @@ export default function AdminCODCelebs() {
 }
 
 const styles = StyleSheet.create({
+  headerOuter: { borderBottomLeftRadius: 30, borderBottomRightRadius: 30, marginBottom: 15, paddingBottom: 4 },
+  headerInner: { padding: 15, paddingTop: Platform.OS === 'ios' ? 40 : 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
   container: { flex: 1, backgroundColor: '#FBF7EF' },
   appbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingBottom: 14, paddingTop: 10 },
   backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(27,34,66,0.09)', alignItems: 'center', justifyContent: 'center', marginRight: 12, shadowColor: '#1E2A63', shadowOffset: {width: 0, height: 6}, shadowOpacity: 0.08, shadowRadius: 20 },

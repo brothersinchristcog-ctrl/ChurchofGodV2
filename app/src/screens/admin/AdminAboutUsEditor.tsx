@@ -11,9 +11,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Info, Save, ChevronLeft, RefreshCw, Edit2, Eye, Target } from 'lucide-react-native';
+import { Info, Save, Menu, Edit2, Eye, Target } from 'lucide-react-native';
 import firestore from '@react-native-firebase/firestore';
+import { LinearGradient } from 'expo-linear-gradient';
 import { AdminTabContext } from '../../context/AdminTabContext';
+import { useTheme } from '../../context/ThemeContext';
+import Theme from '../../theme/Theme';
 
 interface AboutUsData {
   description: string;
@@ -32,7 +35,15 @@ const DEFAULT_ABOUT: AboutUsData = {
 };
 
 export default function AdminAboutUsEditor() {
-  const { goBack } = useContext(AdminTabContext);
+  const { isDark } = useTheme();
+  const theme = {
+    background: isDark ? '#0b141a' : '#f0f2f7',
+    surface: isDark ? '#111b21' : '#ffffff',
+    border: isDark ? '#222e35' : '#e5e7eb',
+    text: isDark ? '#e9edef' : '#111827',
+    textSecondary: isDark ? '#8696a0' : '#6b7280',
+  };
+  const { openDrawer } = useContext(AdminTabContext);
 
   const [data, setData] = useState<AboutUsData>(DEFAULT_ABOUT);
   const [draft, setDraft] = useState<AboutUsData>(DEFAULT_ABOUT);
@@ -97,37 +108,33 @@ export default function AdminAboutUsEditor() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
 
         {/* ── Header ── */}
-        <View style={styles.header}>
-          {/* Back button */}
-          <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-            <ChevronLeft size={20} color="#fff" />
-          </TouchableOpacity>
-
-          {/* Title */}
-          <View style={styles.headerCenter}>
-            <Info size={18} color="#FCD34D" />
-            <Text style={styles.headerTitle}>About Us</Text>
-          </View>
-
-          {/* Right actions: Refresh + single Edit/View toggle */}
-          <View style={styles.headerRight}>
-            <TouchableOpacity onPress={fetchData} style={styles.iconBtn}>
-              <RefreshCw size={16} color="#aac4e8" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.editToggleBtn}
-              onPress={isEditing ? handleCancel : handleEdit}
-            >
-              {isEditing
-                ? <><Eye size={14} color="#aac4e8" /><Text style={[styles.editToggleTxt, { color: '#aac4e8' }]}>View</Text></>
-                : <><Edit2 size={14} color="#FCD34D" /><Text style={styles.editToggleTxt}>Edit</Text></>
-              }
-            </TouchableOpacity>
-          </View>
-        </View>
+        <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.headerOuter}>
+          <LinearGradient colors={['#1a2d5a', '#23314d']} style={styles.headerInner}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+              <TouchableOpacity onPress={openDrawer} style={{ padding: 4 }}>
+                <Menu size={24} color="#fff" />
+              </TouchableOpacity>
+              
+              <View style={{ alignItems: 'center' }}>
+                <Text style={styles.headerTitle}>About Us</Text>
+                <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginTop: 2 }}>Church Companion</Text>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.editToggleBtn}
+                onPress={isEditing ? handleCancel : handleEdit}
+              >
+                {isEditing
+                  ? <><Eye size={14} color="#aac4e8" /><Text style={[styles.editToggleTxt, { color: '#aac4e8' }]}>View</Text></>
+                  : <><Edit2 size={14} color="#FCD34D" /><Text style={styles.editToggleTxt}>Edit</Text></>
+                }
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </LinearGradient>
 
         <ScrollView
           style={styles.scroll}
@@ -138,20 +145,20 @@ export default function AdminAboutUsEditor() {
           {/* ─── VIEW MODE ─── */}
           {!isEditing ? (
             <>
-              <View style={styles.modeBanner}>
-                <Eye size={13} color="#1a2d5a" />
-                <Text style={styles.modeBannerTxt}>Preview — tap Edit to make changes</Text>
+              <View style={[styles.modeBanner, { backgroundColor: isDark ? "rgba(56, 189, 248, 0.1)" : "#e0f2fe" }]}>
+                <Eye size={13} color={isDark ? "#38bdf8" : "#1a2d5a"} />
+                <Text style={[styles.modeBannerTxt, { color: isDark ? "#38bdf8" : "#1a2d5a" }]}>Preview — tap Edit to make changes</Text>
               </View>
 
-              <View style={styles.viewCard}>
+              <View style={[styles.viewCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
                 <View style={styles.viewCardHeader}>
-                  <Info size={15} color="#1a2d5a" />
-                  <Text style={styles.viewCardTitle}>Church Description</Text>
+                  <Info size={15} color={theme.text} />
+                  <Text style={[styles.viewCardTitle, { color: theme.text }]}>Church Description</Text>
                 </View>
-                <Text style={styles.viewCardBody}>{data.description}</Text>
+                <Text style={[styles.viewCardBody, { color: theme.textSecondary }]}>{data.description}</Text>
               </View>
 
-              <View style={styles.viewCard}>
+              <View style={[styles.viewCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
                 <View style={[styles.viewCardBand, { backgroundColor: '#fef3c7' }]}>
                   <Target size={15} color="#b45309" />
                   <Text style={[styles.viewCardTitle, { color: '#b45309' }]}>Our Mission</Text>
@@ -159,7 +166,7 @@ export default function AdminAboutUsEditor() {
                 <Text style={[styles.viewCardBody, { paddingTop: 12 }]}>{data.mission}</Text>
               </View>
 
-              <View style={styles.viewCard}>
+              <View style={[styles.viewCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
                 <View style={[styles.viewCardBand, { backgroundColor: '#ede9fe' }]}>
                   <Eye size={15} color="#7c3aed" />
                   <Text style={[styles.viewCardTitle, { color: '#7c3aed' }]}>Our Vision</Text>
@@ -175,11 +182,11 @@ export default function AdminAboutUsEditor() {
                 <Text style={[styles.modeBannerTxt, { color: '#b45309' }]}>Editing — tap Save to update</Text>
               </View>
 
-              <View style={styles.fieldCard}>
-                <Text style={styles.fieldLabel}>📖 Church Description</Text>
-                <Text style={styles.fieldHint}>Main introduction shown to members.</Text>
+              <View style={[styles.fieldCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
+                <Text style={[styles.fieldLabel, { color: theme.text }]}>📖 Church Description</Text>
+                <Text style={[styles.fieldHint, { color: theme.textSecondary }]}>Main introduction shown to members.</Text>
                 <TextInput
-                  style={[styles.input, styles.textArea]}
+                  style={[styles.input, styles.textArea, { backgroundColor: isDark ? "#1e293b" : "#f8fafc", color: theme.text, borderColor: theme.border }]}
                   value={draft.description}
                   onChangeText={(t) => setDraft((p) => ({ ...p, description: t }))}
                   placeholder="Enter church description…"
@@ -190,11 +197,11 @@ export default function AdminAboutUsEditor() {
                 />
               </View>
 
-              <View style={styles.fieldCard}>
-                <Text style={styles.fieldLabel}>🎯 Our Mission</Text>
-                <Text style={styles.fieldHint}>Displayed in a highlighted mission card.</Text>
+              <View style={[styles.fieldCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
+                <Text style={[styles.fieldLabel, { color: theme.text }]}>🎯 Our Mission</Text>
+                <Text style={[styles.fieldHint, { color: theme.textSecondary }]}>Displayed in a highlighted mission card.</Text>
                 <TextInput
-                  style={[styles.input, styles.textArea]}
+                  style={[styles.input, styles.textArea, { backgroundColor: isDark ? "#1e293b" : "#f8fafc", color: theme.text, borderColor: theme.border }]}
                   value={draft.mission}
                   onChangeText={(t) => setDraft((p) => ({ ...p, mission: t }))}
                   placeholder="Enter mission statement…"
@@ -205,11 +212,11 @@ export default function AdminAboutUsEditor() {
                 />
               </View>
 
-              <View style={styles.fieldCard}>
-                <Text style={styles.fieldLabel}>🔭 Our Vision</Text>
-                <Text style={styles.fieldHint}>Displayed in a highlighted vision card.</Text>
+              <View style={[styles.fieldCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
+                <Text style={[styles.fieldLabel, { color: theme.text }]}>🔭 Our Vision</Text>
+                <Text style={[styles.fieldHint, { color: theme.textSecondary }]}>Displayed in a highlighted vision card.</Text>
                 <TextInput
-                  style={[styles.input, styles.textArea]}
+                  style={[styles.input, styles.textArea, { backgroundColor: isDark ? "#1e293b" : "#f8fafc", color: theme.text, borderColor: theme.border }]}
                   value={draft.vision}
                   onChangeText={(t) => setDraft((p) => ({ ...p, vision: t }))}
                   placeholder="Enter vision statement…"
@@ -221,8 +228,8 @@ export default function AdminAboutUsEditor() {
               </View>
 
               <View style={styles.actionRow}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-                  <Text style={styles.cancelTxt}>Cancel</Text>
+                <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: isDark ? "#334155" : "#e2e8f0" }]} onPress={handleCancel}>
+                  <Text style={[styles.cancelTxt, { color: theme.text }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.saveBtn, saving && styles.btnDisabled]}
@@ -230,8 +237,8 @@ export default function AdminAboutUsEditor() {
                   disabled={saving}
                 >
                   {saving
-                    ? <ActivityIndicator color="#1a2d5a" size="small" />
-                    : <><Save size={16} color="#1a2d5a" /><Text style={styles.saveTxt}>Save Changes</Text></>
+                    ? <ActivityIndicator color={isDark ? "#38bdf8" : "#1a2d5a"} size="small" />
+                    : <><Save size={16} color={isDark ? "#38bdf8" : "#1a2d5a"} /><Text style={styles.saveTxt}>Save Changes</Text></>
                   }
                 </TouchableOpacity>
               </View>
@@ -251,12 +258,9 @@ const styles = StyleSheet.create({
   loadingText: { color: '#aac4e8', fontSize: 14 },
 
   /* Header */
-  header: { backgroundColor: '#1a2d5a', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 13, gap: 8 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center' },
-  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center' },
-  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '800' },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconBtn: { padding: 6 },
+  headerOuter: { borderBottomLeftRadius: 30, borderBottomRightRadius: 30, marginBottom: 15, paddingBottom: 4 },
+  headerInner: { padding: 15, paddingTop: Platform.OS === 'ios' ? 40 : 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
   editToggleBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   editToggleTxt: { color: '#FCD34D', fontSize: 13, fontWeight: '700' },
 

@@ -11,12 +11,17 @@ import {
   ActivityIndicator,
   RefreshControl
 } from 'react-native';
-import { Users, Phone, Mail, ChevronDown, ChevronUp, Clock, UserCheck } from 'lucide-react-native';
+import { Users, Phone, Mail, ChevronDown, ChevronUp, Clock, UserCheck, Menu } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { AdminTabContext } from '../../context/AdminTabContext';
+import { useTheme } from '../../context/ThemeContext';
 import SalesforceService from '../../services/SalesforceService';
 
 const { width } = Dimensions.get('window');
 
 export default function AdminMembers() {
+  const { isDark, colors } = useTheme();
+  const { openDrawer } = React.useContext(AdminTabContext);
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -24,6 +29,8 @@ export default function AdminMembers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const styles = getStyles(colors, isDark);
 
   const fetchMembers = async (isRefresh = false) => {
     if (isRefresh) {
@@ -113,8 +120,8 @@ export default function AdminMembers() {
   if (loading && members.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1a2d5a" />
-        <Text style={{ marginTop: 10, color: '#1a2d5a', fontWeight: '600' }}>Loading production data...</Text>
+        <ActivityIndicator size="large" color={isDark ? "#93c5fd" : "#1a2d5a"} />
+        <Text style={{ marginTop: 10, color: isDark ? "#93c5fd" : "#1a2d5a", fontWeight: '600' }}>Loading production data...</Text>
       </View>
     );
   }
@@ -132,6 +139,18 @@ export default function AdminMembers() {
 
   return (
     <View style={styles.container}>
+      {/* Header Section */}
+      <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.headerOuter}>
+        <LinearGradient colors={['#1a2d5a', '#23314d']} style={styles.headerInner}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'center' }}>
+            <TouchableOpacity onPress={openDrawer} style={{ position: 'absolute', left: 0, padding: 4 }}>
+              <Menu size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Church Members</Text>
+          </View>
+        </LinearGradient>
+      </LinearGradient>
+
       <ScrollView 
         showsVerticalScrollIndicator={false} 
         contentContainerStyle={styles.scroll}
@@ -139,34 +158,24 @@ export default function AdminMembers() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => fetchMembers(true)}
-            colors={['#1a2d5a']}
+            colors={[isDark ? '#93c5fd' : '#1a2d5a']}
           />
         }
       >
-        
-        {/* Header Section */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Church Members</Text>
-            <Text style={styles.subtitle}>Directory & Status Tracking</Text>
-          </View>
-          <View style={styles.headerIconCircle}>
-            <Users size={20} color="#fff" />
-          </View>
-        </View>
-
         {/* Stats Row */}
         <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={[styles.statVal, { color: '#1a2d5a' }]}>{totalMembers}</Text>
-            <Text style={styles.statLbl}>Total Members</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={[styles.statVal, { color: '#15803D' }]}>{activeMembers}</Text>
+          <View style={styles.statsPill}>
+            <Text style={[styles.statVal, { color: isDark ? '#93c5fd' : '#1a2d5a' }]}>{totalMembers}</Text>
+            <Text style={styles.statLbl}>Total</Text>
+            
+            <Text style={styles.statDivider}>|</Text>
+            
+            <Text style={[styles.statVal, { color: isDark ? '#86efac' : '#15803D' }]}>{activeMembers}</Text>
             <Text style={styles.statLbl}>Active</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={[styles.statVal, { color: '#c0392b' }]}>{inactiveMembers}</Text>
+            
+            <Text style={styles.statDivider}>|</Text>
+            
+            <Text style={[styles.statVal, { color: isDark ? '#fca5a5' : '#c0392b' }]}>{inactiveMembers}</Text>
             <Text style={styles.statLbl}>Inactive</Text>
           </View>
         </View>
@@ -237,20 +246,20 @@ export default function AdminMembers() {
                   </View>
                   <View style={styles.chevronWrap}>
                     {isExpanded ? (
-                      <ChevronUp size={18} color="#6B7280" />
+                      <ChevronUp size={18} color={isDark ? "#9ca3af" : "#6B7280"} />
                     ) : (
-                      <ChevronDown size={18} color="#6B7280" />
+                      <ChevronDown size={18} color={isDark ? "#9ca3af" : "#6B7280"} />
                     )}
                   </View>
                 </TouchableOpacity>
 
                 <View style={styles.contactDetails}>
                   <View style={styles.contactRow}>
-                    <Phone size={12} color="#6B7280" />
+                    <Phone size={12} color={isDark ? "#9ca3af" : "#6B7280"} />
                     <Text style={styles.contactTxt}>{member.Phone || member.MobilePhone || 'No Phone'}</Text>
                   </View>
                   <View style={styles.contactRow}>
-                    <Mail size={12} color="#6B7280" />
+                    <Mail size={12} color={isDark ? "#9ca3af" : "#6B7280"} />
                     <Text style={styles.contactTxt}>{member.Email || 'No Email'}</Text>
                   </View>
                 </View>
@@ -321,58 +330,45 @@ const badgeRowStyles = (isActive: boolean) => StyleSheet.create({
   badgeRow: { flexDirection: 'row', gap: 6, alignItems: 'center' }
 });
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f2f7' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f2f7', padding: 20 },
-  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f2f7', padding: 20 },
-  errorTxt: { fontSize: 14, color: '#c0392b', textAlign: 'center', marginBottom: 15, fontWeight: '600' },
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, padding: 20 },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, padding: 20 },
+  errorTxt: { fontSize: 14, color: isDark ? '#fca5a5' : '#c0392b', textAlign: 'center', marginBottom: 15, fontWeight: '600' },
   retryBtn: { backgroundColor: '#1a2d5a', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
   retryBtnTxt: { color: '#fff', fontSize: 13, fontWeight: '700' },
   scroll: { padding: 16 },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 15, 
-    borderBottomWidth: 1, 
-    borderBottomColor: '#c0392b', 
-    paddingBottom: 10 
+  headerOuter: {
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    marginBottom: 20,
+    paddingBottom: 4,
   },
-  title: { fontSize: 16, fontWeight: '700', color: '#1a2d5a' },
-  subtitle: { fontSize: 10, color: '#9CA3AF' },
-  headerIconCircle: { 
-    width: 32, 
-    height: 32, 
-    borderRadius: 16, 
-    backgroundColor: '#1a2d5a', 
-    justifyContent: 'center', 
-    alignItems: 'center' 
+  headerInner: {
+    padding: 15,
+    paddingTop: Platform.OS === 'ios' ? 40 : 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
 
-  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 15 },
-  statCard: { 
-    flex: 1, 
-    backgroundColor: '#fff', 
-    borderRadius: 8, 
-    paddingVertical: 15, 
-    alignItems: 'center', 
-    borderWidth: 0.5, 
-    borderColor: '#e5e7eb' 
-  },
-  statVal: { fontSize: 24, fontWeight: '700' },
-  statLbl: { fontSize: 10, color: '#9CA3AF', marginTop: 2 },
+  statsRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 18, marginTop: 15 },
+  statsPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#334155' : '#e2e8f0', borderRadius: 30, paddingVertical: 14, paddingHorizontal: 28, borderWidth: 1, borderColor: isDark ? colors.border : '#000' },
+  statVal: { fontSize: 16, fontWeight: '800' },
+  statLbl: { fontSize: 12, color: isDark ? '#94a3b8' : '#475569', marginLeft: 6 },
+  statDivider: { marginHorizontal: 16, color: '#94a3b8' },
 
   searchBarContainer: { 
-    backgroundColor: '#fff', 
-    borderRadius: 8, 
-    paddingHorizontal: 12, 
-    height: 44, 
+    backgroundColor: colors.card, 
+    borderRadius: 25, 
+    paddingHorizontal: 16, 
+    height: 48, 
     justifyContent: 'center', 
-    borderWidth: 0.5, 
-    borderColor: '#d1d5db', 
+    borderWidth: 1, 
+    borderColor: isDark ? colors.border : '#000', 
     marginBottom: 12 
   },
-  searchInput: { fontSize: 14, color: '#111827' },
+  searchInput: { fontSize: 14, color: colors.text },
 
   filterRow: { flexDirection: 'row', gap: 8, marginBottom: 15 },
   filterChip: { 
@@ -389,11 +385,11 @@ const styles = StyleSheet.create({
 
   membersList: { gap: 10 },
   memberCard: { 
-    backgroundColor: '#fff', 
+    backgroundColor: colors.card, 
     borderRadius: 10, 
     padding: 15, 
     borderWidth: 0.5, 
-    borderColor: '#e5e7eb' 
+    borderColor: isDark ? '#334155' : '#e5e7eb' 
   },
   memberCardExpanded: { borderColor: '#1a2d5a', borderWidth: 1 },
   cardHeader: { 
@@ -412,19 +408,19 @@ const styles = StyleSheet.create({
   },
   avatarTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
   nameSection: { flexDirection: 'column', gap: 2 },
-  name: { fontSize: 14, fontWeight: '700', color: '#111827' },
+  name: { fontSize: 14, fontWeight: '700', color: colors.text },
   badgeRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   roleBadge: { 
-    backgroundColor: '#EFF6FF', 
+    backgroundColor: isDark ? 'rgba(239, 246, 255, 0.1)' : '#EFF6FF', 
     paddingHorizontal: 6, 
     paddingVertical: 2, 
     borderRadius: 4 
   },
-  roleTxt: { fontSize: 9, color: '#1a2d5a', fontWeight: '700' },
+  roleTxt: { fontSize: 9, color: isDark ? '#93c5fd' : '#1a2d5a', fontWeight: '700' },
   statusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   statusActive: { backgroundColor: '#F0FDF4' },
-  statusInactive: { backgroundColor: '#FEF2F2' },
-  statusTxt: { fontSize: 9, fontWeight: '700', color: '#1a2d5a' },
+  statusInactive: { backgroundColor: isDark ? 'rgba(254, 242, 242, 0.1)' : '#FEF2F2' },
+  statusTxt: { fontSize: 9, fontWeight: '700', color: isDark ? '#93c5fd' : '#1a2d5a' },
   chevronWrap: { padding: 4 },
 
   contactDetails: { 
@@ -449,16 +445,16 @@ const styles = StyleSheet.create({
     borderRadius: 8, 
     padding: 10, 
     borderWidth: 0.5, 
-    borderColor: '#e5e7eb' 
+    borderColor: isDark ? '#334155' : '#e5e7eb' 
   },
   subStatLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  subStatLabel: { fontSize: 9, textTransform: 'uppercase', color: '#6B7280', fontWeight: '700' },
+  subStatLabel: { fontSize: 9, textTransform: 'uppercase', color: isDark ? '#9ca3af' : '#6B7280', fontWeight: '700' },
   subStatValue: { fontSize: 12, fontWeight: '700', color: '#1e293b' },
 
   householdHeader: { 
     fontSize: 10, 
     fontWeight: '800', 
-    color: '#1a2d5a', 
+    color: isDark ? '#93c5fd' : '#1a2d5a', 
     textTransform: 'uppercase', 
     letterSpacing: 0.5, 
     marginBottom: 8, 
@@ -469,23 +465,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between', 
-    backgroundColor: '#f9fafb', 
+    backgroundColor: isDark ? '#1e293b' : '#f9fafb', 
     borderWidth: 0.5, 
-    borderColor: '#e5e7eb', 
+    borderColor: isDark ? '#334155' : '#e5e7eb', 
     borderRadius: 6, 
     padding: 8 
   },
   hiLeft: { flex: 1, gap: 2 },
-  hiName: { fontSize: 12, fontWeight: '700', color: '#111827' },
-  hiEmail: { fontSize: 10, color: '#6B7280' },
+  hiName: { fontSize: 12, fontWeight: '700', color: colors.text },
+  hiEmail: { fontSize: 10, color: isDark ? '#9ca3af' : '#6B7280' },
   hiRight: { 
-    backgroundColor: '#E5E7EB', 
+    backgroundColor: isDark ? '#475569' : '#E5E7EB', 
     paddingHorizontal: 8, 
     paddingVertical: 3, 
     borderRadius: 4 
   },
-  hiRelation: { fontSize: 9, color: '#374151', fontWeight: '600' },
-  emptyHouseholdTxt: { fontSize: 11, color: '#9CA3AF', fontStyle: 'italic' },
+  hiRelation: { fontSize: 9, color: isDark ? '#fff' : '#374151', fontWeight: '600' },
+  emptyHouseholdTxt: { fontSize: 11, color: isDark ? '#6b7280' : '#9CA3AF', fontStyle: 'italic' },
 
-  footerBranding: { fontSize: 10, color: '#9CA3AF', textAlign: 'center', marginTop: 20 }
+  footerBranding: { fontSize: 10, color: isDark ? '#6b7280' : '#9CA3AF', textAlign: 'center', marginTop: 20 }
 });

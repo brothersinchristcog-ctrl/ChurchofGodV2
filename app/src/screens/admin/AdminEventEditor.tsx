@@ -34,9 +34,12 @@ import {
   CheckCircle2,
   CheckCircle,
   AlertTriangle,
-  ArrowLeft
+  ArrowLeft,
+  Menu
 } from 'lucide-react-native';
 import { AdminTabContext } from '../../context/AdminTabContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '../../context/ThemeContext';
 
 import SalesforceService from '../../services/SalesforceService';
 
@@ -71,7 +74,9 @@ const PUBLISH_STATUS_OPTIONS = [
 ];
 
 export default function AdminEventEditor() {
-  const { setActiveTab, editingData, setEditingData } = useContext(AdminTabContext);
+  const { setActiveTab, setEditingData, editingData, openDrawer } = useContext(AdminTabContext);
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors, isDark);
   const [loading, setLoading] = useState(false);
 
   // Form State
@@ -98,7 +103,7 @@ export default function AdminEventEditor() {
   const [capAttendance, setCapAttendance] = useState(false);
   const [audience, setAudience] = useState('All members');
 
-  const [bannerColor, setBannerColor] = useState('#c0392b');
+  const [bannerColor, setBannerColor] = useState('#1a2d5a');
   const [bannerUrl, setBannerUrl] = useState('');
   const [notifyOnPublish, setNotifyOnPublish] = useState(true);
   const [reminder1Day, setReminder1Day] = useState(true);
@@ -194,7 +199,7 @@ export default function AdminEventEditor() {
       setPublishStatus(editingData.status || 'Published');
       setRecurring(editingData.recurring || 'One-time event');
       setBannerUrl(editingData.bannerUrl || '');
-      setBannerColor(editingData.bannerColor || '#c0392b');
+      setBannerColor(editingData.bannerColor || '#1a2d5a');
     }
   }, [editingData]);
 
@@ -403,7 +408,7 @@ export default function AdminEventEditor() {
   };
 
   const SectionHeader = ({ icon: Icon, title, color }: any) => (
-    <View style={[styles.sectionHeader, { backgroundColor: color + '10' }]}>
+    <View style={styles.sectionHeader}>
       <Icon size={16} color={color} />
       <Text style={[styles.sectionHeaderText, { color }]}>{title}</Text>
     </View>
@@ -490,23 +495,28 @@ export default function AdminEventEditor() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
 
-      {/* ── Page Header ── */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => setActiveTab(0)} style={styles.backBtn}>
-          <ArrowLeft size={20} color="#1a2d5a" />
-        </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: 10 }}>
-          <Text style={styles.headerTitle}>{editingData ? 'Edit Event' : '+ Create Event'}</Text>
-          <Text style={styles.headerSub}>English + Telugu · RSVP enabled</Text>
-        </View>
-      </View>
+      {/* ── Curved Gradient Header ── */}
+      <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.headerOuter}>
+        <LinearGradient colors={['#1a2d5a', '#23314d']} style={styles.headerInner}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+            <TouchableOpacity onPress={openDrawer} style={{ padding: 4 }}>
+              <Menu size={24} color="#fff" />
+            </TouchableOpacity>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={styles.headerTitle}>{editingData ? 'Edit Event' : 'Create Event'}</Text>
+            </View>
+            <View style={{ width: 32 }} />
+          </View>
+        </LinearGradient>
+      </LinearGradient>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-        {/* ── SECTION 1: EVENT INFO ── */}
-        <SectionHeader icon={Info} title="Event Info" color="#1a2d5a" />
+                <View style={styles.sectionCard}>
+          {/* ── SECTION 1: EVENT INFO ── */}
+        <SectionHeader icon={Info} title="Event Info" color={isDark ? '#93c5fd' : '#1a2d5a'} />
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Event title — English *</Text>
@@ -575,8 +585,10 @@ export default function AdminEventEditor() {
             onChangeText={setDescTe}
           />
         </View>
+        </View>
 
-        {/* ── SECTION 2: DATE & TIME ── */}
+                <View style={styles.sectionCard}>
+          {/* ── SECTION 2: DATE & TIME ── */}
         <SectionHeader icon={Clock} title="Date & Time" color="#c0392b" />
 
         <View style={styles.inputGroup}>
@@ -678,8 +690,10 @@ export default function AdminEventEditor() {
             </View>
           )}
         </View>
+        </View>
 
-        {/* ── SECTION 3: LOCATION ── */}
+                <View style={styles.sectionCard}>
+          {/* ── SECTION 3: LOCATION ── */}
         <SectionHeader icon={MapPin} title="Location" color="#15803D" />
 
         <View style={styles.inputGroup}>
@@ -732,23 +746,25 @@ export default function AdminEventEditor() {
             ))}
           </View>
         </View>
+        </View>
 
-        {/* ── SECTION 4: RSVP & AUDIENCE ── */}
+                <View style={styles.sectionCard}>
+          {/* ── SECTION 4: RSVP & AUDIENCE ── */}
         <SectionHeader icon={Users} title="RSVP & Audience" color="#D97706" />
 
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Enable RSVP from members</Text>
-          <Switch value={rsvpEnabled} onValueChange={setRsvpEnabled} trackColor={{ true: '#1a2d5a' }} />
+          <Switch value={rsvpEnabled} onValueChange={setRsvpEnabled} trackColor={{ true: isDark ? '#3b82f6' : '#1a2d5a' }} />
         </View>
 
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Show RSVP count publicly</Text>
-          <Switch value={rsvpPublic} onValueChange={setRsvpPublic} trackColor={{ true: '#1a2d5a' }} />
+          <Switch value={rsvpPublic} onValueChange={setRsvpPublic} trackColor={{ true: isDark ? '#3b82f6' : '#1a2d5a' }} />
         </View>
 
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Cap attendance (set max)</Text>
-          <Switch value={capAttendance} onValueChange={setCapAttendance} trackColor={{ true: '#1a2d5a' }} />
+          <Switch value={capAttendance} onValueChange={setCapAttendance} trackColor={{ true: isDark ? '#3b82f6' : '#1a2d5a' }} />
         </View>
 
         <View style={styles.inputGroup}>
@@ -773,8 +789,10 @@ export default function AdminEventEditor() {
             ))}
           </ScrollView>
         </View>
+        </View>
 
-        {/* ── SECTION 5: EVENT BANNER ── */}
+                <View style={styles.sectionCard}>
+          {/* ── SECTION 5: EVENT BANNER ── */}
         <SectionHeader icon={ImageIcon} title="Event Banner" color="#7C3AED" />
 
         <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
@@ -804,7 +822,7 @@ export default function AdminEventEditor() {
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Banner colour <Text style={styles.labelSub}>(if no image)</Text></Text>
           <View style={styles.colorRow}>
-            {['#c0392b', '#1a2d5a', '#15803D', '#7C3AED', '#D97706', '#dc2626'].map(c => (
+            {['#1a2d5a', '#0f172a', '#065f46', '#5b21b6', '#9a3412', '#9f1239'].map(c => (
               <TouchableOpacity
                 key={c}
                 style={[styles.colorCircle, { backgroundColor: c }, bannerColor === c && styles.colorCircleActive]}
@@ -813,8 +831,10 @@ export default function AdminEventEditor() {
             ))}
           </View>
         </View>
+        </View>
 
-        {/* ── SECTION 6: NOTIFICATION ── */}
+                <View style={styles.sectionCard}>
+          {/* ── SECTION 6: NOTIFICATION ── */}
         <SectionHeader icon={Bell} title="Notification" color="#D97706" />
 
         <View style={styles.switchRow}>
@@ -822,7 +842,7 @@ export default function AdminEventEditor() {
           <Switch 
             value={notifyOnPublish} 
             onValueChange={(val) => setNotifyOnPublish(val)} 
-            trackColor={{ false: '#d1d5db', true: '#1a2d5a' }}
+            trackColor={{ false: '#d1d5db', true: isDark ? '#3b82f6' : '#1a2d5a' }}
             thumbColor={Platform.OS === 'android' ? (notifyOnPublish ? '#fff' : '#f4f3f4') : ''}
           />
         </View>
@@ -832,7 +852,7 @@ export default function AdminEventEditor() {
           <Switch 
             value={reminder1Day} 
             onValueChange={(val) => setReminder1Day(val)} 
-            trackColor={{ false: '#d1d5db', true: '#1a2d5a' }}
+            trackColor={{ false: '#d1d5db', true: isDark ? '#3b82f6' : '#1a2d5a' }}
             thumbColor={Platform.OS === 'android' ? (reminder1Day ? '#fff' : '#f4f3f4') : ''}
           />
         </View>
@@ -842,12 +862,14 @@ export default function AdminEventEditor() {
           <Switch 
             value={reminder1Hour} 
             onValueChange={(val) => setReminder1Hour(val)} 
-            trackColor={{ false: '#d1d5db', true: '#1a2d5a' }}
+            trackColor={{ false: '#d1d5db', true: isDark ? '#3b82f6' : '#1a2d5a' }}
             thumbColor={Platform.OS === 'android' ? (reminder1Hour ? '#fff' : '#f4f3f4') : ''}
           />
         </View>
+        </View>
 
-        {/* ── SECTION 7: EVENT PREVIEW ── */}
+                <View style={styles.sectionCard}>
+          {/* ── SECTION 7: EVENT PREVIEW ── */}
         <SectionHeader icon={Eye} title="Event card preview" color="#16a34a" />
 
         <View style={styles.previewContainer}>
@@ -867,7 +889,9 @@ export default function AdminEventEditor() {
             <View style={styles.cardOverlay}>
               <View style={styles.cardTypeRow}>
                 <Text style={styles.cardType}>● {(metadata?.types || EVENT_TYPES).find((t: any) => t.value === eventType)?.label.split(' · ')[0] || eventType}</Text>
-                <View ><Text >{mode}</Text></View>
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>{mode}</Text>
+                </View>
               </View>
               <Text style={styles.cardTitle}>{titleEn || 'Event title...'}</Text>
               <Text style={styles.cardTitleTe}>{titleTe || 'తెలుగు పేరు...'}</Text>
@@ -885,12 +909,14 @@ export default function AdminEventEditor() {
               </View>
 
               <TouchableOpacity style={styles.previewRsvpBtn}>
-                <CheckCircle2 size={14} color="#1a2d5a" />
+                <CheckCircle2 size={16} color="#1a2d5a" />
                 <Text style={styles.previewRsvpBtnTxt}>I'll be there - హాజరవుతాను</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
+
+                </View>
 
         {/* ── FOOTER BUTTONS ── */}
         <View style={styles.footer}>
@@ -915,24 +941,30 @@ export default function AdminEventEditor() {
             </View>
           )}
 
-          <TouchableOpacity style={styles.publishBtn} onPress={() => handleSave('Published')} disabled={loading}>
-            {loading && publishStatus === 'Published' ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.publishBtnTxt}>Publish Event</Text>
-            )}
-          </TouchableOpacity>
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => handleSave('Draft')} disabled={loading}>
+              <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.actionBtnBadge} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                {loading && publishStatus === 'Draft' ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.actionBtnTxt}>Save as Draft</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.draftBtn} onPress={() => handleSave('Draft')} disabled={loading}>
-            {loading && publishStatus === 'Draft' ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.draftBtnTxt}>Save as Draft</Text>
-            )}
-          </TouchableOpacity>
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => handleSave('Published')} disabled={loading}>
+              <LinearGradient colors={['#059669', '#10b981']} style={styles.actionBtnBadge} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                {loading && publishStatus === 'Published' ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.actionBtnTxt}>Publish Event</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity style={styles.footerBackBtn} onPress={() => { resetForm(); setActiveTab(0); }}>
-            <ArrowLeft size={16} color="#1a2d5a" />
+            <ArrowLeft size={16} color={isDark ? '#93c5fd' : '#1a2d5a'} />
             <Text style={styles.footerBackBtnTxt}>Back to promises</Text>
           </TouchableOpacity>
         </View>
@@ -959,7 +991,7 @@ export default function AdminEventEditor() {
                 </TouchableOpacity>
               )}
               <TouchableOpacity 
-                style={[styles.alertBtn, alertConfig.type === 'error' ? { backgroundColor: '#dc2626' } : { backgroundColor: '#1a2d5a' }]} 
+                style={[styles.alertBtn, alertConfig.type === 'error' ? { backgroundColor: '#dc2626' } : { backgroundColor: isDark ? '#3b82f6' : '#1a2d5a' }]} 
                 onPress={() => {
                   if (alertConfig.onConfirm) {
                     closeAlert();
@@ -979,59 +1011,74 @@ export default function AdminEventEditor() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+function getStyles(colors: any, isDark: boolean) {
+  const customBorder = isDark ? colors.border : '#cbd5e1';
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingBottom: 40 },
 
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: '#1a2d5a' },
-  headerSub: { fontSize: 11, color: '#64748b', marginTop: 2 },
-  backBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
+  header: { display: 'none' },
+  headerOuter: {
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    marginBottom: 10,
+    paddingBottom: 4,
+  },
+  headerInner: {
+    padding: 10,
+    paddingTop: Platform.OS === 'ios' ? 40 : 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  headerSub: { fontSize: 11, color: '#94a3b8', marginTop: 3 },
+  backBtn: { display: 'none' },
   footerBackBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginTop: 15 },
   footerBackBtnTxt: { fontSize: 13, fontWeight: '700', color: '#1a2d5a' },
 
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', padding: 10, paddingHorizontal: 20, marginTop: 15, marginBottom: 15 },
-  sectionHeaderText: { fontSize: 12, fontWeight: '800', marginLeft: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionCard: { marginHorizontal: 20, marginBottom: 25, backgroundColor: colors.card, borderRadius: 16, paddingVertical: 15, borderWidth: 1, borderColor: customBorder },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, marginBottom: 15, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: customBorder },
+  sectionHeaderText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   inputGroup: { paddingHorizontal: 20, marginBottom: 15 },
-  label: { fontSize: 11, fontWeight: '700', color: '#475569', marginBottom: 6 },
+  label: { fontSize: 11, fontWeight: '700', color: isDark ? '#94a3b8' : '#475569', marginBottom: 6 },
   labelSub: { fontWeight: '400', color: '#94a3b8' },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 14, color: '#1e293b' },
+  input: { backgroundColor: colors.card, borderWidth: 1, borderColor: customBorder, borderRadius: 8, padding: 12, fontSize: 14, color: colors.text },
   textArea: { textAlignVertical: 'top', minHeight: 80 },
 
-  dropdown: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  dropdownTxt: { fontSize: 14, color: '#1e293b' },
-  dropdownMenu: { position: 'absolute', top: 75, left: 20, right: 20, backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, zIndex: 1000 },
-  dropdownMenuStatic: { backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', marginTop: 4 },
-  dropdownItem: { padding: 12, borderBottomWidth: 0.5, borderBottomColor: '#f1f5f9' },
-  dropdownItemActive: { backgroundColor: '#f0f7ff' },
-  dropdownItemTxt: { fontSize: 13, color: '#475569' },
-  dropdownItemTxtActive: { color: '#1a2d5a', fontWeight: '700' },
+  dropdown: { backgroundColor: colors.card, borderWidth: 1, borderColor: customBorder, borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  dropdownTxt: { fontSize: 14, color: colors.text },
+  dropdownMenu: { position: 'absolute', top: 75, left: 20, right: 20, backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: customBorder, elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, zIndex: 1000 },
+  dropdownMenuStatic: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: customBorder, marginTop: 4 },
+  dropdownItem: { padding: 12, borderBottomWidth: 0.5, borderBottomColor: customBorder },
+  dropdownItemActive: { backgroundColor: isDark ? '#1e293b' : '#f0f7ff' },
+  dropdownItemTxt: { fontSize: 13, color: isDark ? '#cbd5e1' : '#475569' },
+  dropdownItemTxtActive: { color: isDark ? '#60a5fa' : '#1a2d5a', fontWeight: '700' },
 
   row: { flexDirection: 'row', paddingHorizontal: 20 },
 
-  modeRow: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 10, padding: 4, borderWidth: 1, borderColor: '#e2e8f0' },
+  modeRow: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 10, padding: 4, borderWidth: 1, borderColor: customBorder },
   modeBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
-  modeBtnActive: { backgroundColor: '#1a2d5a' },
-  modeBtnTxt: { fontSize: 12, fontWeight: '600', color: '#64748b' },
+  modeBtnActive: { backgroundColor: isDark ? '#3b82f6' : '#1a2d5a' },
+  modeBtnTxt: { fontSize: 12, fontWeight: '600', color: isDark ? '#94a3b8' : '#64748b' },
   modeBtnTxtActive: { color: '#fff' },
 
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 15 },
-  switchLabel: { fontSize: 13, color: '#475569', fontWeight: '500' },
+  switchLabel: { fontSize: 13, color: isDark ? '#cbd5e1' : '#475569', fontWeight: '500' },
 
   chipRow: { paddingLeft: 20, marginBottom: 5 },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', marginRight: 8 },
-  chipActive: { backgroundColor: '#1a2d5a', borderColor: '#1a2d5a' },
-  chipTxt: { fontSize: 11, fontWeight: '600', color: '#64748b' },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: customBorder, marginRight: 8 },
+  chipActive: { backgroundColor: isDark ? '#3b82f6' : '#1a2d5a', borderColor: isDark ? '#3b82f6' : '#1a2d5a' },
+  chipTxt: { fontSize: 11, fontWeight: '600', color: isDark ? '#94a3b8' : '#64748b' },
   chipTxtActive: { color: '#fff' },
 
-  uploadBox: { marginHorizontal: 20, height: (width - 40) * 9 / 16, borderRadius: 12, borderWidth: 1.5, borderColor: '#e2e8f0', borderStyle: 'dashed', backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
-  uploadIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#f5f3ff', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  uploadTitle: { fontSize: 13, fontWeight: '600', color: '#111827', marginTop: 10 },
+  uploadBox: { marginHorizontal: 20, height: (width - 40) * 9 / 16, borderRadius: 12, borderWidth: 1.5, borderColor: customBorder, borderStyle: 'dashed', backgroundColor: colors.card, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  uploadIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: isDark ? '#1e293b' : '#f5f3ff', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  uploadTitle: { fontSize: 13, fontWeight: '600', color: colors.text, marginTop: 10 },
   uploadSub: { fontSize: 10, color: '#6B7280', marginTop: 4 },
   uploadPreview: { width: '100%', height: '100%', borderRadius: 10 },
 
-  imagePreviewContainer: { marginHorizontal: 20, height: 160, borderRadius: 12, overflow: 'hidden', backgroundColor: '#f1f5f9', marginBottom: 15 },
+  imagePreviewContainer: { marginHorizontal: 20, height: 160, borderRadius: 12, overflow: 'hidden', backgroundColor: customBorder, marginBottom: 15 },
   removeImgBtn: { position: 'absolute', bottom: 10, right: 10, backgroundColor: 'rgba(220, 38, 38, 0.9)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
   removeImgBtnTxt: { color: '#fff', fontSize: 10, fontWeight: '700' },
 
@@ -1043,59 +1090,58 @@ const styles = StyleSheet.create({
   colorCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: 'transparent' },
   colorCircleActive: { borderColor: '#fff', elevation: 4, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 5 },
 
-  previewContainer: { marginHorizontal: 20, padding: 15, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-  previewHeader: { flexDirection: 'row', marginBottom: 15, paddingBottom: 10, borderBottomWidth: 0.5, borderBottomColor: '#f1f5f9' },
-  previewChurchIcon: { width: 32, height: 32, borderRadius: 6, backgroundColor: '#1a2d5a' },
-  previewChurchName: { fontSize: 11, fontWeight: '700', color: '#1e293b' },
-  previewNotifyTitle: { fontSize: 13, fontWeight: '700', color: '#1e293b', marginTop: 2 },
-  previewNotifySub: { fontSize: 10, color: '#64748b', marginTop: 2 },
+  previewContainer: { marginHorizontal: 20, padding: 15, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: customBorder },
+  previewHeader: { flexDirection: 'row', marginBottom: 15, paddingBottom: 10, borderBottomWidth: 0.5, borderBottomColor: customBorder },
+  previewChurchIcon: { width: 32, height: 32, borderRadius: 6, backgroundColor: isDark ? '#3b82f6' : '#1a2d5a' },
+  previewChurchName: { fontSize: 11, fontWeight: '700', color: colors.text },
+  previewNotifyTitle: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 2 },
+  previewNotifySub: { fontSize: 10, color: isDark ? '#94a3b8' : '#64748b', marginTop: 2 },
 
-  cardPreview: { borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#f1f5f9', elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
+  cardPreview: { borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: customBorder, elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
   cardBanner: { padding: 15, minHeight: 100, justifyContent: 'flex-end' },
   cardType: { color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: '800', marginBottom: 6, textTransform: 'uppercase' },
   cardTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
   cardTitleTe: { color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: '600', marginTop: 2 },
-  cardContent: { backgroundColor: '#fff', padding: 15 },
+  cardContent: { backgroundColor: colors.card, padding: 15 },
   cardInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  cardInfoTxt: { fontSize: 11, color: '#64748b', fontWeight: '500' },
-  previewRsvpBtn: { backgroundColor: '#c0392b', height: 44, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10 },
-  previewRsvpBtnTxt: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  cardInfoTxt: { fontSize: 11, color: '#f8fafc', fontWeight: '500' },
+  previewRsvpBtn: { backgroundColor: '#FCD34D', height: 44, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 15 },
+  previewRsvpBtnTxt: { color: '#1a2d5a', fontSize: 14, fontWeight: '800' },
 
   footer: { paddingHorizontal: 20, marginTop: 30 },
-  footerLabel: { fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 10 },
-  statusBox: { backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  statusTxt: { fontSize: 13, color: '#475569' },
-  publishBtn: { backgroundColor: '#c0392b', height: 50, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  publishBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  draftBtn: { backgroundColor: '#1a2d5a', height: 50, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  draftBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
-
+  footerLabel: { fontSize: 11, fontWeight: '700', color: isDark ? '#94a3b8' : '#64748b', marginBottom: 10 },
+  statusBox: { backgroundColor: colors.card, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: customBorder, marginBottom: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statusTxt: { fontSize: 13, color: isDark ? '#cbd5e1' : '#475569' },
+  actionRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+  actionBtnBadge: { height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
+  actionBtnTxt: { color: '#fff', fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
 
   fab: { position: 'absolute', right: 20, bottom: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: '#c0392b', justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10 },
 
   // JS Picker Modals
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { backgroundColor: '#fff', width: width * 0.85, borderRadius: 16, padding: 20, elevation: 20, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 15 },
-  modalTitle: { fontSize: 16, fontWeight: '800', color: '#1a2d5a', marginBottom: 20, textAlign: 'center' },
-  pickerRow: { flexDirection: 'row', height: 180, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#f1f5f9' },
+  modalContent: { backgroundColor: colors.card, width: width * 0.85, borderRadius: 16, padding: 20, elevation: 20, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 15 },
+  modalTitle: { fontSize: 16, fontWeight: '800', color: isDark ? '#f8fafc' : '#1a2d5a', marginBottom: 20, textAlign: 'center' },
+  pickerRow: { flexDirection: 'row', height: 180, borderTopWidth: 1, borderBottomWidth: 1, borderColor: customBorder },
   pickerCol: { flex: 1 },
-  pickerItem: { paddingVertical: 12, textAlign: 'center', fontSize: 15, color: '#64748b' },
-  pickerItemActive: { color: '#1a2d5a', fontWeight: '800', backgroundColor: '#f0f7ff' },
+  pickerItem: { paddingVertical: 12, textAlign: 'center', fontSize: 15, color: isDark ? '#94a3b8' : '#64748b' },
+  pickerItemActive: { color: isDark ? '#60a5fa' : '#1a2d5a', fontWeight: '800', backgroundColor: isDark ? '#1e293b' : '#f0f7ff' },
   modalFooter: { flexDirection: 'row', gap: 12, marginTop: 20 },
-  modalCancel: { flex: 1, height: 48, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f1f5f9' },
-  modalCancelTxt: { fontSize: 14, fontWeight: '700', color: '#64748b' },
-  modalConfirm: { flex: 1, height: 48, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a2d5a' },
+  modalCancel: { flex: 1, height: 48, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: isDark ? '#334155' : '#f1f5f9' },
+  modalCancelTxt: { fontSize: 14, fontWeight: '700', color: isDark ? '#cbd5e1' : '#64748b' },
+  modalConfirm: { flex: 1, height: 48, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: isDark ? '#3b82f6' : '#1a2d5a' },
   modalConfirmTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
 
   // Custom Alert Modal
   alertOverlayBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
-  alertCard: { width: '85%', backgroundColor: '#fff', borderRadius: 28, padding: 25, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20 },
+  alertCard: { width: '85%', backgroundColor: colors.card, borderRadius: 28, padding: 25, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20 },
   alertIconWrapper: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  alertTitleTxt: { fontSize: 20, fontWeight: '800', color: '#0f172a', marginBottom: 10, textAlign: 'center' },
-  alertMsgTxt: { fontSize: 14, color: '#64748b', textAlign: 'center', marginBottom: 25, lineHeight: 22 },
+  alertTitleTxt: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 10, textAlign: 'center' },
+  alertMsgTxt: { fontSize: 14, color: isDark ? '#94a3b8' : '#64748b', textAlign: 'center', marginBottom: 25, lineHeight: 22 },
   alertActionsRow: { flexDirection: 'row', width: '100%', gap: 12 },
   alertBtn: { flex: 1, paddingVertical: 14, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  alertBtnCancelUi: { backgroundColor: '#f1f5f9' },
-  alertBtnCancelTxtUi: { color: '#64748b', fontSize: 15, fontWeight: '700' },
+  alertBtnCancelUi: { backgroundColor: isDark ? '#334155' : '#f1f5f9' },
+  alertBtnCancelTxtUi: { color: isDark ? '#cbd5e1' : '#64748b', fontSize: 15, fontWeight: '700' },
   alertBtnConfirmTxtUi: { color: '#fff', fontSize: 15, fontWeight: '700' }
 });
+}
