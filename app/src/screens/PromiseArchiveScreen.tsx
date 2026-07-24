@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
@@ -14,8 +14,12 @@ import {
   StatusBar,
   Platform,
   RefreshControl,
-  InteractionManager
+  InteractionManager,
+  Alert,
+  Modal
 } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
+import * as MediaLibrary from 'expo-media-library';
 import { 
   ArrowLeft,
   ChevronLeft, 
@@ -23,7 +27,9 @@ import {
   Play, 
   BookOpen,
   Calendar,
-  ChevronRight
+  ChevronRight,
+  CheckCircle,
+  Info
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -43,7 +49,51 @@ export default function PromiseArchiveScreen({ navigation }: any) {
   const [selectedPromise, setSelectedPromise] = useState<DailyPromise | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [toast, setToast] = useState({ visible: false, title: '', desc: '', icon: 'add' });
   const insets = useSafeAreaInsets();
+  const cardRef = useRef(null);
+
+  const showToast = (title: string, desc: string, icon: 'add' | 'info' = 'add') => {
+    setToast({ visible: true, title, desc, icon });
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
+  };
+
+  const handleSaveCard = async () => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        showToast('Permission required', 'Please grant permission to save photos to your gallery.', 'info');
+        return;
+      }
+
+      setIsCapturing(true);
+      
+      // Wait a short moment for React to render the UI without the buttons
+      setTimeout(async () => {
+        try {
+          if (cardRef.current) {
+            const localUri = await captureRef(cardRef, {
+              format: 'jpg',
+              quality: 1,
+            });
+
+            await MediaLibrary.saveToLibraryAsync(localUri);
+            showToast('Saved!', 'The promise card has been saved to your gallery.', 'add');
+          }
+        } catch (captureError) {
+          console.error('Capture error:', captureError);
+          showToast('Error', 'Failed to save the image.', 'info');
+        } finally {
+          setIsCapturing(false);
+        }
+      }, 150);
+    } catch (error) {
+      console.error('Error in save process:', error);
+      showToast('Error', 'An unexpected error occurred.', 'info');
+      setIsCapturing(false);
+    }
+  };
 
   const fetchPromises = async () => {
     try {
@@ -162,7 +212,7 @@ export default function PromiseArchiveScreen({ navigation }: any) {
             <Text style={styles.topDate}>{formatDisplayDate(selectedPromise.date)}</Text>
 
             {/* --- Hero Card --- */}
-            <View style={[styles.heroCard, { backgroundColor: isDark ? '#0a2350' : '#1a2d5a' }]}>
+            <View ref={cardRef} collapsable={false} style={[styles.heroCard, { backgroundColor: isDark ? '#0a2350' : '#1a2d5a' }]}>
               <View style={styles.heroHeader}>
                 <Text style={styles.heroRefEn}>
                   {selectedPromise.verseReferenceEn || ''}
@@ -174,20 +224,22 @@ export default function PromiseArchiveScreen({ navigation }: any) {
               <Text style={styles.verseEn}>"{stripHtml(selectedPromise.verse)}"</Text>
               <Text style={styles.verseTe}>"{stripHtml(selectedPromise.verseTelugu) || 'వాగ్దానము'}"</Text>
               
-              <View style={styles.heroActions}>
-                <TouchableOpacity style={styles.actionBtn}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Calendar size={16} color="#fff" />
-                    <Text style={styles.actionBtnTxt}>Save card</Text>
-                  </View>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => handleShare(selectedPromise)}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Share2 size={16} color="#fff" />
-                    <Text style={styles.actionBtnTxt}>Share</Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
+              {!isCapturing && (
+                <View style={styles.heroActions}>
+                  <TouchableOpacity style={styles.actionBtn} onPress={handleSaveCard}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Calendar size={16} color="#fff" />
+                      <Text style={styles.actionBtnTxt}>Save card</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => handleShare(selectedPromise)}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Share2 size={16} color="#fff" />
+                      <Text style={styles.actionBtnTxt}>Share</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             {/* --- Devotional Note --- */}
@@ -261,11 +313,34 @@ export default function PromiseArchiveScreen({ navigation }: any) {
         </View>
         <View style={{ height: 120 }} />
       </ScrollView>
+
+      {/* ── Custom Toast Modal ── */}
+      {toast.visible && (
+        <Modal transparent visible animationType="fade">
+          <View style={styles.toastBg}>
+            <View style={[styles.toastCard, { backgroundColor: isDark ? '#1e293b' : '#fff' }]}>
+              {toast.icon === 'add' ? (
+                <CheckCircle size={32} color="#10b981" style={styles.toastIcon} />
+              ) : (
+                <Info size={32} color="#f59e0b" style={styles.toastIcon} />
+              )}
+              <Text style={[styles.toastTitle, { color: isDark ? '#f8fafc' : '#1e293b' }]}>{toast.title}</Text>
+              <Text style={[styles.toastDesc, { color: isDark ? '#cbd5e1' : '#64748b' }]}>{toast.desc}</Text>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  toastBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  toastCard: { width: '80%', borderRadius: 20, padding: 25, alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10 },
+  toastIcon: { marginBottom: 15 },
+  toastTitle: { fontSize: 20, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
+  toastDesc: { fontSize: 14, textAlign: 'center', lineHeight: 22 },
+
   container: { flex: 1, backgroundColor: '#f0f2f7' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   

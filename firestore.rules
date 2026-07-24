@@ -76,5 +76,13 @@ service cloud.firestore {
     match /whatsapp_messages/{messageId} {
       allow read, write: if isAuthenticated();
     }
+
+    // 11. Church Gallery
+    match /church_gallery_albums/{albumId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /church_gallery_photos/{photoId} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }

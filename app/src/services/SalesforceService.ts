@@ -959,6 +959,7 @@ spfkUchVp71l4aWpCW50lro=
         modes: mapField('Event_Mode__c'),
         audiences: mapField('Audience__c'),
         recurring: mapField('Recurring_Frequency__c'),
+        recurrenceDuration: mapField('Recurrence_Duration__c'),
         statuses: mapField('Status__c')
       };
     } catch (error) {
@@ -969,7 +970,7 @@ spfkUchVp71l4aWpCW50lro=
 
   async getEvents(limit = 50): Promise<any[]> {
     try {
-      const soql = `SELECT Id, Name, Title_Telugu__c, Date__c, Time__c, End_Time__c, Description__c, Description_Telugu__c, Location__c, Location_Telugu__c, Address__c, Event_Type__c, Event_Mode__c, RSVP_Enabled__c, Show_RSVP_Count__c, Attendance_Cap__c, Audience__c, Status__c, Banner_Image_URL__c, Banner_Color__c, Recurring_Frequency__c, YouTube_ID__c FROM Schedule_Event__c ORDER BY Date__c DESC LIMIT ${limit}`;
+      const soql = `SELECT Id, Name, Title_Telugu__c, Date__c, Time__c, End_Time__c, Description__c, Description_Telugu__c, Location__c, Location_Telugu__c, Address__c, Event_Type__c, Event_Mode__c, RSVP_Enabled__c, Show_RSVP_Count__c, Attendance_Cap__c, Audience__c, Status__c, Banner_Image_URL__c, Banner_Color__c, Recurring_Frequency__c, Recurrence_Duration__c, YouTube_ID__c FROM Schedule_Event__c ORDER BY Date__c DESC LIMIT ${limit}`;
       const result = await this.query(soql);
       return result.records.map((rec: any) => ({
         id: rec.Id,
@@ -993,6 +994,7 @@ spfkUchVp71l4aWpCW50lro=
         bannerUrl: rec.Banner_Image_URL__c,
         bannerColor: rec.Banner_Color__c,
         recurring: rec.Recurring_Frequency__c,
+        recurrenceDuration: rec.Recurrence_Duration__c,
         youtubeId: this.extractYoutubeId(rec.YouTube_ID__c)
       }));
     } catch (error) { return []; }
@@ -1025,6 +1027,7 @@ spfkUchVp71l4aWpCW50lro=
         Banner_Image_URL__c: details.bannerUrl,
         Banner_Color__c: details.bannerColor,
         Recurring_Frequency__c: details.recurring,
+        Recurrence_Duration__c: details.recurrenceDuration,
         Notify_Members__c: details.notifyOnPublish,
         Reminder_1_Day__c: details.reminder1Day,
         Reminder_1_Hour__c: details.reminder1Hour

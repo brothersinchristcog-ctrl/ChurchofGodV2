@@ -50,7 +50,8 @@ import {
   Shield,
   ShieldCheck,
   Check,
-  Droplet
+  Droplet,
+  Image as ImageIcon
 } from 'lucide-react-native';
 
 import firestore from '@react-native-firebase/firestore';
@@ -58,7 +59,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import Theme from '../theme/Theme';
 import SalesforceService, { DailyPromise, ScheduleEvent, SalesforceMember, Sermon } from '../services/SalesforceService';
-import Svg, { Path, Circle, Rect, Polygon, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
+import Svg, { Path, Circle, Rect, Polygon, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -310,7 +311,7 @@ const InfographicNav = ({ navigation, setShowMorePopup, isDark }: any) => {
 
       {renderNode(cx1, cySide, 'About us', 'Our mission', <Info size={22} color="#ff512f" />, () => navigation.navigate('AboutUs'))}
       {renderNode(cx2, cyMid, 'Contact us', 'Get in touch', <Phone size={22} color="#8b5cf6" />, () => navigation.navigate('ContactUs'))}
-      {renderNode(cx3, cySide, 'More', 'All features', <MoreHorizontal size={22} color="#2dd4bf" />, () => setShowMorePopup(true))}
+      {renderNode(cx3, cySide, 'Church gallery', 'Our memories', <ImageIcon size={22} color="#2dd4bf" />, () => navigation.navigate('MemberGalleryDashboard'))}
     </View>
   );
 };
@@ -787,12 +788,53 @@ export default function HomeScreen() {
             style={styles.headerRule} 
           />
 
-          <View style={styles.greetingSection}>
-            <Text style={styles.greetingText}>{getGreeting()},</Text>
-            <Text style={styles.userNameGold}>{member?.name || user?.displayName || 'Member'}</Text>
-            <Text style={styles.dateText}>
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} · <Text style={styles.telDateText}>{getTeluguDay()}</Text>
-            </Text>
+          <View style={[styles.greetingSection, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+            <View style={{ flex: 1 }}>
+              <View style={{ height: 44, justifyContent: 'center' }}>
+                <Svg height="100%" width="100%">
+                  <Defs>
+                    <SvgLinearGradient id="greetingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <Stop offset="0%" stopColor="#fde047" />
+                      <Stop offset="50%" stopColor="#f59e0b" />
+                      <Stop offset="100%" stopColor="#ef4444" />
+                    </SvgLinearGradient>
+                  </Defs>
+                  <SvgText
+                    fill="url(#greetingGrad)"
+                    fontSize="34"
+                    fontFamily="DancingScript_600SemiBold"
+                    y="34"
+                  >
+                    {getGreeting()},
+                  </SvgText>
+                </Svg>
+              </View>
+              <Text style={styles.userNameGold}>{member?.name || user?.displayName || 'Member'}</Text>
+            </View>
+
+            <View style={{ alignItems: 'center', marginLeft: 16, marginRight: 24, transform: [{ scale: 1.2 }] }}>
+              <View style={{ width: 56, height: 62, justifyContent: 'center', alignItems: 'center' }}>
+                <Svg width="100%" height="100%" viewBox="0 0 100 100" style={{ position: 'absolute' }}>
+                  <Polygon
+                    points="50,5 90,28 90,72 50,95 10,72 10,28"
+                    fill="rgba(232, 217, 172, 0.12)"
+                    stroke="#e8d9ac"
+                    strokeWidth="4"
+                  />
+                </Svg>
+                <View style={{ alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+                  <Text style={{ color: '#e8d9ac', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }}>
+                    {new Date().toLocaleDateString('en-US', { month: 'short' })}
+                  </Text>
+                  <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: '800', marginTop: -3 }}>
+                    {new Date().getDate()}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ color: '#7f96b8', fontSize: 11, fontWeight: '700', marginTop: 6, letterSpacing: 0.5 }}>
+                {new Date().toLocaleDateString('en-US', { weekday: 'long' })}
+              </Text>
+            </View>
           </View>
         </LinearGradient>
       </LinearGradient>
@@ -1260,7 +1302,7 @@ const styles = StyleSheet.create({
   appHeader: {
     paddingTop: Platform.OS === 'ios' ? 60 : 45,
     paddingHorizontal: 20,
-    paddingBottom: 30,
+    paddingBottom: 16,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
     overflow: 'hidden',
@@ -1314,17 +1356,14 @@ const styles = StyleSheet.create({
   },
   greetingSection: { zIndex: 2 },
   greetingText: { 
-    color: '#eef2f8', 
-    fontSize: 22, 
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    fontWeight: '400', 
-    lineHeight: 28,
-    opacity: 0.9
+    fontSize: 34, 
+    fontFamily: 'DancingScript_600SemiBold',
+    lineHeight: 44,
   },
   userNameGold: { 
     color: '#e8d9ac', 
-    fontSize: 28,
-    fontWeight: '800', 
+    fontSize: 22,
+    fontWeight: '700', 
     marginTop: 4,
     letterSpacing: 0.5,
   },
@@ -1339,12 +1378,12 @@ const styles = StyleSheet.create({
   phSlide: {
     width: width - 32,
     borderRadius: 20,
-    minHeight: 300,
+    minHeight: 160,
   },
   phInner: {
     backgroundColor: '#1B2138', // Exact deep muted navy from the image
     borderRadius: 24,
-    padding: 24,
+    padding: 16,
     elevation: 8,
     shadowColor: '#000',
     shadowOpacity: 0.25,
@@ -1375,7 +1414,7 @@ const styles = StyleSheet.create({
   },
   phHeaderCenter: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   phLabelCenter: {
     color: '#94a3b8',
@@ -1402,14 +1441,14 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     fontStyle: 'italic',
     lineHeight: 28,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   phRefEnLeft: {
     color: '#FCD34D',
     fontSize: 13,
     fontWeight: '800',
     letterSpacing: 1,
-    marginBottom: 16,
+    marginBottom: 10,
     textAlign: 'center',
   },
   phTeLeft: {
@@ -1417,7 +1456,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '400',
     lineHeight: 26,
-    marginBottom: 16, // Reduced margin since reference comes next
+    marginBottom: 10, // Reduced margin since reference comes next
   },
   phThumbnailSlide: {
     width: width - 32,

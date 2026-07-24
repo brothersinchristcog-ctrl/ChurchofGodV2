@@ -44,6 +44,8 @@ import MembersScreen from '../screens/MembersScreen';
 import SermonVideoScreen from '../screens/SermonVideoScreen';
 import AboutUsScreen from '../screens/AboutUsScreen';
 import ContactUsScreen from '../screens/ContactUsScreen';
+import MemberGalleryDashboard from '../screens/MemberGalleryDashboard';
+import MemberGalleryAlbumDetail from '../screens/MemberGalleryAlbumDetail';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -369,6 +371,8 @@ function Navigation() {
       <Stack.Screen name="SermonVideo" component={SermonVideoScreen} />
       <Stack.Screen name="AboutUs" component={AboutUsScreen} />
       <Stack.Screen name="ContactUs" component={ContactUsScreen} />
+      <Stack.Screen name="MemberGalleryDashboard" component={MemberGalleryDashboard} />
+      <Stack.Screen name="MemberGalleryAlbumDetail" component={MemberGalleryAlbumDetail} />
     </Stack.Navigator>
   );
 

@@ -20,7 +20,8 @@ import {
   Phone,
   MessageCircle,
   Sun,
-  Moon
+  Moon,
+  Image as ImageIcon
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -45,6 +46,7 @@ import AdminAboutUsEditor from '../screens/admin/AdminAboutUsEditor';
 import AdminContactUsEditor from '../screens/admin/AdminContactUsEditor';
 import AdminCODCelebs from '../screens/admin/AdminCODCelebs';
 import AdminInbox from '../screens/admin/AdminInbox';
+import AdminGalleryNavigator from '../screens/admin/gallery/AdminGalleryNavigator';
 
 const { width } = Dimensions.get('window');
 
@@ -132,6 +134,7 @@ export default function AdminNavigator() {
     { name: 'Members', icon: Users, component: AdminMembers },
     { name: 'WhatsApp', icon: MessageCircle, component: AdminInbox },
     { name: 'Celebrations', icon: Gift, component: AdminCODCelebs },
+    { name: 'Gallery', icon: ImageIcon, component: AdminGalleryNavigator },
     { name: 'About Us', icon: Info, component: AdminAboutUsEditor },
     { name: 'Contact Us', icon: Phone, component: AdminContactUsEditor },
   ];
@@ -148,7 +151,7 @@ export default function AdminNavigator() {
   return (
     <AdminTabContext.Provider value={{ activeTab, setActiveTab, editingData, setEditingData, goBack, openDrawer }}>
       <SafeAreaView style={[styles.safeArea, { backgroundColor: headerBgColor }]}>
-        {![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15].includes(activeTab) && (
+        {![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16].includes(activeTab) && (
           <View style={[styles.header, { backgroundColor: headerBgColor }]}>
             <View style={styles.headerTop}>
               <TouchableOpacity onPress={openDrawer} style={styles.hamburgerBtn}>

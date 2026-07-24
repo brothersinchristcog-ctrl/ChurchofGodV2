@@ -34,7 +34,7 @@ export default function EventsScreen({ navigation }: any) {
   const [pastEvents, setPastEvents] = useState<ScheduleEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'thisWeek' | 'upcoming' | 'past'>('upcoming');
+  const [activeTab, setActiveTab] = useState<'thisWeek' | 'upcoming' | 'past'>('thisWeek');
 
   const displayEvents = React.useMemo(() => {
     if (activeTab === 'thisWeek') {
@@ -49,7 +49,15 @@ export default function EventsScreen({ navigation }: any) {
       });
     }
     if (activeTab === 'upcoming') {
-      return upcomingEvents;
+      return upcomingEvents.filter(e => {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const endOfWeek = new Date(today);
+        endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
+        endOfWeek.setHours(23,59,59,999);
+        const d = new Date(e.date);
+        return d > endOfWeek;
+      });
     }
     return pastEvents;
   }, [activeTab, upcomingEvents, pastEvents]);

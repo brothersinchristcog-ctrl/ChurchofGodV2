@@ -91,6 +91,7 @@ export default function AdminEventEditor() {
   const [startTime, setStartTime] = useState('09:00 AM');
   const [endTime, setEndTime] = useState('12:00 PM');
   const [recurring, setRecurring] = useState('One-time event');
+  const [recurrenceDuration, setRecurrenceDuration] = useState('For 1 month');
   const [publishStatus, setPublishStatus] = useState('Published');
 
   const [venueEn, setVenueEn] = useState('');
@@ -112,6 +113,7 @@ export default function AdminEventEditor() {
   // UI State
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [showRecurringDropdown, setShowRecurringDropdown] = useState(false);
+  const [showRecurrenceDurationDropdown, setShowRecurrenceDurationDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
   const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
@@ -198,6 +200,7 @@ export default function AdminEventEditor() {
       setAudience(editingData.audience || 'All members');
       setPublishStatus(editingData.status || 'Published');
       setRecurring(editingData.recurring || 'One-time event');
+      setRecurrenceDuration(editingData.recurrenceDuration || 'For 1 month');
       setBannerUrl(editingData.bannerUrl || '');
       setBannerColor(editingData.bannerColor || '#1a2d5a');
     }
@@ -351,32 +354,98 @@ export default function AdminEventEditor() {
       return finalVal;
     };
 
-    const payload = {
-      id: editingData?.id,
-      titleEn, titleTe, date: sfDate,
-      startTime: formatToSFTime(startTime),
-      endTime: formatToSFTime(endTime),
-      descEn, descTe, venueEn, venueTe, address,
-      eventType: resolveValue('types', eventType),
-      mode: resolveValue('modes', mode),
-      rsvpEnabled, rsvpPublic,
-      audience: resolveValue('audiences', audience),
-      publishStatus: resolveStatus(status),
-      bannerColor,
-      bannerUrl,
-      recurring: resolveValue('recurring', recurring),
-      notifyOnPublish, reminder1Day, reminder1Hour,
-      rsvpCap: capAttendance ? 100 : 0
+    const resolvedRecurring = resolveValue('recurring', recurring);
+    const resolvedRecurrenceDuration = resolveValue('recurrenceDuration', recurrenceDuration);
+
+    const generateDates = (startDateStr: string, recurringPattern: string, durationPattern: string): string[] => {
+      const dates: string[] = [startDateStr];
+      const pat = (recurringPattern || '').toLowerCase();
+      if (pat.includes('one') || pat === '') return dates;
+
+      const [yStr, mStr, dStr] = startDateStr.split('-');
+      let currentDate = new Date(parseInt(yStr), parseInt(mStr) - 1, parseInt(dStr));
+      
+      const dur = (durationPattern || '').toLowerCase();
+      
+      // Calculate limitDate as the LAST DAY of the target calendar month
+      let limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+      
+      if (dur.includes('1 month')) {
+        limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
+      } else if (dur.includes('2 month')) {
+        limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0, 23, 59, 59);
+      } else if (dur.includes('3 month')) {
+        limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 3, 0, 23, 59, 59);
+      } else if (dur.includes('6 month')) {
+        limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 6, 0, 23, 59, 59);
+      } else if (dur.includes('1 year')) {
+        limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 12, 0, 23, 59, 59);
+      } else {
+        limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59); // Fallback
+      }
+
+      for (let i = 1; i < 365; i++) { // Safety break
+        if (pat.includes('first sunday')) {
+          currentDate.setMonth(currentDate.getMonth() + 1);
+          currentDate.setDate(1);
+          while (currentDate.getDay() !== 0) {
+            currentDate.setDate(currentDate.getDate() + 1);
+          }
+        } else if (pat.includes('week') || pat.includes('sunday')) {
+          currentDate.setDate(currentDate.getDate() + 7);
+        } else if (pat.includes('month')) {
+          currentDate.setMonth(currentDate.getMonth() + 1);
+        } else {
+          break;
+        }
+
+        // Check if the newly generated date exceeds our calendar month boundary
+        const checkDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+        if (checkDate > limitDate) break;
+        
+        const d = String(currentDate.getDate()).padStart(2, '0');
+        const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const y = currentDate.getFullYear();
+        dates.push(`${y}-${m}-${d}`);
+      }
+      return dates;
     };
 
-    console.log('📤 [AdminEventEditor] Saving Payload:', JSON.stringify(payload, null, 2));
+    const datesToCreate = (!editingData?.id && !resolvedRecurring.toLowerCase().includes('one'))
+      ? generateDates(sfDate, resolvedRecurring, resolvedRecurrenceDuration)
+      : [sfDate];
 
     try {
-      await SalesforceService.createEvent(payload);
+      for (const d of datesToCreate) {
+        const payload = {
+          id: editingData?.id,
+          titleEn, titleTe, date: d,
+          startTime: formatToSFTime(startTime),
+          endTime: formatToSFTime(endTime),
+          descEn, descTe, venueEn, venueTe, address,
+          eventType: resolveValue('types', eventType),
+          mode: resolveValue('modes', mode),
+          rsvpEnabled, rsvpPublic,
+          audience: resolveValue('audiences', audience),
+          publishStatus: resolveStatus(status),
+          bannerColor,
+          bannerUrl,
+          recurring: resolvedRecurring,
+          recurrenceDuration: resolvedRecurring.toLowerCase().includes('one') ? null : resolvedRecurrenceDuration,
+          notifyOnPublish, reminder1Day, reminder1Hour,
+          rsvpCap: capAttendance ? 100 : 0
+        };
+
+        console.log('📤 [AdminEventEditor] Saving Payload for Date:', d);
+        await SalesforceService.createEvent(payload);
+      }
+      
       // Show success card after real save
       showAlert({ 
         title: 'Event Published!', 
-        message: 'Your event has been successfully saved to Salesforce.', 
+        message: datesToCreate.length > 1 
+          ? `Successfully created ${datesToCreate.length} recurring events.` 
+          : 'Your event has been successfully saved to Salesforce.', 
         type: 'success',
         onConfirm: () => {
           resetForm();
@@ -690,6 +759,44 @@ export default function AdminEventEditor() {
             </View>
           )}
         </View>
+
+        {/* Dependent Field: Recurrence Duration */}
+        {!recurring.toLowerCase().includes('one') && (
+          <View style={[styles.inputGroup, { marginTop: 15 }]}>
+            <Text style={styles.label}>Recurrence Duration</Text>
+            <TouchableOpacity style={styles.dropdown} onPress={() => setShowRecurrenceDurationDropdown(!showRecurrenceDurationDropdown)}>
+              <Text style={styles.dropdownTxt}>
+                {(metadata?.recurrenceDuration || [
+                  { label: 'For 1 month', value: 'For 1 month' },
+                  { label: 'For 2 months', value: 'For 2 months' },
+                  { label: 'For 3 months', value: 'For 3 months' },
+                  { label: 'For 6 months', value: 'For 6 months' },
+                  { label: 'For 1 year', value: 'For 1 year' }
+                ]).find((o: any) => o.value === recurrenceDuration)?.label || recurrenceDuration}
+              </Text>
+              <ChevronDown size={16} color="#64748b" />
+            </TouchableOpacity>
+            {showRecurrenceDurationDropdown && (
+              <View style={styles.dropdownMenuStatic}>
+                {(metadata?.recurrenceDuration || [
+                  { label: 'For 1 month', value: 'For 1 month' },
+                  { label: 'For 2 months', value: 'For 2 months' },
+                  { label: 'For 3 months', value: 'For 3 months' },
+                  { label: 'For 6 months', value: 'For 6 months' },
+                  { label: 'For 1 year', value: 'For 1 year' }
+                ]).map((o: any) => (
+                  <TouchableOpacity
+                    key={o.value}
+                    style={[styles.dropdownItem, recurrenceDuration === o.value && styles.dropdownItemActive]}
+                    onPress={() => { setRecurrenceDuration(o.value); setShowRecurrenceDurationDropdown(false); }}
+                  >
+                    <Text style={[styles.dropdownItemTxt, recurrenceDuration === o.value && styles.dropdownItemTxtActive]}>{o.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
         </View>
 
                 <View style={styles.sectionCard}>
