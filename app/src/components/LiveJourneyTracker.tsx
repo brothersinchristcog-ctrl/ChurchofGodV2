@@ -92,18 +92,20 @@ const LiveJourneyTracker: React.FC<LiveJourneyTrackerProps> = ({
 
   // 1. Sync static distance from props whenever they change (if not tracking)
   useEffect(() => {
-    if (hasStartedTracking || isTracking) return;
+    if (isTracking) return; // Only prevent sync if ACTIVELY tracking
 
     if (selectedMode === 'alt' && altInitialDistanceKm !== undefined && altInitialDurationMins !== undefined) {
       setTotalKm(altInitialDistanceKm);
       setRemainingKm(altInitialDistanceKm);
       setRemainingMins(altInitialDurationMins);
       setCurrentLocationName(activeHome.name || 'Current Location');
+      carProgress.setValue(0);
     } else if (selectedMode === 'primary' && initialDistanceKm !== undefined && initialDurationMins !== undefined) {
       setTotalKm(initialDistanceKm);
       setRemainingKm(initialDistanceKm);
       setRemainingMins(initialDurationMins);
       setCurrentLocationName(activeHome.name || 'Current Location');
+      carProgress.setValue(0);
     } else {
       // Fallback: fetch from Google Maps if props are missing
       const fetchFallback = async () => {

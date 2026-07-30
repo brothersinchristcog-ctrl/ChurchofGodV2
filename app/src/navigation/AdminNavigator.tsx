@@ -21,7 +21,8 @@ import {
   MessageCircle,
   Sun,
   Moon,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Music
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -125,7 +126,7 @@ export default function AdminNavigator() {
     { name: 'Schedule', icon: Calendar, component: AdminPromiseCalendar },
     { name: 'Sermons', icon: Mic, component: AdminSermonList },
     { name: 'New Sermon', icon: PlusSquare, component: AdminSermonEditor },
-    { name: 'New Song', icon: PlusSquare, component: AdminSongEditor },
+    { name: 'Songs', icon: Music, component: AdminSongEditor },
     { name: 'Notifications', icon: Bell, component: AdminNotificationBroadcast },
     { name: 'Pastor Events', icon: Calendar, component: PastorEventNavigator },
     { name: 'Events', icon: MapPin, component: AdminEventList },
@@ -184,7 +185,7 @@ export default function AdminNavigator() {
                   <Image source={require('../../assets/logo.png')} style={{ width: 56, height: 56 }} resizeMode="cover" />
                 </View>
                 <View style={{ flex: 1, paddingRight: 20 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 15 }}>
                     <Text style={styles.drawerName}>Church of GOD</Text>
                     <TouchableOpacity onPress={toggleTheme}>
                       {isDark ? <Sun color="#FCD34D" size={20} /> : <Moon color="#fff" size={20} />}

@@ -214,6 +214,21 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
 
       const executeSave = async () => {
         try {
+          let lat = 0;
+          let lng = 0;
+          try {
+            const GOOGLE_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY;
+            if (GOOGLE_KEY) {
+              const geocodeQuery = city ? `${address.trim()}, ${city.trim()}` : address.trim();
+              const resp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(geocodeQuery)}&key=${GOOGLE_KEY}`);
+              const data = await resp.json();
+              if (data.status === 'OK' && data.results?.length > 0) {
+                lat = data.results[0].geometry.location.lat;
+                lng = data.results[0].geometry.location.lng;
+              }
+            }
+          } catch(e) {}
+
           const optimisticEvent: any = {
             id: editEvent ? editEvent.id : 'temp_' + Date.now(),
             title: title,
@@ -223,9 +238,12 @@ export const CreatePastorEvent = ({ route, navigation }: { route: any; navigatio
             venue: venue,
             city: city,
             address: address,
+            lat: lat,
+            lng: lng,
             description: description,
             durationMins: durationMinsNum,
             type: eventType,
+            travel: { distKm: 0, car: 0, bike: 0, bus: 0 }
           };
 
           if (editEvent) {

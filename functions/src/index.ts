@@ -165,7 +165,7 @@ export const notifyMembers = onCall({ invoker: 'public' }, async (request) => {
 
     const message = {
       notification: { title, body },
-      data: { type: type || 'general' },
+      data: { type: type || 'general', targetPhone: targetPhone || '' },
       android: {
         priority: 'high' as const,
         notification: {
@@ -1163,7 +1163,8 @@ export const onBroadcastCreated = functionsCompat.firestore
         },
         data: {
           type,
-          id: context.params.broadcastId
+          id: context.params.broadcastId,
+          targetPhone: data.targetPhone || ''
         },
         android: {
           priority: 'high' as const,

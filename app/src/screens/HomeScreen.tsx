@@ -51,7 +51,7 @@ import {
   ShieldCheck,
   Check,
   Droplet,
-  Image as ImageIcon
+  Image as ImageIcon,
 } from 'lucide-react-native';
 
 import firestore from '@react-native-firebase/firestore';
@@ -271,6 +271,8 @@ const InfographicNav = ({ navigation, setShowMorePopup, isDark }: any) => {
             backgroundColor: isDark ? '#1e293b' : '#fff', 
             alignItems: 'center', 
             justifyContent: 'center',
+            borderWidth: 3,
+            borderColor: isDark ? '#64748b' : '#94a3b8',
             shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 6,
             marginBottom: 10
           }}
@@ -309,8 +311,8 @@ const InfographicNav = ({ navigation, setShowMorePopup, isDark }: any) => {
         <Path d={dCombined} fill="none" stroke="url(#gradCurved)" strokeWidth={2} strokeDasharray="6,6" strokeLinecap="round" />
       </Svg>
 
-      {renderNode(cx1, cySide, 'About us', 'Our mission', <Info size={22} color="#ff512f" />, () => navigation.navigate('AboutUs'))}
-      {renderNode(cx2, cyMid, 'Contact us', 'Get in touch', <Phone size={22} color="#8b5cf6" />, () => navigation.navigate('ContactUs'))}
+      {renderNode(cx1, cySide, 'About us', 'Our mission', <Users size={22} color="#ff512f" />, () => navigation.navigate('AboutUs'))}
+      {renderNode(cx2, cyMid, 'Contact us', 'Get in touch', <MessageSquare size={22} color="#8b5cf6" />, () => navigation.navigate('ContactUs'))}
       {renderNode(cx3, cySide, 'Church gallery', 'Our memories', <ImageIcon size={22} color="#2dd4bf" />, () => navigation.navigate('MemberGalleryDashboard'))}
     </View>
   );

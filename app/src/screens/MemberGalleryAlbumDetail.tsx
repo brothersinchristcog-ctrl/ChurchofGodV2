@@ -76,7 +76,7 @@ export default function MemberGalleryAlbumDetail() {
   const handleDownload = async (url: string) => {
     try {
       setIsDownloading(true);
-      const { status } = await MediaLibrary.requestPermissionsAsync();
+      const { status } = await MediaLibrary.requestPermissionsAsync(true);
       if (status !== 'granted') {
         Alert.alert("Permission Required", "We need access to your photos to save images.");
         return;

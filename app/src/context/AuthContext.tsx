@@ -109,6 +109,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
+      // Clear FCM Token before logging out
+      if (user) {
+        try {
+          const firestore = require('@react-native-firebase/firestore').default;
+          await firestore().collection('users').doc(user.uid).update({ fcmToken: null });
+        } catch (e) {
+          console.warn('Failed to clear FCM token on sign out', e);
+        }
+      }
+      
       await AsyncStorage.removeItem('@cached_member');
       await auth().signOut();
     } catch (error) {

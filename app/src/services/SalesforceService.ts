@@ -641,7 +641,8 @@ spfkUchVp71l4aWpCW50lro=
           Scripture_Reference__c: details.keySignature,
           Status__c: details.status || 'Published',
           Duration__c: '3:00',
-          YouTube_ID__c: details.youtubeId
+          YouTube_ID__c: details.youtubeId,
+          Category__c: details.category || 'Other'
         };
 
         const fallbackResp = await fetch(fallbackUrl, {
@@ -2015,6 +2016,12 @@ spfkUchVp71l4aWpCW50lro=
               : data?.message || JSON.stringify(data);
           }
         } catch (err) {}
+
+        if (response.status === 404 || sfMessage.toLowerCase().includes('entity is deleted')) {
+          console.log('✅ [deletePastorEvent] Event already deleted');
+          return true;
+        }
+
         console.error('❌ [SalesforceService] deletePastorEvent Error response:', sfMessage);
         throw new Error(sfMessage);
       }

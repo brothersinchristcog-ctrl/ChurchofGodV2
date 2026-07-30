@@ -444,9 +444,9 @@ export default function PrayerWallScreen({ navigation }: any) {
             style={styles.backBtn} 
             onPress={() => {
               if (navigation.canGoBack()) {
-                if (navigation.canGoBack()) { navigation.goBack(); } else { navigation.navigate('Home'); }
+                navigation.goBack();
               } else {
-                navigation.navigate('Home');
+                navigation.navigate('Tabs', { screen: 'Home' });
               }
             }}
           >

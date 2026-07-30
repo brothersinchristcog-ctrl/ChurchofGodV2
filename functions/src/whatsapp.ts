@@ -2,6 +2,7 @@ import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import axios from 'axios';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getMessaging } from 'firebase-admin/messaging';
 
 setGlobalOptions({ region: 'asia-south1' });
 
@@ -136,6 +137,7 @@ export const whatsappWebhook = onRequest({ invoker: 'public' }, (request, respon
     
     if (body.object === 'whatsapp_business_account' && body.entry) {
       const db = getFirestore();
+      const promises: Promise<void>[] = [];
       
       body.entry.forEach((entry: any) => {
         entry.changes.forEach((change: any) => {
@@ -143,74 +145,126 @@ export const whatsappWebhook = onRequest({ invoker: 'public' }, (request, respon
           
           // Handle incoming messages
           if (value.messages) {
-            value.messages.forEach(async (msg: any) => {
-              try {
-                const contact = value.contacts?.find((c: any) => c.wa_id === msg.from);
-                const name = contact?.profile?.name || 'Unknown';
-                
-                let messageText = '';
-                if (msg.type === 'text') {
-                  messageText = msg.text.body;
-                } else if (msg.type === 'button') {
-                  messageText = msg.button.text;
-                } else {
-                  messageText = `[${msg.type} message]`;
-                }
-                
-                const recentMsgSnap = await db.collection('whatsapp_messages')
-                  .where('fromPhone', '==', msg.from)
-                  .orderBy('createdAt', 'desc')
-                  .limit(1)
-                  .get();
-                
-                let adminId = 'unassigned';
-                let adminName = 'Unassigned';
-                
-                if (!recentMsgSnap.empty) {
-                  const recentMsgDoc = recentMsgSnap.docs[0];
-                  if (recentMsgDoc) {
-                    const recentMsg = recentMsgDoc.data() as any;
-                    if (recentMsg && recentMsg.adminId) {
-                      adminId = recentMsg.adminId;
-                      adminName = recentMsg.adminName || 'Admin';
+            value.messages.forEach((msg: any) => {
+              promises.push((async () => {
+                try {
+                  const contact = value.contacts?.find((c: any) => c.wa_id === msg.from);
+                  const name = contact?.profile?.name || 'Unknown';
+                  
+                  let messageText = '';
+                  if (msg.type === 'text') {
+                    messageText = msg.text.body;
+                  } else if (msg.type === 'button') {
+                    messageText = msg.button.text;
+                  } else {
+                    messageText = `[${msg.type} message]`;
+                  }
+                  
+                  const recentMsgSnap = await db.collection('whatsapp_messages')
+                    .where('fromPhone', '==', msg.from)
+                    .orderBy('createdAt', 'desc')
+                    .limit(1)
+                    .get();
+                  
+                  let adminId = 'unassigned';
+                  let adminName = 'Unassigned';
+                  
+                  if (!recentMsgSnap.empty) {
+                    const recentMsgDoc = recentMsgSnap.docs[0];
+                    if (recentMsgDoc) {
+                      const recentMsg = recentMsgDoc.data() as any;
+                      if (recentMsg && recentMsg.adminId) {
+                        adminId = recentMsg.adminId;
+                        adminName = recentMsg.adminName || 'Admin';
+                      }
                     }
                   }
+                  
+                  await db.collection('whatsapp_messages').add({
+                    fromPhone: msg.from,
+                    fromName: name,
+                    messageId: msg.id,
+                    text: messageText,
+                    timestamp: new Date(msg.timestamp * 1000),
+                    type: 'incoming',
+                    rawType: msg.type,
+                    adminId: adminId,
+                    adminName: adminName,
+                    conversationOwner: adminId,
+                    createdAt: FieldValue.serverTimestamp()
+                  });
+
+                  // --- ADMIN NOTIFICATION CARD LOGIC ---
+                  try {
+                    let finalName = name;
+                    try {
+                      // Attempt to lookup user by phone in 'users' collection
+                      const p1 = `+${msg.from}`;
+                      const p2 = msg.from;
+                      const userQuery = await db.collection('users').where('phoneNumber', 'in', [p1, p2]).get();
+                      
+                      if (!userQuery.empty) {
+                        const uDoc = userQuery.docs[0]?.data();
+                        if (uDoc && uDoc.displayName) {
+                          finalName = uDoc.displayName;
+                        }
+                      }
+                    } catch (e) {
+                      console.error('Error looking up full name:', e);
+                    }
+
+                    const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+                    await db.collection('broadcasts').add({
+                      title: `New Reply from ${finalName}`,
+                      content: messageText,
+                      date: dateStr,
+                      type: 'whatsapp_reply',
+                      targetRole: 'admin', // This tells the Updates screen to only show it to Admins/Pastors
+                      silent: true, // Prevents a push notification from firing
+                      createdAt: FieldValue.serverTimestamp()
+                    });
+                    console.log(`Created in-app notification card for WhatsApp reply from ${finalName}`);
+                  } catch (err) {
+                    console.error('Error creating admin notification card:', err);
+                  }
+                  // --- END ADMIN NOTIFICATION CARD LOGIC ---
+
+                } catch (err) {
+                  console.error('Error saving message:', err);
                 }
-                
-                await db.collection('whatsapp_messages').add({
-                  fromPhone: msg.from,
-                  fromName: name,
-                  messageId: msg.id,
-                  text: messageText,
-                  timestamp: new Date(msg.timestamp * 1000),
-                  type: 'incoming',
-                  rawType: msg.type,
-                  adminId: adminId,
-                  adminName: adminName,
-                  conversationOwner: adminId,
-                  createdAt: FieldValue.serverTimestamp()
-                });
-              } catch (err) {
-                console.error('Error saving message:', err);
-              }
+              })());
             });
           }
           
           // Handle delivery statuses (sent, delivered, read, failed)
           if (value.statuses) {
             value.statuses.forEach((status: any) => {
-               db.collection('whatsapp_delivery_status').add({
-                recipientPhone: status.recipient_id,
-                messageId: status.id,
-                status: status.status,
-                errors: status.errors || null,
-                timestamp: new Date(status.timestamp * 1000),
-                createdAt: FieldValue.serverTimestamp()
-               }).catch(err => console.error('Error saving status:', err));
+               promises.push(
+                 db.collection('whatsapp_delivery_status').add({
+                  recipientPhone: status.recipient_id,
+                  messageId: status.id,
+                  status: status.status,
+                  errors: status.errors || null,
+                  timestamp: new Date(status.timestamp * 1000),
+                  createdAt: FieldValue.serverTimestamp()
+                 }).then(() => {}).catch(err => console.error('Error saving status:', err))
+               );
             });
           }
         });
       });
+      
+      // Wait for all database operations to finish before responding
+      Promise.all(promises)
+        .then(() => {
+          response.status(200).send('EVENT_RECEIVED');
+        })
+        .catch(err => {
+          console.error('Error in webhook promises:', err);
+          response.status(200).send('EVENT_RECEIVED'); // Still return 200 to acknowledge receipt
+        });
+        
+      return;
     }
 
     response.status(200).send('EVENT_RECEIVED');

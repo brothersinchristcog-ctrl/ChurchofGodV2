@@ -28,8 +28,11 @@ import {
   Bookmark,
   X,
   CheckCircle,
-  Info
+  Info,
+  Plus
 } from 'lucide-react-native';
+import { useAuth } from '../context/AuthContext';
+import AddSongModal from '../components/AddSongModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import SalesforceService, { WorshipSong } from '../services/SalesforceService';
@@ -55,7 +58,16 @@ const CATEGORIES = [
 ];
 
 export default function SongsScreen({ navigation }: any) {
-  const { isDark } = useTheme();
+  const { isDark, colors } = useTheme();
+  const { member } = useAuth();
+
+  const userTypeStr = member?.userType?.toLowerCase() || '';
+  const isAdmin = userTypeStr === 'admin' || 
+                  userTypeStr === 'system administrator' || 
+                  userTypeStr.includes('admin') || 
+                  userTypeStr === 'pastor';
+
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // ── Tabs ──────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'browse' | 'songbook' | 'theme'>('browse');
@@ -242,11 +254,31 @@ export default function SongsScreen({ navigation }: any) {
                 <Text style={styles.pageTitle}>Worship & Praise</Text>
                 <Text style={styles.pageSub}>స్తుతి మరియు ఆరాధన</Text>
               </View>
-              <View style={{ width: 40 }} />
+              {isAdmin ? (
+                <TouchableOpacity 
+                  style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f59e0b', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 4 }}
+                  onPress={() => setShowAddModal(true)}
+                >
+                  <Plus size={24} color="#fff" />
+                </TouchableOpacity>
+              ) : (
+                <View style={{ width: 40 }} />
+              )}
             </View>
           </View>
         </View>
       </View>
+
+      <AddSongModal 
+        visible={showAddModal} 
+        onClose={() => setShowAddModal(false)} 
+        onSuccess={() => {
+          fetchSongs();
+          showToast('Success', 'Song added successfully!', 'add');
+        }}
+        isDark={isDark}
+        colors={colors}
+      />
 
       {/* ── Main Tabs ── */}
       <View style={styles.tabBar}>

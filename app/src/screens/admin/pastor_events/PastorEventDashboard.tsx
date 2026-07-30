@@ -222,6 +222,40 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
         const newEnrichedEvents = [...filteredEvents];
         for (let i = 0; i < newEnrichedEvents.length; i++) {
           const evt = newEnrichedEvents[i];
+          if (!evt.lat || !evt.lng) {
+            const geocodeQuery = evt.city ? `${evt.address?.trim() || ''}, ${evt.city?.trim() || ''}` : (evt.address?.trim() || evt.venue?.trim() || '');
+            let geocodeSuccess = false;
+            
+            const GOOGLE_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY || '';
+            if (GOOGLE_KEY) {
+              try {
+                const geoResp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(geocodeQuery)}&key=${GOOGLE_KEY}`);
+                const geoData = await geoResp.json();
+                if (geoData.status === 'OK' && geoData.results.length > 0) {
+                  evt.lat = geoData.results[0].geometry.location.lat;
+                  evt.lng = geoData.results[0].geometry.location.lng;
+                  geocodeSuccess = true;
+                }
+              } catch (e: any) {
+              }
+            }
+            
+            // Fallback to free OpenStreetMap Nominatim API if Google Maps fails (e.g., due to billing issues)
+            if (!geocodeSuccess) {
+              try {
+                const fallbackQuery = evt.city ? `${evt.venue?.trim() || ''}, ${evt.city?.trim() || ''}` : geocodeQuery;
+                const osmResp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fallbackQuery)}`);
+                const osmData = await osmResp.json();
+                if (osmData && osmData.length > 0) {
+                  evt.lat = parseFloat(osmData[0].lat);
+                  evt.lng = parseFloat(osmData[0].lon);
+                  geocodeSuccess = true;
+                }
+              } catch (e: any) {
+              }
+            }
+          }
+
           if (evt.lat && evt.lng) {
             if (evt.date !== currentDayStr) {
               currentDayStr = evt.date;
@@ -252,6 +286,22 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
                   return res;
                 }
               } catch (e) {}
+              
+              // Fallback to OSRM (Open Source Routing Machine) if Google Maps fails
+              try {
+                const [origLat, origLng] = orig.split(',');
+                const [destLat, destLng] = dest.split(',');
+                const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${origLng},${origLat};${destLng},${destLat}?overview=false`;
+                const osrmResp = await fetch(osrmUrl);
+                const osrmData = await osrmResp.json();
+                if (osrmData.code === 'Ok' && osrmData.routes.length > 0) {
+                  const r = osrmData.routes[0];
+                  const res = { distance: r.distance, duration: r.duration };
+                  AsyncStorage.setItem(cacheKey, JSON.stringify(res)).catch(()=>{});
+                  return res;
+                }
+              } catch (e) {}
+              
               return { distance: 0, duration: 0 };
             };
             
@@ -269,7 +319,7 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
               homeDurationValue = homeRouteResult.duration;
             }
 
-            if (distanceValue > 0) {
+            if (distanceValue >= 0) {
               const travelData: any = {
                 ...evt.travel,
                 distKm: distanceValue / 1000,
@@ -280,7 +330,7 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
                 originName: currentOriginName
               };
               
-              if (!isFirstValidEvent && homeDistanceValue > 0) {
+              if (!isFirstValidEvent && homeDistanceValue >= 0) {
                 travelData.homeDistKm = homeDistanceValue / 1000;
                 travelData.homeCar = Math.round(homeDurationValue / 60);
                 travelData.homeLat = homeLat;
@@ -416,28 +466,28 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
           </TouchableOpacity>
           
           {/* Travel Distance Info - Live Tracker */}
-          {item.travel && item.travel.distKm > 0 && item.lat && item.lng && (
+          {!!item.lat && !!item.lng && (
             <View style={{ marginTop: 12 }}>
               <Text style={{ fontSize: 11, fontWeight: '700', color: '#111827', textTransform: 'uppercase', marginBottom: 8 }}>Live Journey Tracker</Text>
               <LiveJourneyTracker
                 eventId={item.id || Math.random().toString()}
                 home={{ 
-                  lat: item.travel.originLat || 15.8281, 
-                  lng: item.travel.originLng || 78.0373, 
-                  name: item.travel.originName || (item.travel.isHomeToEvent ? 'Home' : 'Previous Location') 
+                  lat: item.travel?.originLat || 15.8281, 
+                  lng: item.travel?.originLng || 78.0373, 
+                  name: item.travel?.originName || (item.travel?.isHomeToEvent ? 'Home' : 'Previous Location') 
                 }}
                 destination={{ lat: item.lat, lng: item.lng }}
                 destinationName={item.city || (item.address || item.venue || 'Event').split(',')[0].trim()}
-                initialDistanceKm={item.travel.distKm}
-                initialDurationMins={item.travel.car}
+                initialDistanceKm={item.travel?.distKm || 0}
+                initialDurationMins={item.travel?.car || 0}
                 isDisabled={item.section !== 'today'}
-                altHome={(!item.travel.isHomeToEvent && item.travel.homeLat && item.travel.homeLng) ? {
+                altHome={(!item.travel?.isHomeToEvent && item.travel?.homeLat && item.travel?.homeLng) ? {
                   lat: item.travel.homeLat,
                   lng: item.travel.homeLng,
                   name: item.travel.homeName || 'Home'
                 } : undefined}
-                altInitialDistanceKm={item.travel.homeDistKm}
-                altInitialDurationMins={item.travel.homeCar || 0}
+                altInitialDistanceKm={item.travel?.homeDistKm || 0}
+                altInitialDurationMins={item.travel?.homeCar || 0}
               />
             </View>
           )}

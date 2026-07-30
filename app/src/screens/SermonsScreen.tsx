@@ -205,7 +205,7 @@ export default function SermonsScreen({ navigation }: any) {
           }}
         >
           <View style={[styles.header, { backgroundColor: isDark ? '#0a2350' : '#1a2d5a', paddingTop: Math.max(insets.top, 20) + 10, paddingBottom: 16, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }]}>
-            <TouchableOpacity style={styles.backBtn} onPress={() => { if (navigation.canGoBack()) { navigation.goBack(); } else { navigation.navigate('Home'); } }}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => { if (navigation.canGoBack()) { navigation.goBack(); } else { navigation.navigate('Tabs', { screen: 'Home' }); } }}>
               <ArrowLeft color="#fff" size={24} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>

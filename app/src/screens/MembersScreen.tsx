@@ -153,7 +153,7 @@ export default function MembersScreen({ navigation }: any) {
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       {/* Premium Header */}
       <View style={styles.headerWrapper}>
@@ -580,8 +580,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#1a2d5a',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 58 : 38,
-    paddingBottom: 15,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingBottom: 25,
     marginBottom: 4,
     flexDirection: 'row',
     alignItems: 'center',

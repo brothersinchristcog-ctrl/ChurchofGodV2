@@ -239,7 +239,7 @@ export default function EventsScreen({ navigation }: any) {
             </Svg>
 
             <View style={styles.header}>
-              <TouchableOpacity style={styles.backBtn} onPress={() => { if (navigation.canGoBack()) { navigation.goBack(); } else { navigation.navigate('Home'); } }}>
+              <TouchableOpacity style={styles.backBtn} onPress={() => { if (navigation.canGoBack()) { navigation.goBack(); } else { navigation.navigate('Tabs', { screen: 'Home' }); } }}>
                 <ArrowLeft size={24} color="#fff" />
               </TouchableOpacity>
               

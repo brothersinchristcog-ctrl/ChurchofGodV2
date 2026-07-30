@@ -23,7 +23,8 @@ import {
   Video,
   FileText,
   Activity,
-  Heart
+  Heart,
+  Music
 } from 'lucide-react-native';
 import { AdminTabContext } from '../../context/AdminTabContext';
 
@@ -64,7 +65,7 @@ export default function AdminDashboard() {
     { id: 1, label: 'Promises', icon: <BookOpen size={20} color="#1a2d5a" />, desc: 'Update Daily Verse' },
     { id: 9, label: 'Events', icon: <Calendar size={20} color="#c0392b" />, desc: 'Manage Calendar' },
     { id: 4, label: 'Sermons', icon: <Video size={20} color="#15803D" />, desc: 'Post Teachings' },
-    { id: 6, label: 'New Song', icon: <Plus size={20} color="#8B5CF6" />, desc: 'Post Song Lyrics' },
+    { id: 6, label: 'Songs', icon: <Music size={20} color="#8B5CF6" />, desc: 'Manage Songs' },
     { id: 7, label: 'Broadcast', icon: <Bell size={20} color="#EA580C" />, desc: 'Send Push Alerts' },
     { id: 11, label: 'Prayers', icon: <Heart size={20} color="#D97706" />, desc: 'Moderation' },
     { id: 12, label: 'Members', icon: <Users size={20} color="#1a2d5a" />, desc: 'Directory' }

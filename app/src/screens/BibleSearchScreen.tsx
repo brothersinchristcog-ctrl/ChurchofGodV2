@@ -450,7 +450,8 @@ export default function BibleSearchScreen({ route, navigation }: any) {
       bookName: lang === 'Telugu' ? (item.bookTe || item.book) : item.book,
       chapter: item.chapter,
       lang: lang,
-      targetVerse: item.verse
+      targetVerse: item.verse,
+      searchQuery: query
     });
   };
 

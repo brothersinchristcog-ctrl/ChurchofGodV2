@@ -138,7 +138,14 @@ const UpdateItem = React.memo(({ update, navigation, setSelectedUpdate, handleDe
         <View style={styles.updateInfo}>
           <View style={styles.metaRow}>
             <Text style={[styles.typeTag, { color: update.color }]}>{update.type.toUpperCase()}</Text>
-            <Text style={styles.dateTxt}>{update.date}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.dateTxt}>{update.date}</Text>
+              {update.type === 'whatsapp_reply' && (
+                <TouchableOpacity onPress={() => handleDeleteUpdate(update.id)} style={{ marginLeft: 8, padding: 4, backgroundColor: '#f1f5f9', borderRadius: 12 }}>
+                  <X size={14} color="#64748b" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
           <Text style={styles.updateTitle}>{update.title}</Text>
           <Text style={styles.updateContent} numberOfLines={2}>{update.content}</Text>
@@ -195,7 +202,14 @@ export default function UpdatesScreen({ navigation, route }: any) {
         if (snapshot) {
           const list = snapshot.docs.map(doc => {
             const data = doc.data();
-            
+            // SECURITY: If broadcast is targeted to admins, skip it if not an admin
+            if (data.targetRole === 'admin') {
+              const uRole = member?.userType?.toLowerCase() || '';
+              if (uRole !== 'admin' && uRole !== 'pastor') {
+                return null; // Skip if not an admin/pastor
+              }
+            }
+
             // SECURITY: If broadcast is targeted to a specific phone, skip it if not for this user
             const isTargeted = data.targetPhone && typeof data.targetPhone === 'string' && data.targetPhone.trim().length > 0;
             if (isTargeted) {
@@ -250,6 +264,10 @@ export default function UpdatesScreen({ navigation, route }: any) {
               icon = Mic;
               color = '#6366f1';
               resolvedType = 'sermon';
+            } else if (data.type === 'whatsapp_reply' || data.title?.includes('Reply')) {
+              icon = MessageCircle;
+              color = '#25D366'; // WhatsApp Green
+              resolvedType = 'whatsapp_reply';
             }
             return {
               id: doc.id,

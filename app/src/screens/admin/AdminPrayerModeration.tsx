@@ -657,7 +657,7 @@ const getStyles = (colors: any, isDark: boolean) => {
   listHdTitle: { fontSize: 13, fontWeight: '700', color: Theme.Colors.error },
 
   pCard: { backgroundColor: colors.card, borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: customBorder },
-  pCardAnswered: { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
+  pCardAnswered: isDark ? {} : { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
   pCardHd: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   pAvatar: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   pAvatarTxt: { color: '#fff', fontSize: 14, fontWeight: '700' },

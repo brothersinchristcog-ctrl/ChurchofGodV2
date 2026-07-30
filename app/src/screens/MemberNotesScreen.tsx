@@ -13,7 +13,6 @@ import {
   Dimensions,
   Platform
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   ChevronLeft, 
@@ -291,8 +290,8 @@ export default function MemberNotesScreen({ navigation, route }: any) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
+    <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       {/* Premium Header */}
       <View style={styles.headerWrapper}>
@@ -578,7 +577,7 @@ export default function MemberNotesScreen({ navigation, route }: any) {
         </Modal>
       )}
 
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -615,8 +614,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#1a2d5a',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 15,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingBottom: 25,
     marginBottom: 4,
     flexDirection: 'row',
     alignItems: 'center',

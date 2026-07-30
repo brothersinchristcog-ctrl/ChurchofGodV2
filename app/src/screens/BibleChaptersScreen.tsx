@@ -9,7 +9,6 @@ import {
   StatusBar,
   Platform
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ArrowLeft, Book, CheckCircle2 } from 'lucide-react-native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { useTheme } from '../context/ThemeContext';
@@ -92,8 +91,8 @@ export default function BibleChaptersScreen({ route, navigation }: any) {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       
       {/* Header */}
       <View style={styles.headerWrapper}>
@@ -156,7 +155,7 @@ export default function BibleChaptersScreen({ route, navigation }: any) {
         </View>
         <View style={{ height: 100 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

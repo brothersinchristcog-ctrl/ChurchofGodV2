@@ -282,7 +282,7 @@ export const PastorEventDetail = ({ route, navigation }: { route: any; navigatio
                 <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' }]}>
                   {process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY ? (
                     <Image
-                      source={{ uri: `https://maps.googleapis.com/maps/api/staticmap?center=${event.lat},${event.lng}&zoom=15&size=600x300&markers=color:red%7C${event.lat},${event.lng}&key=${process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY}` }}
+                      source={{ uri: `https://static-maps.yandex.ru/1.x/?ll=${event.lng},${event.lat}&size=600,300&z=15&l=map&pt=${event.lng},${event.lat},pm2rdl` }}
                       style={StyleSheet.absoluteFillObject}
                       resizeMode="cover"
                     />

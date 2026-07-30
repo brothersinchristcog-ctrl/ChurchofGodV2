@@ -12,7 +12,6 @@ import {
   Platform,
   StatusBar
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ArrowLeft, Share2, BookMarked, Settings, Search, CheckCircle2 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
@@ -80,8 +79,22 @@ const VerseItem = React.memo(({
   isDark, 
   englishBookName, 
   chapter,
-  setVerseLayouts
+  setVerseLayouts,
+  searchQuery
 }: any) => {
+  const renderText = (text: string, baseStyle: any, highlightStyle: any) => {
+    if (!searchQuery || !isTarget) return <Text style={baseStyle}>{text}</Text>;
+    const parts = text.split(new RegExp(`(${searchQuery})`, 'gi'));
+    return (
+      <Text style={baseStyle}>
+        {parts.map((part, i) => 
+          part.toLowerCase() === searchQuery.toLowerCase() ? 
+            <Text key={i} style={highlightStyle}>{part}</Text> : 
+            <Text key={i}>{part}</Text>
+        )}
+      </Text>
+    );
+  };
   if (selectionMode) {
     return (
       <TouchableOpacity
@@ -123,9 +136,11 @@ const VerseItem = React.memo(({
         <View style={[styles.verseNumBadge, { backgroundColor: isDark ? '#fde047' : '#d97706' }]}>
           <Text style={[styles.verseNumBadgeTxt, { color: isDark ? '#1a1a00' : '#fff' }]}>{item.verse}</Text>
         </View>
-        <Text style={[styles.highlightedVerseText, { color: isDark ? '#fef9c3' : '#78350f' }]}>
-          {item.text}
-        </Text>
+        {renderText(
+          item.text,
+          [styles.highlightedVerseText, { color: isDark ? '#fef9c3' : '#78350f' }],
+          { backgroundColor: isDark ? 'rgba(250,204,21,0.4)' : '#fde047', color: isDark ? '#fff' : '#000', fontWeight: 'bold' }
+        )}
         <View style={styles.verseRefTag}>
           <Text style={[styles.verseRefTagTxt, { color: isDark ? '#fde047' : '#d97706' }]}>
             {englishBookName} {chapter}:{item.verse}
@@ -154,7 +169,7 @@ const VerseItem = React.memo(({
 });
 
 export default function BibleReaderScreen({ route, navigation }: any) {
-  const { bookName, chapter, lang, targetVerse } = route.params;
+  const { bookName, chapter, lang, targetVerse, searchQuery } = route.params;
   const { isDark } = useTheme();
   const { user } = useAuth();
   const [verses, setVerses] = useState<any[]>([]);
@@ -236,14 +251,24 @@ export default function BibleReaderScreen({ route, navigation }: any) {
   };
 
   React.useEffect(() => {
-    if (targetVerse && verseLayouts[targetVerse] !== undefined && !hasScrolledToTarget.current) {
-      hasScrolledToTarget.current = true;
-      flatListRef.current?.scrollToOffset({
-        offset: Math.max(0, verseLayouts[targetVerse] - 20),
-        animated: true
-      });
+    hasScrolledToTarget.current = false;
+  }, [targetVerse, chapter]);
+
+  React.useEffect(() => {
+    if (targetVerse && verses.length > 0 && !hasScrolledToTarget.current) {
+      const index = verses.findIndex(v => v.verse === targetVerse);
+      if (index !== -1) {
+        hasScrolledToTarget.current = true;
+        setTimeout(() => {
+          flatListRef.current?.scrollToIndex({
+            index,
+            animated: true,
+            viewPosition: 0.1
+          });
+        }, 300);
+      }
     }
-  }, [targetVerse, verseLayouts]);
+  }, [targetVerse, verses]);
 
   const fetchVerses = async () => {
     try {
@@ -425,8 +450,8 @@ export default function BibleReaderScreen({ route, navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#fff' }]}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#fff' }]}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       
       {/* Premium Header */}
       <View style={styles.headerWrapper}>
@@ -477,6 +502,12 @@ export default function BibleReaderScreen({ route, navigation }: any) {
           maxToRenderPerBatch={10}
           windowSize={5}
           removeClippedSubviews={Platform.OS === 'android'}
+          onScrollToIndexFailed={(info) => {
+            const wait = new Promise(resolve => setTimeout(resolve, 500));
+            wait.then(() => {
+              flatListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.1 });
+            });
+          }}
           ListHeaderComponent={
             <>
               {loading && (
@@ -507,6 +538,7 @@ export default function BibleReaderScreen({ route, navigation }: any) {
               englishBookName={englishBookName}
               chapter={chapter}
               setVerseLayouts={setVerseLayouts}
+              searchQuery={searchQuery}
             />
           )}
           ListFooterComponent={
@@ -675,7 +707,7 @@ export default function BibleReaderScreen({ route, navigation }: any) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

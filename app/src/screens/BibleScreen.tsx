@@ -10,7 +10,6 @@ import {
   Dimensions,
   TextInput
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ArrowLeft, Search, BookOpen, Globe } from 'lucide-react-native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { useTheme } from '../context/ThemeContext';
@@ -218,8 +217,8 @@ export default function BibleScreen({ navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       
       {/* Header */}
       <View style={styles.headerWrapper}>
@@ -437,7 +436,7 @@ export default function BibleScreen({ navigation }: any) {
         )}
         <View style={{ height: 100 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -467,8 +466,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 15,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingBottom: 25,
     marginBottom: 4,
     backgroundColor: '#1a2d5a',
     borderBottomLeftRadius: 33,
