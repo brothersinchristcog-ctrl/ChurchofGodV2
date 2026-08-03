@@ -8,11 +8,14 @@ import { getMessaging } from 'firebase-admin/messaging';
 import { getStorage } from 'firebase-admin/storage';
 import { SalesforceBackend } from './services/SalesforceBackend.js';
 import axios from 'axios';
-import sharp from 'sharp';
 // Initialize Firebase Admin once at top level
 initializeApp();
 // Set global region to Mumbai (asia-south1) to bypass us-central1 quota issues
-setGlobalOptions({ region: 'asia-south1' });
+setGlobalOptions({
+    region: 'asia-south1',
+    memory: '1GiB',
+    timeoutSeconds: 300
+});
 export const debugGetThemes = onRequest({ invoker: 'public' }, async (req, res) => {
     try {
         const doc = await getFirestore().collection('settings').doc('celebration_themes').get();
@@ -578,6 +581,7 @@ async function generateThemeCard(memberName, category, topColor, _bottomColor) {
         font-size="20" font-weight="400" letter-spacing="4"
         fill="rgba(255,255,255,0.65)" text-anchor="middle">SENT WITH LOVE, CHURCH OF GOD</text>
 </svg>`;
+    const sharp = (await import('sharp')).default;
     return sharp(Buffer.from(svg))
         .jpeg({ quality: 92 })
         .toBuffer();
@@ -685,13 +689,15 @@ async function runDailyWishes() {
         const formatPhone = (phoneStr) => {
             if (!phoneStr)
                 return null;
-            const clean = phoneStr.replace(/\D/g, '');
+            let clean = phoneStr.replace(/\D/g, '');
             if (clean.length === 10)
                 return '91' + clean;
+            if (clean.length === 11 && clean.startsWith('0'))
+                return '91' + clean.substring(1);
             if (clean.length === 12 && clean.startsWith('91'))
                 return clean;
             if (clean.length > 10)
-                return clean;
+                return clean; // fallback for international
             return null;
         };
         // Helper to send template wish using a pre-uploaded mediaId

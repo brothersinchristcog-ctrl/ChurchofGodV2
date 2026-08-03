@@ -3,6 +3,20 @@ import { setGlobalOptions } from 'firebase-functions/v2';
 import axios from 'axios';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
+import { SalesforceBackend } from './services/SalesforceBackend.js';
+
+let _sfBackend: SalesforceBackend;
+const getSf = () => {
+  if (!_sfBackend) {
+    _sfBackend = new SalesforceBackend({
+      consumerKey: process.env.SF_CONSUMER_KEY || '',
+      username: process.env.SF_USERNAME || '',
+      loginUrl: process.env.SF_LOGIN_URL || 'https://test.salesforce.com',
+      privateKey: (process.env.SF_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    });
+  }
+  return _sfBackend;
+};
 
 setGlobalOptions({ region: 'asia-south1' });
 
@@ -197,6 +211,7 @@ export const whatsappWebhook = onRequest({ invoker: 'public' }, (request, respon
                   // --- ADMIN NOTIFICATION CARD LOGIC ---
                   try {
                     let finalName = name;
+                    let foundName = false;
                     try {
                       // Attempt to lookup user by phone in 'users' collection
                       const p1 = `+${msg.from}`;
@@ -207,6 +222,16 @@ export const whatsappWebhook = onRequest({ invoker: 'public' }, (request, respon
                         const uDoc = userQuery.docs[0]?.data();
                         if (uDoc && uDoc.displayName) {
                           finalName = uDoc.displayName;
+                          foundName = true;
+                        }
+                      }
+                      
+                      // Fallback to Salesforce Contacts
+                      if (!foundName) {
+                        const sf = getSf();
+                        const sfContact = await sf.checkContact(msg.from);
+                        if (sfContact.exists && sfContact.member?.name) {
+                          finalName = sfContact.member.name;
                         }
                       }
                     } catch (e) {

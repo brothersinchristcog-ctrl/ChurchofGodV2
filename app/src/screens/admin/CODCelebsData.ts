@@ -35,7 +35,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import SalesforceService from '../../services/SalesforceService';
 
 export async function fetchCelebrations(forceRefresh = false): Promise<Member[]> {
-  const CACHE_KEY = 'cog_admin_celebs_cache';
+  const CACHE_KEY = 'cog_admin_celebs_cache_v2';
   
   if (!forceRefresh) {
     try {
@@ -109,7 +109,7 @@ export async function fetchCelebrations(forceRefresh = false): Promise<Member[]>
           refYear: parseInt(parts[0], 10),
           ministry: 'General', // Default since Ministry isn't currently fetched in this query
           family: 'Family',
-          phone: contact.Phone || contact.MobilePhone || '',
+          phone: contact.MobilePhone || contact.Phone || '',
         });
 
         // Try to attach photo

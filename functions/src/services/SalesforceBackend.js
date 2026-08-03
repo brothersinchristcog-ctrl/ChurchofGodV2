@@ -131,7 +131,7 @@ export class SalesforceBackend {
                 id: rec.Id,
                 name: rec.Name,
                 birthdate: rec.Birthdate,
-                phone: rec.Phone || rec.MobilePhone,
+                phone: rec.MobilePhone,
                 email: rec.Email
             }));
         }
@@ -154,7 +154,7 @@ export class SalesforceBackend {
                 id: rec.Id,
                 name: rec.Name,
                 baptismDate: rec.Date_of_Baptism__c,
-                phone: rec.Phone || rec.MobilePhone,
+                phone: rec.MobilePhone,
                 email: rec.Email
             }));
         }
@@ -194,7 +194,7 @@ export class SalesforceBackend {
                         name: rec.Name,
                         gender: rec.Gender__c,
                         year: annYear,
-                        phone: rec.Phone || rec.MobilePhone
+                        phone: rec.MobilePhone
                     });
                 }
             }

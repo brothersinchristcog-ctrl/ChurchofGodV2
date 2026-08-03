@@ -152,7 +152,7 @@ export default function AdminPromiseList() {
 
   const handleEdit = (item: DailyPromise) => {
     setEditingData(item);
-    setActiveTab(1); // Go to Editor tab
+    setActiveTab(2); // Go to Editor tab (tab 2 = New Promise / AdminPromiseEditor)
   };
 
   const handleView = (item: DailyPromise) => {
@@ -319,7 +319,7 @@ export default function AdminPromiseList() {
                 <Text style={styles.titleCentered} numberOfLines={1} adjustsFontSizeToFit>Daily Promises</Text>
               </View>
 
-              <TouchableOpacity style={styles.newBtnTop} onPress={() => { setEditingData(null); setActiveTab(1); }}>
+              <TouchableOpacity style={styles.newBtnTop} onPress={() => { setEditingData(null); setActiveTab(2); }}>
                 <Plus size={12} color="#1a2d5a" />
                 <Text style={styles.newBtnTxt} numberOfLines={1}>New</Text>
               </TouchableOpacity>
@@ -370,7 +370,7 @@ export default function AdminPromiseList() {
         {todayPromise ? renderCard(todayPromise, 'today') : (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTxt}>No promise scheduled for today ({todayStr})</Text>
-            <TouchableOpacity onPress={() => { setEditingData({ date: todayStr }); setActiveTab(1); }}>
+            <TouchableOpacity onPress={() => { setEditingData({ date: todayStr }); setActiveTab(2); }}>
               <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.emptyAdd}>
                 <Text style={styles.emptyAddTxt}>+ Schedule Today</Text>
               </LinearGradient>
@@ -405,7 +405,7 @@ export default function AdminPromiseList() {
                 const now = new Date();
                 const dStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                 setEditingData({ date: dStr }); 
-                setActiveTab(1); 
+                setActiveTab(2); 
               }}>
                 <Text style={styles.mDate}>{currentMonthShort} {d}</Text>
                 <Text style={styles.mAdd}>+ Add</Text>
@@ -425,7 +425,7 @@ export default function AdminPromiseList() {
       </ScrollView>
 
       {/* FAB */}
-      <TouchableOpacity style={styles.fab} onPress={() => { setEditingData(null); setActiveTab(1); }}>
+      <TouchableOpacity style={styles.fab} onPress={() => { setEditingData(null); setActiveTab(2); }}>
         <Plus size={28} color="#fff" />
       </TouchableOpacity>
     </View>

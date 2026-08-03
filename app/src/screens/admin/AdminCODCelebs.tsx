@@ -80,6 +80,7 @@ export default function AdminCODCelebs() {
   const [deleteSuccess, setDeleteSuccess] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
+  const [manualSendingWhatsapp, setManualSendingWhatsapp] = useState(false);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const viewShotRef = React.useRef<ViewShot>(null);
   const scrollViewRef = React.useRef<ScrollView>(null);
@@ -180,7 +181,10 @@ export default function AdminCODCelebs() {
   };
 
   const filteredMembers = useMemo(() => {
-    let list = members.filter(m => m.category === category);
+    let list = members;
+    if (category && category !== 'all') {
+      list = list.filter(m => m.category === category);
+    }
 
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -290,27 +294,85 @@ export default function AdminCODCelebs() {
         </View>
       <Text style={styles.sectionLabel}>Celebration Categories</Text>
         
-        <View style={styles.catGrid}>
-          {CATEGORIES.map((c, idx) => {
-            const count = members.filter(m => m.category === c.key).length;
-            const soon = members.filter(m => m.category === c.key && isThisWeek(m)).length;
-            
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+          {CATEGORIES.map((c) => (
+            <TouchableOpacity key={c.key} style={[styles.filterChip, category === c.key && styles.filterChipActive, { borderColor: c.grad[1], borderWidth: 1 }]} onPress={() => setCategory(category === c.key ? null : c.key)}>
+              <Text style={[styles.filterChipText, category === c.key && styles.filterChipTextActive]}>{c.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+          {['today', 'upcoming', 'week', 'month', 'past', 'all'].map(t => (
+            <TouchableOpacity key={t} style={[styles.filterChip, filter === t && styles.filterChipActive]} onPress={() => setFilter(t)}>
+              <Text style={[styles.filterChipText, filter === t && styles.filterChipTextActive]}>
+                {t.charAt(0).toUpperCase() + t.slice(1).replace('upcoming', 'Upcoming')}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <View style={styles.searchRow}>
+          <View style={styles.searchBox}>
+            <Search size={16} color="#5B6280" />
+            <TextInput 
+              style={styles.searchInput} 
+              placeholder="Search by name…" 
+              value={search} 
+              onChangeText={setSearch} 
+              placeholderTextColor="#5B6280"
+            />
+          </View>
+          <TouchableOpacity style={[styles.iconBtn, showFilters && styles.iconBtnActive]} onPress={() => setShowFilters(!showFilters)}>
+            <SlidersHorizontal size={17} color="#1E2A63" />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.resultCount}>{filteredMembers.length} member{filteredMembers.length === 1 ? '' : 's'} found</Text>
+        
+        {filteredMembers.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>No celebrations match these filters yet.</Text>
+          </View>
+        ) : (
+          filteredMembers.map(m => {
+            const dateLbl = formatDate(m);
+            const yrsLbl = yearsLabel(m.category, m.refYear);
+            const [c1, c2] = paletteFor(m.id);
+            const cat = catMeta(m.category)!;
             return (
-              <TouchableOpacity key={c.key} style={[styles.catCard, { width: idx === 0 ? '100%' : '48%', backgroundColor: c.tint.replace('0.10', '0.25').replace('0.08', '0.20'), borderColor: c.grad[1], borderWidth: 1.5 }]} onPress={() => go('list', {
-                category: c.key, filter: 'today', search: '', ministry: 'all', family: 'all', age: 'all', year: 'all', showFilters: false, sort: 'nearest'
-              })}>
-                <View style={styles.catIconFrame}>
-                  {getCatIcon(c.icon, c.grad[1])}
+              <TouchableOpacity key={m.id} style={styles.memberCard} onPress={() => go('details', { memberId: m.id })}>
+                <TouchableOpacity onPress={() => m.photoUrl && setPreviewImage(m.photoUrl)}>
+                  {m.photoUrl ? (
+                    <Image source={{ uri: m.photoUrl }} style={styles.avatar} />
+                  ) : (
+                    <View style={[styles.avatar, { backgroundColor: [c1, c2][0] }]}>
+                      <Text style={styles.avatarText}>{initials(m.name)}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <View style={styles.mcInfo}>
+                  <Text style={styles.mcName}>{m.name}</Text>
+                  <View style={styles.mcMeta}>
+                    <View style={[styles.badge, { backgroundColor: cat.grad[0] }]}>
+                      <Text style={styles.badgeText}>{cat.label.replace(' Anniversary', '')}</Text>
+                    </View>
+                    <Text style={styles.mcDate}>· {dateLbl}</Text>
+                    <Text style={styles.mcYrs}>· {yrsLbl}</Text>
+                  </View>
                 </View>
-                <Text style={styles.catName}>{c.label}</Text>
-                <Text style={styles.catCount}>
-                  <Text style={styles.catCountBold}>{count}</Text> members
-                  {soon > 0 && <Text style={{color: c.grad[1]}}> · {soon} this week</Text>}
-                </Text>
+                <View style={styles.mcActions}>
+                  <TouchableOpacity style={styles.miniBtn}>
+                    <MessageCircle size={15} color="#25D366" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.miniBtn} onPress={() => go('customize', { memberId: m.id })}>
+                    <Gift size={15} color="#BE9A3A" />
+                  </TouchableOpacity>
+                </View>
               </TouchableOpacity>
             )
-          })}
-        </View>
+          })
+        )}
         <Text style={styles.footerNote}>CHURCH OF GOD · Celebrations Module</Text>
       </View>
     )
@@ -1054,7 +1116,11 @@ export default function AdminCODCelebs() {
     setSendingWhatsapp(true);
     try {
       let cleanPhone = m.phone.replace(/[^0-9]/g, '');
-      if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
+      if (cleanPhone.length === 10) {
+        cleanPhone = '91' + cleanPhone;
+      } else if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) {
+        cleanPhone = '91' + cleanPhone.substring(1);
+      }
       
       const sendWish = functions().app.functions('asia-south1').httpsCallable('sendWhatsAppWish');
       
@@ -1189,17 +1255,22 @@ export default function AdminCODCelebs() {
         </View>
         
         <View style={styles.secondaryRow}>
-          <TouchableOpacity style={{flex: 1, marginTop: 10, borderRadius: 20, shadowColor: '#1E2A63', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.3, shadowRadius: 4, elevation: 2, backgroundColor: 'transparent'}} onPress={async () => {
-            let fullText = message;
-            if (verse) {
-              fullText += `\n\n"${verse.text}" - ${verse.ref}`;
-            }
-            fullText += `\n\nWith Love ❤️\nChurch of God`;
-            
-            let cleanPhone = m.phone.replace(/[^0-9]/g, '');
-            if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
-            
-              try {
+          <TouchableOpacity style={[{flex: 1, marginTop: 10, borderRadius: 20, shadowColor: '#1E2A63', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.3, shadowRadius: 4, elevation: 2, backgroundColor: 'transparent'}, manualSendingWhatsapp && {opacity: 0.7}]} onPress={async () => {
+            setManualSendingWhatsapp(true);
+            try {
+              let fullText = message;
+              if (verse) {
+                fullText += `\n\n"${verse.text}" - ${verse.ref}`;
+              }
+              fullText += `\n\nWith Love ❤️\nChurch of God`;
+              
+              let cleanPhone = m.phone.replace(/[^0-9]/g, '');
+              if (cleanPhone.length === 10) {
+                cleanPhone = '91' + cleanPhone;
+              } else if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) {
+                cleanPhone = '91' + cleanPhone.substring(1);
+              }
+              
               let shareUrl = undefined;
               if (imageBase64) {
                 const b64Data = imageBase64.startsWith('data:image') 
@@ -1287,15 +1358,15 @@ export default function AdminCODCelebs() {
               }
               
             } catch (error: any) {
-              console.log("Share Error:", error);
-              if (error.message !== 'User did not share') {
-                Alert.alert('Error', `Could not open WhatsApp: ${error.message}`);
-              }
+              console.log("WhatsApp Open Error:", error);
+              Alert.alert('Error', `Could not open WhatsApp: ${error.message}`);
+            } finally {
+              setManualSendingWhatsapp(false);
             }
-          }} disabled={sendingWhatsapp}>
+          }} disabled={manualSendingWhatsapp}>
             <LinearGradient colors={['#4F83FA', '#1E2A63']} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 20}}>
-              <FontAwesome name="whatsapp" size={16} color="#ffffff" />
-              <Text style={[styles.waBadgeBtnText, {color: '#ffffff'}]}>To Whats app</Text>
+              {manualSendingWhatsapp ? <ActivityIndicator size="small" color="#ffffff" /> : <FontAwesome name="whatsapp" size={16} color="#ffffff" />}
+              <Text style={[styles.waBadgeBtnText, {color: '#ffffff', marginLeft: manualSendingWhatsapp ? 8 : 0}]}>{manualSendingWhatsapp ? 'Loading...' : 'Open in WhatsApp'}</Text>
             </LinearGradient>
           </TouchableOpacity>
           

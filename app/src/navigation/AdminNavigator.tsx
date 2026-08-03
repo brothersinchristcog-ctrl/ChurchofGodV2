@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Dimensions, Animated, Easing, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
+  LayoutGrid,
   BookOpen, 
   Edit3, 
   Calendar, 
@@ -30,6 +31,7 @@ import Theme from '../theme/Theme';
 import { AdminTabContext } from '../context/AdminTabContext';
 
 // Import Screens
+import AdminDashboard from '../screens/admin/AdminDashboard';
 import AdminPromiseList from '../screens/admin/AdminPromiseList';
 import AdminPromiseEditor from '../screens/admin/AdminPromiseEditor';
 import AdminPromiseCalendar from '../screens/admin/AdminPromiseCalendar';
@@ -53,54 +55,15 @@ const { width } = Dimensions.get('window');
 
 export default function AdminNavigator() {
   const { signOut, user, member, setViewMode } = useAuth();
-  const { isDark, toggleTheme } = useTheme();
+  const { isDark, toggleTheme, colors } = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [editingData, setEditingData] = useState(null);
-  const [isDrawerVisible, setIsDrawerVisible] = useState(false);
-  
-  const slideAnim = useRef(new Animated.Value(-width)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
   const openDrawer = () => {
-    setIsDrawerVisible(true);
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        easing: Easing.out(Easing.poly(3)),
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      })
-    ]).start();
+    requestAnimationFrame(() => setActiveTab(0));
   };
 
-  const closeDrawer = () => {
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: -width,
-        duration: 250,
-        easing: Easing.in(Easing.poly(3)),
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      })
-    ]).start(() => {
-      setIsDrawerVisible(false);
-    });
-  };
   useEffect(() => {
     const backAction = () => {
-      if (isDrawerVisible) {
-        closeDrawer();
-        return true;
-      }
       if (activeTab !== 0) {
         // Return to the first tab (Promises List) instead of exiting the portal
         requestAnimationFrame(() => {
@@ -118,9 +81,10 @@ export default function AdminNavigator() {
     );
 
     return () => backHandler.remove();
-  }, [activeTab, isDrawerVisible]);
+  }, [activeTab]);
 
   const tabs = [
+    { name: 'Dashboard', icon: LayoutGrid, component: AdminDashboard },
     { name: 'Promises', icon: BookOpen, component: AdminPromiseList },
     { name: 'New Promise', icon: Edit3, component: AdminPromiseEditor },
     { name: 'Schedule', icon: Calendar, component: AdminPromiseCalendar },
@@ -141,7 +105,8 @@ export default function AdminNavigator() {
   ];
   const ActiveComponent = tabs[activeTab].component;
   const isWhatsApp = tabs[activeTab].name === 'WhatsApp';
-  const headerBgColor = isWhatsApp ? '#0b141a' : '#1a2d5a';
+  const isDashboard = activeTab === 0;
+  const headerBgColor = isDashboard ? colors.background : (isWhatsApp ? '#0b141a' : '#1a2d5a');
 
   const goBack = () => {
     requestAnimationFrame(() => {
@@ -152,7 +117,7 @@ export default function AdminNavigator() {
   return (
     <AdminTabContext.Provider value={{ activeTab, setActiveTab, editingData, setEditingData, goBack, openDrawer }}>
       <SafeAreaView style={[styles.safeArea, { backgroundColor: headerBgColor }]}>
-        {![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16].includes(activeTab) && (
+        {![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(activeTab) && (
           <View style={[styles.header, { backgroundColor: headerBgColor }]}>
             <View style={styles.headerTop}>
               <TouchableOpacity onPress={openDrawer} style={styles.hamburgerBtn}>
@@ -166,88 +131,6 @@ export default function AdminNavigator() {
         <View style={styles.content}>
           <ActiveComponent />
         </View>
-
-        {/* Full-Height Left Side Drawer Overlay */}
-        {isDrawerVisible && (
-          <View style={styles.drawerOverlay}>
-            <Animated.View style={[StyleSheet.absoluteFill, { opacity: fadeAnim }]}>
-              <TouchableOpacity 
-                style={styles.drawerBackdrop} 
-                activeOpacity={1} 
-                onPress={closeDrawer} 
-              />
-            </Animated.View>
-            <Animated.View style={[styles.drawerContent, { transform: [{ translateX: slideAnim }] }]}>
-              
-              {/* Profile Section */}
-              <View style={styles.drawerProfileSection}>
-                <View style={styles.drawerAvatar}>
-                  <Image source={require('../../assets/logo.png')} style={{ width: 56, height: 56 }} resizeMode="cover" />
-                </View>
-                <View style={{ flex: 1, paddingRight: 20 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 15 }}>
-                    <Text style={styles.drawerName}>Church of GOD</Text>
-                    <TouchableOpacity onPress={toggleTheme}>
-                      {isDark ? <Sun color="#FCD34D" size={20} /> : <Moon color="#fff" size={20} />}
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.drawerEmail}>{member?.name || user?.displayName || 'Admin Member'}</Text>
-                </View>
-              </View>
-
-              <View style={styles.drawerDivider} />
-
-              <ScrollView 
-                showsVerticalScrollIndicator={false} 
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingBottom: 100 }}
-              >
-                <View style={{ paddingVertical: 10 }}>
-                  {tabs.map((tab, index) => {
-                    const isActive = activeTab === index;
-                    return (
-                      <TouchableOpacity 
-                        key={index} 
-                        style={[styles.drawerItem, isActive && styles.drawerItemActive]}
-                        onPress={() => {
-                          setActiveTab(index);
-                          closeDrawer();
-                          if ([1, 4, 5, 8].indexOf(index) === -1) setEditingData(null); 
-                        }}
-                      >
-                        <tab.icon 
-                          size={20} 
-                          color={isActive ? "#FCD34D" : "#fff"} 
-                          strokeWidth={isActive ? 2.5 : 1.5}
-                        />
-                        <Text style={[styles.drawerItemText, isActive && styles.drawerItemTextActive]}>
-                          {tab.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-
-              {/* Footer: Member View + Sign Out */}
-              <View style={styles.drawerFooter}>
-                <TouchableOpacity
-                  style={styles.memberViewBtn}
-                  onPress={() => {
-                    setViewMode('member');
-                    closeDrawer();
-                  }}
-                >
-                  <Smartphone size={18} color="#FCD34D" />
-                  <Text style={styles.memberViewTxt}>Member View</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.drawerSignOutBtn} onPress={signOut}>
-                  <Text style={styles.drawerSignOutTxt}>Sign out</Text>
-                </TouchableOpacity>
-              </View>
-            </Animated.View>
-          </View>
-        )}
 
       </SafeAreaView>
     </AdminTabContext.Provider>

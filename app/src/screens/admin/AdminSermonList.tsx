@@ -133,7 +133,7 @@ export default function AdminSermonList() {
 
   const handleEdit = (sermon: Sermon) => {
     setEditingData(sermon);
-    setActiveTab(4); // Switch to New Sermon editor tab
+    setActiveTab(5); // Switch to New Sermon editor tab
   };
 
   const handlePlay = (sermon: Sermon) => {
@@ -203,7 +203,7 @@ export default function AdminSermonList() {
                 <Menu size={26} color="#fff" />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Sermons</Text>
-              <TouchableOpacity style={styles.newBtnTop} onPress={() => { setEditingData(null); setActiveTab(4); }}>
+              <TouchableOpacity style={styles.newBtnTop} onPress={() => { setEditingData(null); setActiveTab(5); }}>
                 <Text style={styles.newBtnTxt}>+ Add</Text>
               </TouchableOpacity>
             </View>

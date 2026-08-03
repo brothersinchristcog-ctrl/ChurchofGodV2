@@ -104,7 +104,7 @@ export default function AdminEventList() {
 
   const handleEdit = (event: any) => {
     setEditingData(event);
-    setActiveTab(9); // Switch to Event Editor tab (index 9)
+    setActiveTab(10); // Switch to Event Editor tab (index 10)
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -201,7 +201,7 @@ export default function AdminEventList() {
               <Text style={styles.headerTitle}>Event Manager</Text>
             </View>
 
-            <TouchableOpacity style={styles.newBtn} onPress={() => { setEditingData(null); setActiveTab(9); }}>
+            <TouchableOpacity style={styles.newBtn} onPress={() => { setEditingData(null); setActiveTab(10); }}>
               <Text style={styles.newBtnTxt}>+ New</Text>
             </TouchableOpacity>
 

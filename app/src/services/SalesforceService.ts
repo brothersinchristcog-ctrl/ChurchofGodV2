@@ -43,6 +43,9 @@ export interface SalesforceMember {
   joinDate?: string;
   mobileAppId?: string;
   description?: string;
+  birthdate?: string;
+  anniversaryDate?: string;
+  baptismDate?: string;
 }
 
 export interface SalesforceVideo {
@@ -239,7 +242,7 @@ spfkUchVp71l4aWpCW50lro=
     
     try {
       // Query using the last 4 digits to bypass Salesforce formatting like (998) 877-6655 or +91 998 877 6655
-      const soql = `SELECT Id, AccountId, Name, FirstName, LastName, Email, Phone, MobilePhone, User_Type__c, CreatedDate, MailingCity, MailingState, MailingStreet, Description, Mobile_App_ID__c FROM Contact WHERE (Phone LIKE '%${fourDigit}%' OR MobilePhone LIKE '%${fourDigit}%') ${uid ? `OR Mobile_App_ID__c = '${uid}'` : ''} ORDER BY CreatedDate DESC LIMIT 50`;
+      const soql = `SELECT Id, AccountId, Name, FirstName, LastName, Email, Phone, MobilePhone, User_Type__c, CreatedDate, MailingCity, MailingState, MailingStreet, Description, Mobile_App_ID__c, Birthdate, Anniversary_Date__c, Date_of_Baptism__c FROM Contact WHERE (Phone LIKE '%${fourDigit}%' OR MobilePhone LIKE '%${fourDigit}%') ${uid ? `OR Mobile_App_ID__c = '${uid}'` : ''} ORDER BY CreatedDate DESC LIMIT 50`;
       const result = await this.query(soql, true);
 
       if (result.totalSize > 0) {
@@ -266,7 +269,10 @@ spfkUchVp71l4aWpCW50lro=
               mailingState: exactMatch.MailingState,
               mailingStreet: exactMatch.MailingStreet,
               joinDate: exactMatch.CreatedDate,
-              description: exactMatch.Description
+              description: exactMatch.Description,
+              birthdate: exactMatch.Birthdate,
+              anniversaryDate: exactMatch.Anniversary_Date__c,
+              baptismDate: exactMatch.Date_of_Baptism__c
             }
           };
         }

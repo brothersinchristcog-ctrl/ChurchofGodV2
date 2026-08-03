@@ -15,6 +15,7 @@ import Theme from '../theme/Theme';
 import AdminNavigator from './AdminNavigator'; 
 import NotificationService from '../services/NotificationService';
 import SecurityService from '../services/SecurityService';
+import CelebrationPopup from '../components/CelebrationPopup';
 
 
 // Auth & Onboarding
@@ -492,6 +493,8 @@ function Navigation() {
           ))}
         </View>
       )}
+      
+      <CelebrationPopup member={member} />
 
     </View>
   );
