@@ -60,11 +60,12 @@ const EVENT_TYPES = [
 ];
 
 const RECURRING_OPTIONS = [
-  { label: 'One time event', value: 'One-time event' },
+  { label: 'One time', value: 'One time' },
   { label: 'Every Sunday', value: 'Every Sunday' },
-  { label: 'Every week (specify day)', value: 'Every week' },
-  { label: 'First Sunday of every month', value: 'First Sunday' },
-  { label: 'Monthly (same date)', value: 'Monthly' }
+  { label: 'Every wednesday', value: 'Every wednesday' },
+  { label: 'Every second Saturday', value: 'Every second Saturday' },
+  { label: 'Every friday', value: 'Every friday' },
+  { label: 'All Night prayer', value: 'All Night prayer' }
 ];
 
 const PUBLISH_STATUS_OPTIONS = [
@@ -90,7 +91,7 @@ export default function AdminEventEditor() {
   const [date, setDate] = useState(todayStr);
   const [startTime, setStartTime] = useState('09:00 AM');
   const [endTime, setEndTime] = useState('12:00 PM');
-  const [recurring, setRecurring] = useState('One-time event');
+  const [recurring, setRecurring] = useState('One time');
   const [recurrenceDuration, setRecurrenceDuration] = useState('For 1 month');
   const [publishStatus, setPublishStatus] = useState('Published');
 
@@ -367,31 +368,47 @@ export default function AdminEventEditor() {
       
       const dur = (durationPattern || '').toLowerCase();
       
-      // Calculate limitDate as the LAST DAY of the target calendar month
-      let limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+      // Calculate limitDate relative to the exact start date
+      let limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), 23, 59, 59);
       
       if (dur.includes('1 month')) {
-        limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
-      } else if (dur.includes('2 month')) {
-        limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0, 23, 59, 59);
-      } else if (dur.includes('3 month')) {
-        limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 3, 0, 23, 59, 59);
-      } else if (dur.includes('6 month')) {
-        limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 6, 0, 23, 59, 59);
+        limitDate.setMonth(limitDate.getMonth() + 1);
+      } else if (dur.includes('2 months')) {
+        limitDate.setMonth(limitDate.getMonth() + 2);
+      } else if (dur.includes('3 months')) {
+        limitDate.setMonth(limitDate.getMonth() + 3);
+      } else if (dur.includes('6 months')) {
+        limitDate.setMonth(limitDate.getMonth() + 6);
       } else if (dur.includes('1 year')) {
-        limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 12, 0, 23, 59, 59);
+        limitDate.setFullYear(limitDate.getFullYear() + 1);
       } else {
-        limitDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59); // Fallback
+        limitDate.setMonth(limitDate.getMonth() + 1); // Fallback
       }
 
       for (let i = 1; i < 365; i++) { // Safety break
         if (pat.includes('first sunday')) {
-          currentDate.setMonth(currentDate.getMonth() + 1);
-          currentDate.setDate(1);
+          let nextMonth = currentDate.getMonth() + 1;
+          let year = currentDate.getFullYear();
+          currentDate = new Date(year, nextMonth, 1);
           while (currentDate.getDay() !== 0) {
             currentDate.setDate(currentDate.getDate() + 1);
           }
-        } else if (pat.includes('week') || pat.includes('sunday')) {
+        } else if (pat.includes('second saturday')) {
+          let nextMonth = currentDate.getMonth() + 1;
+          let year = currentDate.getFullYear();
+          currentDate = new Date(year, nextMonth, 1);
+          while (currentDate.getDay() !== 6) {
+            currentDate.setDate(currentDate.getDate() + 1);
+          }
+          currentDate.setDate(currentDate.getDate() + 7);
+        } else if (pat.includes('all night prayer') || pat.includes('last friday')) {
+          let nextMonth = currentDate.getMonth() + 1;
+          let year = currentDate.getFullYear();
+          currentDate = new Date(year, nextMonth + 1, 0); // 0th day of month after next is last day of next month
+          while (currentDate.getDay() !== 5) { // 5 is Friday
+            currentDate.setDate(currentDate.getDate() - 1);
+          }
+        } else if (pat.includes('week') || pat.includes('sunday') || pat.includes('wednesday') || pat.includes('friday')) {
           currentDate.setDate(currentDate.getDate() + 7);
         } else if (pat.includes('month')) {
           currentDate.setMonth(currentDate.getMonth() + 1);

@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   RefreshControl
 } from 'react-native';
-import { Users, Phone, Mail, ChevronDown, ChevronUp, Clock, UserCheck, Menu } from 'lucide-react-native';
+import { Users, Phone, Mail, ChevronDown, ChevronUp, Clock, UserCheck, Menu, MapPin } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AdminTabContext } from '../../context/AdminTabContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -28,6 +28,8 @@ export default function AdminMembers() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
+  const [selectedVillage, setSelectedVillage] = useState<string>('All');
+  const [isVillageDropdownOpen, setIsVillageDropdownOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const styles = getStyles(colors, isDark);
@@ -55,10 +57,34 @@ export default function AdminMembers() {
     fetchMembers();
   }, []);
 
+  const uniqueVillages = React.useMemo(() => {
+    const villages = new Set<string>();
+    villages.add('All');
+    members.forEach(m => {
+      if (m.MailingCity && m.MailingCity.trim() !== '') {
+        const titleCase = m.MailingCity.trim().toLowerCase().replace(/\b\w/g, (s: string) => s.toUpperCase());
+        villages.add(titleCase);
+      }
+    });
+    return Array.from(villages).sort((a, b) => {
+      if (a === 'All') return -1;
+      if (b === 'All') return 1;
+      return a.localeCompare(b);
+    });
+  }, [members]);
+
   // Stats calculation
-  const totalMembers = members.length;
-  const activeMembers = members.filter(m => m.Account?.Active__c === true).length;
-  const inactiveMembers = members.filter(m => m.Account?.Active__c !== true).length;
+  const statsMembers = React.useMemo(() => {
+    if (selectedVillage === 'All') return members;
+    return members.filter(m => {
+      const villageStr = m.MailingCity || '';
+      return villageStr.trim().toLowerCase() === selectedVillage.toLowerCase();
+    });
+  }, [members, selectedVillage]);
+
+  const totalMembers = statsMembers.length;
+  const activeMembers = statsMembers.filter(m => m.Account?.Active__c === true).length;
+  const inactiveMembers = statsMembers.filter(m => m.Account?.Active__c !== true).length;
 
   const handleToggleExpand = (id: string) => {
     setExpandedId(prev => (prev === id ? null : id));
@@ -102,11 +128,13 @@ export default function AdminMembers() {
     const nameStr = m.Name || '';
     const emailStr = m.Email || '';
     const phoneStr = m.Phone || m.MobilePhone || '';
+    const villageStr = m.MailingCity || '';
     
     const matchesSearch = 
       nameStr.toLowerCase().includes(searchQuery.toLowerCase()) ||
       emailStr.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      phoneStr.includes(searchQuery);
+      phoneStr.includes(searchQuery) ||
+      villageStr.toLowerCase().includes(searchQuery.toLowerCase());
 
     const isActive = m.Account?.Active__c === true;
     const matchesStatus = 
@@ -114,7 +142,9 @@ export default function AdminMembers() {
       (statusFilter === 'Active' && isActive) ||
       (statusFilter === 'Inactive' && !isActive);
 
-    return matchesSearch && matchesStatus;
+    const matchesVillage = selectedVillage === 'All' || villageStr.trim().toLowerCase() === selectedVillage.toLowerCase();
+
+    return matchesSearch && matchesStatus && matchesVillage;
   });
 
   if (loading && members.length === 0) {
@@ -183,7 +213,7 @@ export default function AdminMembers() {
         {/* Search Bar */}
         <View style={styles.searchBarContainer}>
           <TextInput
-            placeholder="Search by name, email, or phone..."
+            placeholder="Search by name, email, phone, or village..."
             placeholderTextColor="#9CA3AF"
             style={styles.searchInput}
             value={searchQuery}
@@ -191,23 +221,64 @@ export default function AdminMembers() {
           />
         </View>
 
-        {/* Filter Chips */}
-        <View style={styles.filterRow}>
-          {(['All', 'Active', 'Inactive'] as const).map(filter => (
+        {/* Filters and Dropdown Row */}
+        <View style={styles.filterAndDropdownRow}>
+          {/* Filter Chips */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            {(['All', 'Active', 'Inactive'] as const).map(filter => (
+              <TouchableOpacity 
+                key={filter} 
+                style={[styles.filterChip, statusFilter === filter && styles.filterChipActive]}
+                onPress={() => setStatusFilter(filter)}
+              >
+                <Text style={[styles.filterChipTxt, statusFilter === filter && styles.filterChipTxtActive]}>
+                  {filter}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Village Dropdown Button */}
+          <View style={styles.dropdownContainer}>
             <TouchableOpacity 
-              key={filter} 
-              style={[styles.filterChip, statusFilter === filter && styles.filterChipActive]}
-              onPress={() => setStatusFilter(filter)}
+              style={styles.dropdownButton}
+              onPress={() => setIsVillageDropdownOpen(!isVillageDropdownOpen)}
             >
-              <Text style={[styles.filterChipTxt, statusFilter === filter && styles.filterChipTxtActive]}>
-                {filter}
+              <Text style={styles.dropdownButtonTxt} numberOfLines={1}>
+                {selectedVillage === 'All' ? 'Village: All' : selectedVillage}
               </Text>
+              {isVillageDropdownOpen ? (
+                <ChevronUp size={16} color={isDark ? "#9ca3af" : "#6B7280"} />
+              ) : (
+                <ChevronDown size={16} color={isDark ? "#9ca3af" : "#6B7280"} />
+              )}
             </TouchableOpacity>
-          ))}
+          </View>
         </View>
+          
+        {isVillageDropdownOpen && (
+            <View style={styles.dropdownList}>
+              <ScrollView nestedScrollEnabled style={{ maxHeight: 200 }}>
+                {uniqueVillages.map(village => (
+                  <TouchableOpacity 
+                    key={village}
+                    style={[styles.dropdownItem, selectedVillage === village && styles.dropdownItemActive]}
+                    onPress={() => {
+                      setSelectedVillage(village);
+                      setIsVillageDropdownOpen(false);
+                    }}
+                  >
+                    <Text style={[styles.dropdownItemTxt, selectedVillage === village && styles.dropdownItemTxtActive]}>
+                      {village}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
         {/* Member Cards List */}
-        <View style={styles.membersList}>
+        <View style={[styles.membersList, { zIndex: -1 }]}>
           {filteredMembers.map((member) => {
             const isExpanded = expandedId === member.Id;
             const associated = member.AccountId
@@ -262,6 +333,12 @@ export default function AdminMembers() {
                     <Mail size={12} color={isDark ? "#9ca3af" : "#6B7280"} />
                     <Text style={styles.contactTxt}>{member.Email || 'No Email'}</Text>
                   </View>
+                  {member.MailingCity ? (
+                    <View style={styles.contactRow}>
+                      <MapPin size={12} color={isDark ? "#9ca3af" : "#6B7280"} />
+                      <Text style={styles.contactTxt}>{member.MailingCity}</Text>
+                    </View>
+                  ) : null}
                 </View>
 
                 {isExpanded && (
@@ -370,7 +447,8 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   searchInput: { fontSize: 14, color: colors.text },
 
-  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 15 },
+  filterAndDropdownRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, gap: 10 },
+  filterRow: { flexDirection: 'row', gap: 8, alignItems: 'center', paddingRight: 10 },
   filterChip: { 
     paddingHorizontal: 16, 
     paddingVertical: 8, 
@@ -382,6 +460,39 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   filterChipActive: { backgroundColor: '#1a2d5a', borderColor: '#1a2d5a' },
   filterChipTxt: { fontSize: 11, fontWeight: '600', color: '#374151' },
   filterChipTxtActive: { color: '#fff' },
+
+  dropdownContainer: { flex: 1, minWidth: 110 },
+  dropdownButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: isDark ? colors.border : '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  dropdownButtonTxt: { fontSize: 11, color: colors.text, fontWeight: '600', marginRight: 4, flex: 1 },
+  dropdownList: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: isDark ? colors.border : '#d1d5db',
+    borderRadius: 8,
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: isDark ? '#334155' : '#e5e7eb',
+  },
+  dropdownItemActive: {
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#eff6ff',
+  },
+  dropdownItemTxt: { fontSize: 13, color: colors.text },
+  dropdownItemTxtActive: { color: '#3b82f6', fontWeight: '700' },
 
   membersList: { gap: 10 },
   memberCard: { 

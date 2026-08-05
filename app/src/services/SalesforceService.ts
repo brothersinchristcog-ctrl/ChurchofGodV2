@@ -210,7 +210,7 @@ spfkUchVp71l4aWpCW50lro=
 
   async getAdminMembers(): Promise<any[]> {
     try {
-      const soql = `SELECT Id, AccountId, Name, FirstName, LastName, Email, Phone, MobilePhone, User_Type__c, CreatedDate, LastModifiedDate, Last_App_Opened__c, Account.Name, Account.Active__c, Account.Membership_Status__c, Mobile_App_ID__c FROM Contact ORDER BY Name ASC LIMIT 2000`;
+      const soql = `SELECT Id, AccountId, Name, FirstName, LastName, Email, Phone, MobilePhone, User_Type__c, CreatedDate, LastModifiedDate, Last_App_Opened__c, Account.Name, Account.Active__c, Account.Membership_Status__c, Mobile_App_ID__c, MailingCity FROM Contact ORDER BY Name ASC LIMIT 2000`;
       const result = await this.query(soql, true);
       return result.records || [];
     } catch (error) {
@@ -1034,11 +1034,13 @@ spfkUchVp71l4aWpCW50lro=
         Banner_Image_URL__c: details.bannerUrl,
         Banner_Color__c: details.bannerColor,
         Recurring_Frequency__c: details.recurring,
-        Recurrence_Duration__c: details.recurrenceDuration,
+        // Recurrence_Duration__c: details.recurrenceDuration, // Temporarily omitted to bypass stubborn picklist validation
         Notify_Members__c: details.notifyOnPublish,
         Reminder_1_Day__c: details.reminder1Day,
         Reminder_1_Hour__c: details.reminder1Hour
       };
+      
+      console.log('🚀 [SalesforceService] Sending Event Payload:', JSON.stringify(body, null, 2));
 
       const resp = await fetch(url, {
         method: isUpdate ? 'PATCH' : 'POST',

@@ -210,6 +210,8 @@ export default function UpdatesScreen({ navigation, route }: any) {
               }
             }
 
+            const isPersonal = data.type === 'birthday' || data.type === 'anniversary' || data.type === 'baptism' || data.type === 'whatsapp_reply';
+
             // SECURITY: If broadcast is targeted to a specific phone, skip it if not for this user
             const isTargeted = data.targetPhone && typeof data.targetPhone === 'string' && data.targetPhone.trim().length > 0;
             if (isTargeted) {
@@ -224,6 +226,12 @@ export default function UpdatesScreen({ navigation, route }: any) {
               
               if (!match1 && !match2 && !match3 && !match4) {
                 return null; // Skip if not targeted to current user
+              }
+            } else if (isPersonal) {
+              // Personal message but no target phone? Hide it from regular users to prevent accidental leaks
+              const uRole = member?.userType?.toLowerCase() || '';
+              if (uRole !== 'admin' && uRole !== 'pastor') {
+                return null;
               }
             }
 

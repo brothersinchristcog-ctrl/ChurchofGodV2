@@ -120,10 +120,16 @@ export const notifyMembers = onCall({ invoker: 'public' }, async (request) => {
     if (!title || !body) {
         throw new HttpsError('invalid-argument', 'Missing title or body');
     }
+    const cleanBody = body.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim();
     try {
         console.log(`🔔 Sending Notification: [${title}] to [${targetPhone || target || 'All'}]`);
+        const isPersonal = type === 'birthday' || type === 'anniversary' || type === 'baptism' || type === 'whatsapp_reply';
+        if (isPersonal && (!targetPhone || targetPhone.replace(/[^0-9]/g, '').length === 0)) {
+            console.log('🛑 Skipping personal push notification because targetPhone is empty.');
+            return { success: false, message: 'Missing target phone for personal notification' };
+        }
         let tokens = [];
-        if (targetPhone) {
+        if (targetPhone && targetPhone.trim().length > 0) {
             const cleanPhone = targetPhone.replace(/[^0-9]/g, '');
             const snapshot = await getDb().collection('users').get();
             const tokenSet = new Set();
@@ -156,7 +162,7 @@ export const notifyMembers = onCall({ invoker: 'public' }, async (request) => {
             return { success: true, message: 'No registered tokens found' };
         }
         const message = {
-            notification: { title, body },
+            notification: { title, body: cleanBody },
             data: { type: type || 'general', targetPhone: targetPhone || '' },
             android: {
                 priority: 'high',
@@ -209,7 +215,8 @@ export const automatedDailyPromise = onSchedule({ schedule: '0 5 * * *', timeZon
             return;
         }
         const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-        const content = promise.Promises__c || promise.Promise_text_telugu__c || 'Grace and Peace be multiplied to you today.';
+        const rawContent = promise.Promises__c || promise.Promise_text_telugu__c || 'Grace and Peace be multiplied to you today.';
+        const content = rawContent.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim();
         // Pushed to broadcasts collection
         await db.collection('broadcasts').add({
             title: '📖 Today\'s Promise · ఈ రోజు వాగ్దానం',
@@ -1049,6 +1056,11 @@ export const onBroadcastCreated = functionsCompat.firestore
     const body = data.content || '';
     const type = data.type || 'general';
     console.log(`🔔 onBroadcastCreated (Gen 1) fired for: [${title}] type: [${type}]`);
+    const isPersonal = type === 'birthday' || type === 'anniversary' || type === 'baptism' || type === 'whatsapp_reply';
+    if (isPersonal && (!data.targetPhone || data.targetPhone.trim().length === 0)) {
+        console.log('🛑 Skipping broadcast push: personal message with no target phone');
+        return;
+    }
     try {
         const db = getDb();
         let query = db.collection('users');

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Church of God",
     "slug": "app",
-    "version": "1.0.1",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
@@ -37,7 +37,7 @@
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
       ],
       "edgeToEdgeEnabled": true,
-      "versionCode": 6
+      "versionCode": 8
     },
     "web": {
       "favicon": "./assets/logo.png"

@@ -23,6 +23,9 @@ import AuthNavigator from './AuthNavigator';
 import SplashScreen from '../screens/auth/SplashScreen';
 import OnboardingScreen from '../screens/auth/OnboardingScreen';
 
+// App Updates
+import UpdateChecker from '../components/UpdateChecker';
+
 // Member Screens
 import HomeScreen from '../screens/HomeScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -504,7 +507,9 @@ export default function RootNavigator() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Navigation />
+        <UpdateChecker>
+          <Navigation />
+        </UpdateChecker>
       </AuthProvider>
     </ThemeProvider>
   );
