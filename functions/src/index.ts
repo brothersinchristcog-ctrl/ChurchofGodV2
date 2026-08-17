@@ -234,8 +234,21 @@ export const automatedDailyPromise = onSchedule({ schedule: '0 5 * * *', timeZon
     }
 
     const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-    const rawContent = promise.Promises__c || promise.Promise_text_telugu__c || 'Grace and Peace be multiplied to you today.';
-    const content = rawContent.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim();
+    const enContent = promise.Promises__c ? promise.Promises__c.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim() : '';
+    const teContent = promise.Promise_text_telugu__c ? promise.Promise_text_telugu__c.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim() : '';
+    
+    // Combine English and Telugu content for notification & broadcast
+    let content = '';
+    if (enContent && teContent) {
+      content = `📖 ${enContent}\n\nదువా / వాగ్దానం:\n📖 ${teContent}`;
+    } else {
+      content = enContent || teContent || 'Grace and Peace be multiplied to you today.';
+    }
+
+    // Short summary for push notification body (bilingual)
+    const notifBody = enContent && teContent 
+      ? `✝️ ${enContent.slice(0, 70)}...\n📖 ${teContent.slice(0, 70)}...`
+      : content.slice(0, 120);
 
     // Pushed to broadcasts collection
     await db.collection('broadcasts').add({
@@ -260,9 +273,9 @@ export const automatedDailyPromise = onSchedule({ schedule: '0 5 * * *', timeZon
       const message = {
         notification: {
           title: '📖 Daily Promise · ఈ రోజు వాగ్దానం',
-          body: content.slice(0, 100) + '...'
+          body: notifBody
         },
-        data: { type: 'general' },
+        data: { type: 'promise' },
         android: {
           priority: 'high' as const,
           notification: {
@@ -1101,6 +1114,143 @@ async function runDailyWishes(): Promise<void> {
       console.log(`📤 Sending baptism wish to ${member.name} (${phone})...`);
       await sendWish(phone, mediaId, greeting, verseStr, member.name, fbImageUrl, 'baptism');
     }
+
+    // --- 4. 🔔 STREAM A & STREAM B PUSH NOTIFICATIONS FOR DAILY CELEBRATIONS ---
+    const currentDate = new Date();
+    const todayDateKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+
+    // Collect all celebrants for today
+    const celebSummaryList: { name: string; type: string }[] = [];
+    birthdays.forEach((b: any) => celebSummaryList.push({ name: b.name, type: 'Birthday' }));
+    anniversaries.forEach((a: any) => {
+      let coupleName = '';
+      if (a.husband && a.wife && a.husband !== 'Spouse' && a.wife !== 'Spouse') coupleName = `${a.husband} & ${a.wife}`;
+      else coupleName = a.husband || a.wife || 'Couple';
+      celebSummaryList.push({ name: coupleName, type: 'Wedding Anniversary' });
+    });
+    baptisms.forEach((b: any) => celebSummaryList.push({ name: b.name, type: 'Baptism Anniversary' }));
+
+    const totalCelebs = celebSummaryList.length;
+
+    if (totalCelebs > 0) {
+      // ── STREAM A: Notification to All Members
+      let broadcastTitle = "🎉 Today's Celebration";
+      let broadcastBody = "";
+      let actionLabel = "JOIN CELEBRATION";
+
+      const c0 = celebSummaryList[0];
+      const c1 = celebSummaryList[1];
+
+      if (totalCelebs === 1 && c0) {
+        broadcastTitle = "🎉 Today's Celebration";
+        broadcastBody = `Today we celebrate ${c0.name}'s ${c0.type}!\nJoin our church family in sending wishes and blessings.`;
+        actionLabel = "JOIN CELEBRATION";
+      } else if (totalCelebs === 2 && c0 && c1) {
+        broadcastTitle = "🎉 Today's Celebrations";
+        broadcastBody = `Today we celebrate ${c0.name}'s ${c0.type} and ${c1.name}'s ${c1.type}!\nJoin our church family and share your wishes and blessings.`;
+        actionLabel = "JOIN LIVE CHAT";
+      } else {
+        broadcastTitle = "🎉 Today's Celebrations";
+        const lines = celebSummaryList.map(c => `• ${c.name} — ${c.type}`).join('\n');
+        broadcastBody = `${lines}\n\nLet's celebrate our church family together!`;
+        actionLabel = "JOIN LIVE CHAT";
+      }
+
+      console.log(`📣 Sending Stream A Broadcast Push Notification for ${todayDateKey}...`);
+      await sendPushToAllMembers({
+        notification: {
+          title: broadcastTitle,
+          body: broadcastBody,
+        },
+        data: {
+          type: 'daily_celebration',
+          dateKey: todayDateKey,
+          actionButton: actionLabel,
+        }
+      });
+
+      // ── STREAM B: Personalized Notifications to Celebrated Recipients
+      for (const b of birthdays) {
+        const phone = formatPhone(b.phone);
+        const searchPhone = phone ? phone.slice(-10) : '';
+        const token = userMap.get(b.name.toLowerCase()) || (searchPhone ? userMap.get(searchPhone) : null);
+        if (token) {
+          await getMsg().send({
+            notification: {
+              title: "🎂 Your Birthday Celebration is Live!",
+              body: "Your church family is celebrating with you today. ❤️\nCome see the wishes and blessings from everyone."
+            },
+            data: {
+              type: 'daily_celebration',
+              dateKey: todayDateKey,
+              celebrationId: `BDAY_${b.name}_${todayDateKey}`,
+              actionButton: 'JOIN_CELEBRATION'
+            },
+            token
+          }).catch((err: any) => console.warn(`Failed Stream B push to ${b.name}:`, err.message));
+        }
+      }
+
+      for (const a of anniversaries) {
+        const hPhone = formatPhone(a.husbandPhone);
+        const wPhone = formatPhone(a.wifePhone);
+        const hToken = a.husband ? (userMap.get(a.husband.toLowerCase()) || (hPhone ? userMap.get(hPhone.slice(-10)) : null)) : null;
+        const wToken = a.wife ? (userMap.get(a.wife.toLowerCase()) || (wPhone ? userMap.get(wPhone.slice(-10)) : null)) : null;
+
+        if (hToken) {
+          await getMsg().send({
+            notification: {
+              title: "💍 Your Anniversary Celebration is Live!",
+              body: `Your church family is celebrating with you and ${a.wife || 'your spouse'} today. ❤️`
+            },
+            data: {
+              type: 'daily_celebration',
+              dateKey: todayDateKey,
+              celebrationId: `ANNIV_${a.husband}_${todayDateKey}`,
+              actionButton: 'JOIN_CELEBRATION'
+            },
+            token: hToken
+          }).catch((err: any) => console.warn(`Failed Stream B push to husband ${a.husband}:`, err.message));
+        }
+
+        if (wToken) {
+          await getMsg().send({
+            notification: {
+              title: "💍 Your Anniversary Celebration is Live!",
+              body: `Your church family is celebrating with you and ${a.husband || 'your spouse'} today. ❤️`
+            },
+            data: {
+              type: 'daily_celebration',
+              dateKey: todayDateKey,
+              celebrationId: `ANNIV_${a.wife}_${todayDateKey}`,
+              actionButton: 'JOIN_CELEBRATION'
+            },
+            token: wToken
+          }).catch((err: any) => console.warn(`Failed Stream B push to wife ${a.wife}:`, err.message));
+        }
+      }
+
+      for (const bap of baptisms) {
+        const phone = formatPhone(bap.phone);
+        const searchPhone = phone ? phone.slice(-10) : '';
+        const token = userMap.get(bap.name.toLowerCase()) || (searchPhone ? userMap.get(searchPhone) : null);
+        if (token) {
+          await getMsg().send({
+            notification: {
+              title: "💧 Your Baptism Anniversary is Live!",
+              body: "Your church family is celebrating your spiritual journey today. 🕊️"
+            },
+            data: {
+              type: 'daily_celebration',
+              dateKey: todayDateKey,
+              celebrationId: `BAP_${bap.name}_${todayDateKey}`,
+              actionButton: 'JOIN_CELEBRATION'
+            },
+            token
+          }).catch((err: any) => console.warn(`Failed Stream B push to ${bap.name}:`, err.message));
+        }
+      }
+    }
   } catch (error) {
     console.error('Error in runDailyWishes:', error);
   }
@@ -1440,3 +1590,335 @@ export const triggerTestYouTubeLive = onCall({ invoker: 'public' }, async (reque
 
 export * from './whatsapp.js';
 
+/**
+ * ============================================================================
+ * 📱 ONLINE BIBLE CLASSES
+ * ============================================================================
+ */
+
+async function sendPushToAllMembers(payload: any) {
+  try {
+    const snapshot = await getDb().collection('users').get();
+    const tokenSet = new Set<string>();
+    snapshot.forEach((doc: any) => {
+      if (doc.data().fcmToken) tokenSet.add(doc.data().fcmToken);
+    });
+    
+    const tokens = Array.from(tokenSet);
+    if (tokens.length === 0) return;
+
+    const message = {
+      notification: payload.notification,
+      data: payload.data || {},
+      android: {
+        priority: 'high' as const,
+        notification: { sound: 'default', priority: 'max' as const, channelId: 'church_alerts' }
+      },
+      apns: {
+        headers: { 'apns-priority': '10' },
+        payload: { aps: { sound: 'default', badge: 1 } }
+      },
+      tokens
+    };
+    await getMsg().sendEachForMulticast(message);
+  } catch (error) {
+    console.error('sendPushToAllMembers Error:', error);
+  }
+}
+
+export const createBibleClass = onCall({ invoker: 'public', memory: '256MiB' }, async (request) => {
+  try {
+    const { 
+      churchId, title, description, teacherId, teacherName, bibleBook, topic, 
+      imageUrl, date, startTime, endTime, recurrence, meetingLink, startTimestamp 
+    } = request.data;
+    
+    // 2. Save to Firestore
+    const classRef = getDb().collection(`churches/${churchId}/bibleClasses`).doc();
+    const classData = {
+      classId: classRef.id,
+      churchId,
+      title,
+      description: description || null,
+      teacherId,
+      teacherName,
+      bibleBook: bibleBook || null,
+      topic: topic || null,
+      imageUrl: imageUrl || null,
+      date,
+      startTime,
+      endTime,
+      recurrence: recurrence || 'NONE',
+      status: 'SCHEDULED',
+      meetingUri: meetingLink,
+      startTimestamp: startTimestamp || null,
+      notified1Hour: false,
+      notified10Min: false,
+      createdBy: request.auth?.uid || 'admin',
+      createdAt: FieldValue.serverTimestamp(),
+    };
+
+    await classRef.set(classData);
+
+    // 3. Send Notification to all members
+    
+    // Convert e.g., '24-05-2023' into a Date to get the day of the week
+    let dayName = 'Today';
+    try {
+      if (date) {
+        const [d, m, y] = date.split('-');
+        const parsedDate = new Date(`${y}-${m}-${d}`);
+        if (!isNaN(parsedDate.getTime())) {
+          dayName = parsedDate.toLocaleDateString('en-US', { weekday: 'long' });
+        }
+      }
+    } catch (e) {}
+
+    const payload = {
+      notification: {
+        title: '📖 New Bible Class',
+        body: `A new Bible class has been scheduled for ${dayName} at ${startTime}. Tap to view details.`,
+      },
+      data: {
+        type: 'BIBLE_CLASS',
+        classId: classRef.id,
+      }
+    };
+    
+    try {
+      await sendPushToAllMembers(payload);
+    } catch (e) {
+      console.error("FCM Error in createBibleClass:", e);
+    }
+
+    return { success: true, classId: classRef.id, meetingUri: meetingLink };
+  } catch (error: any) {
+    console.error('createBibleClass Error:', error);
+    throw new HttpsError('internal', error.message);
+  }
+});
+
+export const updateBibleClassStatus = onCall({ invoker: 'public', memory: '256MiB' }, async (request) => {
+  try {
+    const { churchId, classId, status } = request.data;
+    const classRef = getDb().collection(`churches/${churchId}/bibleClasses`).doc(classId);
+    
+    await classRef.update({ status });
+    
+    if (status === 'LIVE') {
+      const doc = await classRef.get();
+      const classData = doc.data();
+      
+      if (classData && classData.title) {
+        const payload = {
+          notification: {
+            title: '🔴 Bible Class is Live',
+            body: `${classData.title} is live now. Tap to join.`,
+          },
+          data: {
+            type: 'BIBLE_CLASS',
+            classId: classId,
+          }
+        };
+        try {
+          await sendPushToAllMembers(payload);
+        } catch (e) {
+          console.error("FCM Error in updateBibleClassStatus:", e);
+        }
+      }
+    }
+    
+    return { success: true };
+  } catch (error: any) {
+    throw new HttpsError('internal', error.message);
+  }
+});
+
+export const recordBibleClassAttendance = onCall({ invoker: 'public' }, async (request) => {
+  try {
+    const { churchId, classId, memberId, memberName, joinedAt } = request.data;
+    const ref = getDb().collection(`churches/${churchId}/bibleClasses/${classId}/attendance`).doc(memberId);
+    await ref.set({
+      memberId,
+      memberName,
+      joinedAt: joinedAt || FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { success: true };
+  } catch (error: any) {
+    throw new HttpsError('internal', error.message);
+  }
+});
+
+export const bibleClassNotificationsScheduler = onSchedule({ schedule: '* * * * *', timeZone: 'Asia/Kolkata', memory: '256MiB' }, async (event) => {
+  try {
+    const db = getDb();
+    const snapshot = await db.collection('churches/default/bibleClasses')
+      .where('status', '==', 'SCHEDULED')
+      .get();
+      
+    if (snapshot.empty) return;
+    
+    const now = Date.now();
+    const promises: Promise<any>[] = [];
+    
+    snapshot.forEach((doc: any) => {
+      const data = doc.data();
+      if (!data.startTimestamp) return;
+      
+      const timeLeftMs = data.startTimestamp - now;
+      const timeLeftMinutes = Math.floor(timeLeftMs / 1000 / 60);
+      
+      if (timeLeftMinutes < -120) return;
+
+      const updates: any = {};
+      let title = '';
+      let body = '';
+
+      if (timeLeftMinutes <= 10 && timeLeftMinutes >= 0 && !data.notified10Min) {
+        title = '🔔 Bible Class Starting Soon';
+        body = `${data.title} starts in 10 minutes. Tap to join the class.`;
+        updates.notified10Min = true;
+        if (!data.notified1Hour) updates.notified1Hour = true;
+      } else if (timeLeftMinutes <= 60 && timeLeftMinutes > 10 && !data.notified1Hour) {
+        title = '⏰ Bible Class in 1 Hour';
+        body = `${data.title} begins at ${data.startTime}. Get ready to join!`;
+        updates.notified1Hour = true;
+      }
+
+      if (title && body) {
+        const payload = {
+          notification: { title, body },
+          data: {
+            type: 'BIBLE_CLASS',
+            classId: doc.id,
+          }
+        };
+        
+        promises.push(
+          sendPushToAllMembers(payload)
+            .then(() => doc.ref.update(updates))
+            .catch((e: any) => console.error("FCM Error in scheduler:", e))
+        );
+      }
+    });
+    
+    await Promise.all(promises);
+  } catch (error) {
+    console.error('bibleClassNotificationsScheduler Error:', error);
+  }
+});
+
+/**
+ * 💌 BATCHED WISH PUSH NOTIFICATIONS
+ * Triggers when a member sends a wish in DailyCelebrationChatScreen.
+ * Collects wishes per recipient in 5-minute sliding windows to prevent push spam.
+ */
+export const onCelebrationWishCreated = functionsCompat.firestore
+  .document('daily_celebration_chats/{dateKey}/messages/{messageId}')
+  .onCreate(async (snap, context) => {
+    try {
+      const data = snap.data();
+      const celebrationId = data?.celebrationId;
+      const senderUid = data?.senderUid;
+      const senderName = data?.senderName || 'A member';
+      const dateKey = context.params.dateKey;
+
+      if (!celebrationId) return;
+
+      const db = getDb();
+      const batchRef = db.collection('celebration_wish_batches').doc(`${dateKey}_${celebrationId}`);
+      const now = Date.now();
+
+      await db.runTransaction(async (transaction: any) => {
+        const doc = await transaction.get(batchRef);
+        
+        if (!doc.exists) {
+          transaction.set(batchRef, {
+            pendingCount: 1,
+            lastNotifiedAt: now,
+            initialSent: true,
+          });
+
+          // Extract celebrant name from celebrationId (format: CATEGORY_NAME_DATE)
+          const parts = celebrationId.split('_');
+          const celebrantName = parts.length >= 3 ? parts[1] : '';
+
+          // Look up celebrant FCM token
+          const userSnap = await db.collection('users').get();
+          let targetToken: string | null = null;
+          userSnap.forEach((uDoc: any) => {
+            const uData = uDoc.data();
+            if (uData.fcmToken && uDoc.id !== senderUid) {
+              if (celebrantName && uData.name && uData.name.toLowerCase().includes(celebrantName.toLowerCase())) {
+                targetToken = uData.fcmToken;
+              }
+            }
+          });
+
+          if (targetToken) {
+            await getMsg().send({
+              notification: {
+                title: "🎉 New Celebration Wishes",
+                body: `${senderName} sent you a celebration wish! ❤️\nTap to view wishes and blessings.`
+              },
+              data: {
+                type: 'daily_celebration',
+                dateKey: dateKey,
+                celebrationId: celebrationId,
+                actionButton: 'VIEW_WISHES'
+              },
+              token: targetToken
+            }).catch((err: any) => console.warn('Failed initial wish push:', err.message));
+          }
+        } else {
+          const bData = doc.data();
+          const lastNotified = bData.lastNotifiedAt || 0;
+          const pendingCount = (bData.pendingCount || 0) + 1;
+
+          // 5-minute sliding window (300,000 ms)
+          if (now - lastNotified > 300000) {
+            transaction.update(batchRef, {
+              pendingCount: 0,
+              lastNotifiedAt: now,
+            });
+
+            // Extract celebrant name
+            const parts = celebrationId.split('_');
+            const celebrantName = parts.length >= 3 ? parts[1] : '';
+
+            // Look up celebrant FCM token
+            const userSnap = await db.collection('users').get();
+            let targetToken: string | null = null;
+            userSnap.forEach((uDoc: any) => {
+              const uData = uDoc.data();
+              if (uData.fcmToken && uDoc.id !== senderUid) {
+                if (celebrantName && uData.name && uData.name.toLowerCase().includes(celebrantName.toLowerCase())) {
+                  targetToken = uData.fcmToken;
+                }
+              }
+            });
+
+            if (targetToken) {
+              await getMsg().send({
+                notification: {
+                  title: "❤️ More Celebration Wishes!",
+                  body: `${pendingCount} more church members have sent you blessings.`
+                },
+                data: {
+                  type: 'daily_celebration',
+                  dateKey: dateKey,
+                  celebrationId: celebrationId,
+                  actionButton: 'VIEW_WISHES'
+                },
+                token: targetToken
+              }).catch((err: any) => console.warn('Failed batched wish push:', err.message));
+            }
+          } else {
+            transaction.update(batchRef, { pendingCount });
+          }
+        }
+      });
+    } catch (err: any) {
+      console.error('Error in onCelebrationWishCreated:', err.message);
+    }
+  });

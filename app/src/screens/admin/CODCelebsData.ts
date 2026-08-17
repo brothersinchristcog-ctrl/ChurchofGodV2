@@ -82,6 +82,7 @@ export async function fetchCelebrations(forceRefresh = false): Promise<Member[]>
           if (data.sfContactId) {
             userPhotos[data.sfContactId] = data.photoURL;
           }
+          userPhotos[doc.id] = data.photoURL;
         }
       });
       console.log(`Fetched ${Object.keys(userPhotos).length} user photos from Firestore.`);
@@ -406,9 +407,12 @@ export function yearsLabel(cat: string, refYear: number) {
 }
 
 export function initials(name: string) {
+  if (!name) return '?';
   const clean = name.split('&')[0].trim();
-  const parts = clean.split(' ');
-  return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 export function paletteFor(id: string) {

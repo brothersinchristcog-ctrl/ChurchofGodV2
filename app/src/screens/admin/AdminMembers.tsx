@@ -9,8 +9,13 @@ import {
   Dimensions, 
   Platform,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
+  Linking,
+  Image,
+  Modal,
+  TouchableWithoutFeedback
 } from 'react-native';
+import firestore from '@react-native-firebase/firestore';
 import { Users, Phone, Mail, ChevronDown, ChevronUp, Clock, UserCheck, Menu, MapPin } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AdminTabContext } from '../../context/AdminTabContext';
@@ -31,6 +36,9 @@ export default function AdminMembers() {
   const [selectedVillage, setSelectedVillage] = useState<string>('All');
   const [isVillageDropdownOpen, setIsVillageDropdownOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedHouseholdIds, setExpandedHouseholdIds] = useState<Set<string>>(new Set());
+  const [userPhotos, setUserPhotos] = useState<Record<string, string>>({});
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const styles = getStyles(colors, isDark);
 
@@ -55,7 +63,35 @@ export default function AdminMembers() {
 
   useEffect(() => {
     fetchMembers();
+    fetchUserPhotos();
   }, []);
+
+  const fetchUserPhotos = async () => {
+    try {
+      console.log('Fetching user photos from Firestore...');
+      const snap = await firestore().collection('users').get();
+      const photos: Record<string, string> = {};
+      let photoCount = 0;
+      snap.forEach(doc => {
+        const data = doc.data();
+        if (data.photoURL) {
+          photoCount++;
+          if (data.phone) {
+            const cleanPhone = data.phone.replace(/[^0-9]/g, '').slice(-10);
+            photos[cleanPhone] = data.photoURL;
+          }
+          if (data.sfContactId) {
+            photos[data.sfContactId] = data.photoURL;
+          }
+          photos[doc.id] = data.photoURL;
+        }
+      });
+      console.log(`Fetched ${photoCount} user photos, setting state...`, Object.keys(photos).length, 'keys');
+      setUserPhotos(photos);
+    } catch (e) {
+      console.warn('Failed to fetch user photos', e);
+    }
+  };
 
   const uniqueVillages = React.useMemo(() => {
     const villages = new Set<string>();
@@ -90,6 +126,13 @@ export default function AdminMembers() {
     setExpandedId(prev => (prev === id ? null : id));
   };
 
+  const handleToggleHousehold = (id: string) => {
+    const next = new Set(expandedHouseholdIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setExpandedHouseholdIds(next);
+  };
+
   const getInitials = (name: string) => {
     if (!name) return '??';
     return name
@@ -99,6 +142,17 @@ export default function AdminMembers() {
       .join('')
       .substring(0, 2)
       .toUpperCase();
+  };
+
+  const getPhotoUrl = (member: any) => {
+    if (member.Id && userPhotos[member.Id]) return userPhotos[member.Id];
+    if (member.Mobile_App_ID__c && userPhotos[member.Mobile_App_ID__c]) return userPhotos[member.Mobile_App_ID__c];
+    const phone = member.MobilePhone || member.Phone;
+    if (phone) {
+      const clean = phone.replace(/[^0-9]/g, '').slice(-10);
+      if (userPhotos[clean]) return userPhotos[clean];
+    }
+    return null;
   };
 
   const formatLastAppOpened = (dateStr: string) => {
@@ -297,9 +351,22 @@ export default function AdminMembers() {
                   onPress={() => handleToggleExpand(member.Id)}
                 >
                   <View style={styles.profileSection}>
-                    <View style={styles.avatar}>
-                      <Text style={styles.avatarTxt}>{getInitials(member.Name)}</Text>
-                    </View>
+                    <TouchableOpacity 
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        const url = getPhotoUrl(member);
+                        if (url) setPreviewImage(url);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      {getPhotoUrl(member) ? (
+                        <Image source={{ uri: getPhotoUrl(member)! }} style={[styles.avatar, { padding: 0 }]} />
+                      ) : (
+                        <View style={styles.avatar}>
+                          <Text style={styles.avatarTxt}>{getInitials(member.Name)}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
                     <View style={styles.nameSection}>
                       <Text style={styles.name}>{member.Name}</Text>
                       <View style={badgeRowStyles(isActive).badgeRow}>
@@ -325,20 +392,61 @@ export default function AdminMembers() {
                 </TouchableOpacity>
 
                 <View style={styles.contactDetails}>
-                  <View style={styles.contactRow}>
-                    <Phone size={12} color={isDark ? "#9ca3af" : "#6B7280"} />
-                    <Text style={styles.contactTxt}>{member.Phone || member.MobilePhone || 'No Phone'}</Text>
-                  </View>
-                  <View style={styles.contactRow}>
-                    <Mail size={12} color={isDark ? "#9ca3af" : "#6B7280"} />
-                    <Text style={styles.contactTxt}>{member.Email || 'No Email'}</Text>
-                  </View>
-                  {member.MailingCity ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+                    <TouchableOpacity 
+                      style={[styles.contactRow, { 
+                        backgroundColor: (member.MobilePhone || member.Phone) ? 'rgba(21, 128, 61, 0.12)' : 'transparent',
+                        paddingHorizontal: (member.MobilePhone || member.Phone) ? 10 : 0,
+                        paddingVertical: (member.MobilePhone || member.Phone) ? 4 : 0,
+                        borderRadius: 12
+                      }]}
+                      onPress={() => {
+                        const phone = member.MobilePhone || member.Phone;
+                        if (phone) Linking.openURL(`tel:${phone}`);
+                      }}
+                      disabled={!(member.MobilePhone || member.Phone)}
+                    >
+                      <Phone size={12} color={(member.MobilePhone || member.Phone) ? "#15803D" : (isDark ? "#9ca3af" : "#6B7280")} />
+                      <Text style={[styles.contactTxt, { 
+                        color: (member.MobilePhone || member.Phone) ? "#15803D" : (isDark ? "#9ca3af" : "#4B5563"), 
+                        fontWeight: (member.MobilePhone || member.Phone) ? '600' : '400' 
+                      }]}>
+                        {member.MobilePhone || member.Phone || 'No Phone'}
+                      </Text>
+                    </TouchableOpacity>
+                    
                     <View style={styles.contactRow}>
-                      <MapPin size={12} color={isDark ? "#9ca3af" : "#6B7280"} />
-                      <Text style={styles.contactTxt}>{member.MailingCity}</Text>
+                      <Mail size={12} color={isDark ? "#9ca3af" : "#6B7280"} />
+                      <Text style={styles.contactTxt}>{member.Email || 'No Email'}</Text>
                     </View>
-                  ) : null}
+                  </View>
+
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 15, rowGap: 6, marginTop: 6 }}>
+                    {member.Birthdate ? (
+                      <View style={styles.contactRow}>
+                        <Text style={{ fontSize: 12 }}>🎂</Text>
+                        <Text style={styles.contactTxt}>DOB: {new Date(member.Birthdate).toLocaleDateString()}</Text>
+                      </View>
+                    ) : null}
+                    {member.Date_of_Baptism__c ? (
+                      <View style={styles.contactRow}>
+                        <Text style={{ fontSize: 12 }}>💧</Text>
+                        <Text style={styles.contactTxt}>Baptism: {new Date(member.Date_of_Baptism__c).toLocaleDateString()}</Text>
+                      </View>
+                    ) : null}
+                    {member.Anniversary_Date__c ? (
+                      <View style={styles.contactRow}>
+                        <Text style={{ fontSize: 12 }}>💍</Text>
+                        <Text style={styles.contactTxt}>Anniversary: {new Date(member.Anniversary_Date__c).toLocaleDateString()}</Text>
+                      </View>
+                    ) : null}
+                    {member.MailingCity ? (
+                      <View style={styles.contactRow}>
+                        <MapPin size={12} color={isDark ? "#9ca3af" : "#6B7280"} />
+                        <Text style={styles.contactTxt}>{member.MailingCity}</Text>
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
 
                 {isExpanded && (
@@ -371,17 +479,86 @@ export default function AdminMembers() {
 
                     <View style={styles.householdList}>
                       {associated.length > 0 ? (
-                        associated.map((assoc) => (
-                          <View key={assoc.Id} style={styles.householdItem}>
-                            <View style={styles.hiLeft}>
-                              <Text style={styles.hiName}>{assoc.Name}</Text>
-                              <Text style={styles.hiEmail}>{assoc.Email || assoc.Phone || assoc.MobilePhone || 'No contact details'}</Text>
-                            </View>
-                            <View style={styles.hiRight}>
-                              <Text style={styles.hiRelation}>{assoc.Title || assoc.User_Type__c || 'Member'}</Text>
-                            </View>
-                          </View>
-                        ))
+                        associated.map((assoc) => {
+                          const isAssocExpanded = expandedHouseholdIds.has(assoc.Id);
+                          return (
+                            <TouchableOpacity 
+                              key={assoc.Id} 
+                              style={[styles.householdItem, { flexDirection: 'column', alignItems: 'stretch', gap: 6 }]}
+                              onPress={() => handleToggleHousehold(assoc.Id)}
+                              activeOpacity={0.7}
+                            >
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <View style={styles.hiLeft}>
+                                  <Text style={styles.hiName}>{assoc.Name}</Text>
+                                </View>
+                                <View style={[styles.hiRight, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                                  <Text style={styles.hiRelation}>{assoc.Title || assoc.User_Type__c || 'Member'}</Text>
+                                  {isAssocExpanded ? (
+                                    <ChevronUp size={14} color={isDark ? "#9ca3af" : "#6B7280"} />
+                                  ) : (
+                                    <ChevronDown size={14} color={isDark ? "#9ca3af" : "#6B7280"} />
+                                  )}
+                                </View>
+                              </View>
+                              
+                              {isAssocExpanded && (
+                                <View style={{ marginTop: 8, borderTopWidth: 0.5, borderTopColor: isDark ? '#334155' : '#e5e7eb', paddingTop: 8 }}>
+                                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                                    {(assoc.MobilePhone || assoc.Phone) ? (
+                                      <TouchableOpacity 
+                                        style={[styles.contactRow, { 
+                                          backgroundColor: 'rgba(21, 128, 61, 0.12)',
+                                          paddingHorizontal: 8,
+                                          paddingVertical: 4,
+                                          borderRadius: 12
+                                        }]}
+                                        onPress={() => Linking.openURL(`tel:${assoc.MobilePhone || assoc.Phone}`)}
+                                      >
+                                        <Phone size={10} color="#15803D" />
+                                        <Text style={[styles.contactTxt, { color: '#15803D', fontWeight: '600', fontSize: 11 }]}>
+                                          {assoc.MobilePhone || assoc.Phone}
+                                        </Text>
+                                      </TouchableOpacity>
+                                    ) : null}
+                                    
+                                    {assoc.Email ? (
+                                      <View style={[styles.contactRow, { paddingVertical: 4 }]}>
+                                        <Mail size={12} color={isDark ? "#9ca3af" : "#6B7280"} />
+                                        <Text style={[styles.contactTxt, { fontSize: 11 }]}>{assoc.Email}</Text>
+                                      </View>
+                                    ) : null}
+                                  </View>
+
+                                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 15, rowGap: 6, marginTop: 6 }}>
+                                    {assoc.Birthdate ? (
+                                      <View style={styles.contactRow}>
+                                        <Text style={{ fontSize: 11 }}>🎂</Text>
+                                        <Text style={[styles.contactTxt, { fontSize: 11 }]}>DOB: {new Date(assoc.Birthdate).toLocaleDateString()}</Text>
+                                      </View>
+                                    ) : null}
+                                    {assoc.Date_of_Baptism__c ? (
+                                      <View style={styles.contactRow}>
+                                        <Text style={{ fontSize: 11 }}>💧</Text>
+                                        <Text style={[styles.contactTxt, { fontSize: 11 }]}>Baptism: {new Date(assoc.Date_of_Baptism__c).toLocaleDateString()}</Text>
+                                      </View>
+                                    ) : null}
+                                    {assoc.Anniversary_Date__c ? (
+                                      <View style={styles.contactRow}>
+                                        <Text style={{ fontSize: 11 }}>💍</Text>
+                                        <Text style={[styles.contactTxt, { fontSize: 11 }]}>Anniversary: {new Date(assoc.Anniversary_Date__c).toLocaleDateString()}</Text>
+                                      </View>
+                                    ) : null}
+                                  </View>
+
+                                  {(!assoc.Phone && !assoc.MobilePhone && !assoc.Email && !assoc.Birthdate && !assoc.Date_of_Baptism__c && !assoc.Anniversary_Date__c) ? (
+                                    <Text style={styles.hiDetail}>No additional details available</Text>
+                                  ) : null}
+                                </View>
+                              )}
+                            </TouchableOpacity>
+                          );
+                        })
                       ) : (
                         <Text style={styles.emptyHouseholdTxt}>
                           No other household contacts registered.
@@ -398,11 +575,23 @@ export default function AdminMembers() {
         <Text style={styles.footerBranding}>Church of GOD Admin · Member Activity Logs</Text>
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Image Preview Modal */}
+      <Modal visible={!!previewImage} transparent={true} animationType="fade">
+        <TouchableWithoutFeedback onPress={() => setPreviewImage(null)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' }}>
+            <Image 
+              source={{ uri: previewImage || '' }} 
+              style={{ width: width * 0.9, height: width * 0.9, borderRadius: 20 }} 
+              resizeMode="contain"
+            />
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
 
-// Separate function for dynamic badge styling to keep code clean
 const badgeRowStyles = (isActive: boolean) => StyleSheet.create({
   badgeRow: { flexDirection: 'row', gap: 6, alignItems: 'center' }
 });
@@ -583,7 +772,8 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 8 
   },
   hiLeft: { flex: 1, gap: 2 },
-  hiName: { fontSize: 12, fontWeight: '700', color: colors.text },
+  hiName: { fontSize: 13, fontWeight: '700', color: colors.text },
+  hiDetail: { fontSize: 11, color: isDark ? '#9ca3af' : '#4b5563', marginLeft: 2 },
   hiEmail: { fontSize: 10, color: isDark ? '#9ca3af' : '#6B7280' },
   hiRight: { 
     backgroundColor: isDark ? '#475569' : '#E5E7EB', 

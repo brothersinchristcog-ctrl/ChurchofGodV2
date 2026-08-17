@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Dimensions, Animated, Easing, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Dimensions, Animated, Easing, BackHandler, DeviceEventEmitter } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
   LayoutGrid,
@@ -23,7 +23,8 @@ import {
   Sun,
   Moon,
   Image as ImageIcon,
-  Music
+  Music,
+  Video
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -50,6 +51,9 @@ import AdminContactUsEditor from '../screens/admin/AdminContactUsEditor';
 import AdminCODCelebs from '../screens/admin/AdminCODCelebs';
 import AdminInbox from '../screens/admin/AdminInbox';
 import AdminGalleryNavigator from '../screens/admin/gallery/AdminGalleryNavigator';
+import AdminExpenseMain from '../screens/admin/expenses/AdminExpenseMain';
+import AdminDonationsMain from '../screens/admin/donations/AdminDonationsMain';
+import AdminBibleClassesMain from '../screens/admin/bible_classes/AdminBibleClassesMain';
 
 const { width } = Dimensions.get('window');
 
@@ -80,7 +84,24 @@ export default function AdminNavigator() {
       backAction
     );
 
-    return () => backHandler.remove();
+    // Listen for deep link events from Push Notifications
+    const navSub = DeviceEventEmitter.addListener('NAVIGATE_ADMIN', (data) => {
+      requestAnimationFrame(() => {
+        if (typeof data === 'number') {
+          setActiveTab(data);
+        } else if (data.tabId !== undefined) {
+          setActiveTab(data.tabId);
+          if (data.innerTab) {
+             DeviceEventEmitter.emit('NAVIGATE_ADMIN_INNER', data.innerTab);
+          }
+        }
+      });
+    });
+
+    return () => {
+      backHandler.remove();
+      navSub.remove();
+    };
   }, [activeTab]);
 
   const tabs = [
@@ -102,11 +123,23 @@ export default function AdminNavigator() {
     { name: 'Gallery', icon: ImageIcon, component: AdminGalleryNavigator },
     { name: 'About Us', icon: Info, component: AdminAboutUsEditor },
     { name: 'Contact Us', icon: Phone, component: AdminContactUsEditor },
+    { name: 'Expenses', icon: BookOpen, component: AdminExpenseMain },
+    { name: 'Donations', icon: Heart, component: AdminDonationsMain },
+    { name: 'Bible Classes', icon: Video, component: AdminBibleClassesMain },
   ];
   const ActiveComponent = tabs[activeTab].component;
   const isWhatsApp = tabs[activeTab].name === 'WhatsApp';
   const isDashboard = activeTab === 0;
-  const headerBgColor = isDashboard ? colors.background : (isWhatsApp ? '#0b141a' : '#1a2d5a');
+  const isExpenses = tabs[activeTab].name === 'Expenses';
+  const isDonations = tabs[activeTab].name === 'Donations';
+  const isBibleClasses = tabs[activeTab].name === 'Bible Classes';
+  
+  let headerBgColor = '#1a2d5a';
+  if (isDashboard) headerBgColor = colors.background;
+  else if (isWhatsApp) headerBgColor = '#0b141a';
+  else if (isExpenses) headerBgColor = '#FFF9E9';
+  else if (isDonations) headerBgColor = '#1B1F3B';
+  else if (isBibleClasses) headerBgColor = isDark ? '#0f172a' : '#f8fafc';
 
   const goBack = () => {
     requestAnimationFrame(() => {
@@ -117,7 +150,7 @@ export default function AdminNavigator() {
   return (
     <AdminTabContext.Provider value={{ activeTab, setActiveTab, editingData, setEditingData, goBack, openDrawer }}>
       <SafeAreaView style={[styles.safeArea, { backgroundColor: headerBgColor }]}>
-        {![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(activeTab) && (
+        {![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(activeTab) && (
           <View style={[styles.header, { backgroundColor: headerBgColor }]}>
             <View style={styles.headerTop}>
               <TouchableOpacity onPress={openDrawer} style={styles.hamburgerBtn}>

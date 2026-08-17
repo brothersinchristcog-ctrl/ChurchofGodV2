@@ -45,6 +45,8 @@ import SalesforceService, { SalesforceMember } from '../services/SalesforceServi
 import SecurityService from '../services/SecurityService';
 import * as ImagePicker from 'expo-image-picker';
 import { Lock, Shield } from 'lucide-react-native';
+import storage from '@react-native-firebase/storage';
+import firestore from '@react-native-firebase/firestore';
 
 const { width } = Dimensions.get('window');
 
@@ -170,7 +172,14 @@ export default function ProfileScreen({ navigation }: any) {
             setUpdating(true);
             setLocalPhotoUrl(selectedUri);
             if (user) {
-              await user.updateProfile({ photoURL: selectedUri });
+              const filename = `profile_pictures/${user.uid}.jpg`;
+              const reference = storage().ref(filename);
+              await reference.putFile(selectedUri);
+              const downloadUrl = await reference.getDownloadURL();
+              
+              await user.updateProfile({ photoURL: downloadUrl });
+              await firestore().collection('users').doc(user.uid).set({ photoURL: downloadUrl }, { merge: true });
+              
               showAlert({ title: 'Success', message: 'Profile photo updated successfully!', type: 'success' });
             }
           } catch (error: any) {
@@ -196,7 +205,16 @@ export default function ProfileScreen({ navigation }: any) {
           setUpdating(true);
           setLocalPhotoUrl(null);
           if (user) {
+            const filename = `profile_pictures/${user.uid}.jpg`;
+            const reference = storage().ref(filename);
+            try {
+              await reference.delete();
+            } catch (e) {
+              // Ignore if file doesn't exist
+            }
             await user.updateProfile({ photoURL: '' });
+            await firestore().collection('users').doc(user.uid).update({ photoURL: firestore.FieldValue.delete() });
+            
             showAlert({ title: 'Success', message: 'Profile photo removed successfully.', type: 'success' });
           }
         } catch (error: any) {

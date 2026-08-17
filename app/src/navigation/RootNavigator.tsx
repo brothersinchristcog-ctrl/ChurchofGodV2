@@ -50,6 +50,10 @@ import AboutUsScreen from '../screens/AboutUsScreen';
 import ContactUsScreen from '../screens/ContactUsScreen';
 import MemberGalleryDashboard from '../screens/MemberGalleryDashboard';
 import MemberGalleryAlbumDetail from '../screens/MemberGalleryAlbumDetail';
+import MemberBibleClasses from '../screens/member/bible_classes/MemberBibleClasses';
+import MemberBibleClassView from '../screens/member/bible_classes/MemberBibleClassView';
+import DailyCelebrationChatScreen from '../screens/DailyCelebrationChatScreen';
+import CelebrationHistoryScreen from '../screens/CelebrationHistoryScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -222,7 +226,12 @@ function Navigation() {
   useEffect(() => {
     // 1. When app is in background and user clicks notification
     const unsubscribeOnOpen = NotificationService.messaging().onNotificationOpenedApp(remoteMessage => {
-      if (viewMode === 'admin') setViewMode('member');
+      const type = remoteMessage?.data?.type;
+      if (type === 'expense_approval') {
+        if (isActualAdmin && viewMode !== 'admin') setViewMode('admin');
+      } else {
+        if (viewMode === 'admin') setViewMode('member');
+      }
       setTimeout(() => {
         NotificationService.handleNotificationNavigation(remoteMessage, navigation);
       }, 300);
@@ -231,7 +240,12 @@ function Navigation() {
     // 2. When app is closed and user clicks notification
     NotificationService.messaging().getInitialNotification().then(remoteMessage => {
       if (remoteMessage) {
-        if (viewMode === 'admin') setViewMode('member');
+        const type = remoteMessage?.data?.type;
+        if (type === 'expense_approval') {
+          if (isActualAdmin && viewMode !== 'admin') setViewMode('admin');
+        } else {
+          if (viewMode === 'admin') setViewMode('member');
+        }
         setTimeout(() => {
           NotificationService.handleNotificationNavigation(remoteMessage, navigation);
         }, 300);
@@ -429,6 +443,10 @@ function Navigation() {
       <Stack.Screen name="ContactUs" component={ContactUsScreen} />
       <Stack.Screen name="MemberGalleryDashboard" component={MemberGalleryDashboard} />
       <Stack.Screen name="MemberGalleryAlbumDetail" component={MemberGalleryAlbumDetail} />
+      <Stack.Screen name="BibleClasses" component={MemberBibleClasses} />
+      <Stack.Screen name="BibleClassView" component={MemberBibleClassView} />
+      <Stack.Screen name="DailyCelebrationChat" component={DailyCelebrationChatScreen} />
+      <Stack.Screen name="CelebrationHistory" component={CelebrationHistoryScreen} />
     </Stack.Navigator>
   );
 
@@ -459,7 +477,8 @@ function Navigation() {
                     <Text style={styles.pushBtnCancelTxt}>DISMISS</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.pushBtnOpen} onPress={() => {
-                    if (isAdmin) setViewMode('member');
+                    const type = pushNotification?.data?.type;
+                    if (isAdmin && type !== 'expense_approval') setViewMode('member');
                     setTimeout(() => {
                       NotificationService.handleNotificationNavigation(pushNotification, navigation);
                     }, 300);

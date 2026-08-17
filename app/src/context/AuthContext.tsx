@@ -72,10 +72,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 
                 // Save profile details to Firestore for Push Notifications
                 const firestore = require('@react-native-firebase/firestore').default;
+                const ut = check.member.userType?.toLowerCase() || '';
+                const isAdmin = ut === 'admin' || ut === 'pastor' || ut === 'system administrator' || ut.includes('admin') || ut.includes('pastor');
+                
                 firestore().collection('users').doc(userState.uid).set({
                   name: check.member.name || '',
                   phone: phone || '',
-                  role: 'Member',
+                  role: isAdmin ? 'Admin' : 'Member',
                   onboardingComplete: true
                 }, { merge: true }).catch(() => {});
               }

@@ -210,11 +210,27 @@ spfkUchVp71l4aWpCW50lro=
 
   async getAdminMembers(): Promise<any[]> {
     try {
-      const soql = `SELECT Id, AccountId, Name, FirstName, LastName, Email, Phone, MobilePhone, User_Type__c, CreatedDate, LastModifiedDate, Last_App_Opened__c, Account.Name, Account.Active__c, Account.Membership_Status__c, Mobile_App_ID__c, MailingCity FROM Contact ORDER BY Name ASC LIMIT 2000`;
+      const soql = `SELECT Id, AccountId, Name, FirstName, LastName, Email, Phone, MobilePhone, User_Type__c, CreatedDate, LastModifiedDate, Last_App_Opened__c, Account.Name, Account.Active__c, Account.Membership_Status__c, Mobile_App_ID__c, MailingCity, Birthdate, Anniversary_Date__c, Date_of_Baptism__c FROM Contact ORDER BY Name ASC LIMIT 2000`;
       const result = await this.query(soql, true);
       return result.records || [];
     } catch (error) {
       console.error('❌ [SalesforceService] getAdminMembers Error:', error);
+      return [];
+    }
+  }
+
+  async getApprovers(): Promise<SalesforceMember[]> {
+    try {
+      const soql = `SELECT Id, Name, Phone, MobilePhone, User_Type__c FROM Contact WHERE User_Type__c IN ('Admin', 'Pastor', 'System Administrator') LIMIT 50`;
+      const result = await this.query(soql, true);
+      return result.records.map((rec: any) => ({
+        id: rec.Id,
+        name: rec.Name,
+        phone: rec.MobilePhone || rec.Phone || null,
+        userType: rec.User_Type__c
+      }));
+    } catch (error) {
+      console.error('❌ [SalesforceService] getApprovers Error:', error);
       return [];
     }
   }
@@ -308,7 +324,7 @@ spfkUchVp71l4aWpCW50lro=
   async getRelatedContacts(accountId: string): Promise<any[]> {
     if (!accountId) return [];
     try {
-      const soql = `SELECT Id, Name, FirstName, LastName, Email, Phone, MobilePhone, User_Type__c, CreatedDate FROM Contact WHERE AccountId = '${accountId}' ORDER BY FirstName ASC`;
+      const soql = `SELECT Id, Name, FirstName, LastName, Title, Gender__c, Email, Phone, MobilePhone, User_Type__c, CreatedDate, Birthdate, Anniversary_Date__c, Date_of_Baptism__c FROM Contact WHERE AccountId = '${accountId}' ORDER BY FirstName ASC`;
       const result = await this.query(soql, true);
       return result.records || [];
     } catch (error) {
@@ -481,14 +497,25 @@ spfkUchVp71l4aWpCW50lro=
   async addFamilyMember(accountId: string, memberData: any): Promise<boolean> {
     try {
       const token = await this.getAccessToken();
+      
+      const formatToSfDate = (dStr: string | null | undefined) => {
+        if (!dStr) return null;
+        const parts = dStr.split('-');
+        if (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4) {
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return dStr;
+      };
+
       const body = {
         FirstName: memberData.firstName,
         LastName: memberData.lastName,
         AccountId: accountId,
         Title: memberData.relation,
         Gender__c: memberData.gender,
-        Birthdate: memberData.birthdate || null,
-        Anniversary_Date__c: memberData.anniversaryDate || null,
+        Birthdate: formatToSfDate(memberData.birthdate),
+        Anniversary_Date__c: formatToSfDate(memberData.anniversaryDate),
+        Date_of_Baptism__c: formatToSfDate(memberData.baptismDate),
         Email: memberData.email || null,
         MobilePhone: memberData.phone || null
       };
@@ -506,6 +533,49 @@ spfkUchVp71l4aWpCW50lro=
       return true;
     } catch (error) {
       console.error('❌ [SalesforceService] addFamilyMember Error:', error);
+      throw error;
+    }
+  }
+
+  async updateFamilyMember(contactId: string, memberData: any): Promise<boolean> {
+    try {
+      const token = await this.getAccessToken();
+
+      const formatToSfDate = (dStr: string | null | undefined) => {
+        if (!dStr) return null;
+        const parts = dStr.split('-');
+        if (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4) {
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return dStr;
+      };
+
+      const body = {
+        FirstName: memberData.firstName,
+        LastName: memberData.lastName,
+        Title: memberData.relation || null,
+        Gender__c: memberData.gender || null,
+        Birthdate: formatToSfDate(memberData.birthdate),
+        Anniversary_Date__c: formatToSfDate(memberData.anniversaryDate),
+        Date_of_Baptism__c: formatToSfDate(memberData.baptismDate),
+        Email: memberData.email || null,
+        MobilePhone: memberData.phone || null,
+        Phone: memberData.phone || null,
+      };
+
+      const resp = await fetch(`${this.instanceUrl}/services/data/v60.0/sobjects/Contact/${contactId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err[0]?.message || 'Failed to update family member');
+      }
+      return true;
+    } catch (error) {
+      console.error('❌ [SalesforceService] updateFamilyMember Error:', error);
       throw error;
     }
   }

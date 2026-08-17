@@ -15,7 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
   BookOpen, Edit3, Calendar, Mic, PlusSquare, Music, 
   Bell, MapPin, Heart, Users, MessageCircle, Gift, 
-  ImageIcon, Info, Phone, Smartphone, LogOut, Sun, Moon
+  ImageIcon, Info, Phone, Smartphone, LogOut, Sun, Moon,
+  Video
 } from 'lucide-react-native';
 import { AdminTabContext } from '../../context/AdminTabContext';
 import { useAuth } from '../../context/AuthContext';
@@ -69,6 +70,19 @@ const DASHBOARD_SECTIONS = [
       { id: 14, label: 'Celebrations', icon: Gift, image: require('../../../assets/images/admin_dashboard/celebrations.png') },
       { id: 15, label: 'Gallery', icon: ImageIcon, image: require('../../../assets/images/admin_dashboard/gallery.png') },
       { id: 13, label: 'WhatsApp', icon: MessageCircle, image: require('../../../assets/images/admin_dashboard/whatsapp.png'), featured: true }
+    ]
+  },
+  {
+    title: 'Church Ledger',
+    items: [
+      { id: 18, label: 'Expenses', icon: BookOpen, image: require('../../../assets/images/admin_dashboard/church_ledger.png') },
+      { id: 19, label: 'Donations', icon: Heart, image: require('../../../assets/images/admin_dashboard/donations.png') }
+    ]
+  },
+  {
+    title: 'Online Bible Classes',
+    items: [
+      { id: 20, label: 'Bible Classes', icon: Video, image: require('../../../assets/images/admin_dashboard/bible_classes.png') }
     ]
   },
   {
@@ -263,7 +277,7 @@ export default function AdminDashboard() {
           </View>
         </View>
         {DASHBOARD_SECTIONS.map((section, idx) => {
-          const isTwoCols = section.items.length === 2;
+          const isTwoCols = section.items.length <= 2;
           const SectionIcon = section.items[0]?.icon;
           return (
             <View key={idx} style={styles.sectionContainer}>

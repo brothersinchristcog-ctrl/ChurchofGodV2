@@ -52,6 +52,7 @@ import {
   Check,
   Droplet,
   Image as ImageIcon,
+  Video,
 } from 'lucide-react-native';
 
 import firestore from '@react-native-firebase/firestore';
@@ -79,6 +80,7 @@ const stripHtml = (html: string | undefined): string => {
 };
 
 import { useTheme } from '../context/ThemeContext';
+import FloatingCelebrationButton from '../components/FloatingCelebrationButton';
 
 const EventMarqueeItem = React.memo(({ ev, index, isLive, formatTimeStr, onEventPress }: any) => (
   <TouchableOpacity
@@ -973,7 +975,7 @@ export default function HomeScreen() {
             <GridItem icon={<Bell size={26} color="#fff" />} label="Updates" color="#0284c7" onPress={() => navigation.navigate('Updates')} />
             <GridItem icon={<YoutubeIcon size={26} color="#fff" />} label="YouTube Live" color="#ef4444" onPress={() => Linking.openURL('https://www.youtube.com/@Brothersinchristfellowship/live')} />
             <GridItem icon={<Users size={26} color="#fff" />} label="Members" color="#db2777" onPress={handleOpenMembers} />
-            <GridItem icon={<Sun size={26} color="#fff" />} label="Devotion" color="#b45309" onPress={() => setShowDevotionPopup(true)} />
+            <GridItem icon={<Video size={26} color="#fff" />} label="Bible Classes" color="#b45309" onPress={() => navigation.navigate('BibleClasses')} />
           </View>
 
           <InfographicNav 
@@ -1276,6 +1278,9 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Floating Celebration Button — overlaid above all content */}
+      <FloatingCelebrationButton navigation={navigation} />
 
     </View>
   );

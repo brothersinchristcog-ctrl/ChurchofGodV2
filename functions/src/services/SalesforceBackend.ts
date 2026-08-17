@@ -87,10 +87,12 @@ export class SalesforceBackend {
    * Fetches the Daily Promise
    */
   public async getDailyPromise() {
-    const today = new Date().toISOString().split('T')[0];
+    // Use Asia/Kolkata timezone to match the cron schedule timezone
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     const soql = `SELECT Id, Promises__c, Promise_text_telugu__c, Date__c, Number__c
                   FROM Daily_Promises__c
-                  ORDER BY Date__c DESC LIMIT 1`;
+                  WHERE Date__c = ${today}
+                  LIMIT 1`;
     const result = await this.query(soql);
     return result.records[0] || null;
   }

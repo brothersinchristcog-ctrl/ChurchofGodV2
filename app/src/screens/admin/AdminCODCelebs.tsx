@@ -212,7 +212,9 @@ export default function AdminCODCelebs() {
     }
 
     switch (filter) {
-      case 'today': list = list.filter(isToday); break;
+      case 'today':
+        list = list.filter(isToday);
+        break;
       case 'upcoming': list = list.filter(m => !isPastThisYear(m) && !isToday(m)); break;
       case 'week': list = list.filter(isThisWeek); break;
       case 'month': list = list.filter(isThisMonth); break;
@@ -226,7 +228,7 @@ export default function AdminCODCelebs() {
       list = [...list].sort((a, b) => a.name.localeCompare(b.name));
     }
     return list;
-  }, [category, filter, search, ministry, family, age, year, sort]);
+  }, [category, filter, search, ministry, family, age, year, sort, members]);
 
   const defaultMessage = (m: Member) => {
     if (m.category === 'birthday') {
@@ -292,15 +294,7 @@ export default function AdminCODCelebs() {
             </View>
           </View>
         </View>
-      <Text style={styles.sectionLabel}>Celebration Categories</Text>
-        
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-          {CATEGORIES.map((c) => (
-            <TouchableOpacity key={c.key} style={[styles.filterChip, category === c.key && styles.filterChipActive, { borderColor: c.grad[1], borderWidth: 1 }]} onPress={() => setCategory(category === c.key ? null : c.key)}>
-              <Text style={[styles.filterChipText, category === c.key && styles.filterChipTextActive]}>{c.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
           {['today', 'upcoming', 'week', 'month', 'past', 'all'].map(t => (
@@ -323,7 +317,7 @@ export default function AdminCODCelebs() {
               placeholderTextColor="#5B6280"
             />
           </View>
-          <TouchableOpacity style={[styles.iconBtn, showFilters && styles.iconBtnActive]} onPress={() => setShowFilters(!showFilters)}>
+          <TouchableOpacity style={[styles.iconBtn, !!category && styles.iconBtnActive]} onPress={() => setShowFilters(true)}>
             <SlidersHorizontal size={17} color="#1E2A63" />
           </TouchableOpacity>
         </View>
@@ -406,7 +400,7 @@ export default function AdminCODCelebs() {
               placeholderTextColor="#5B6280"
             />
           </View>
-          <TouchableOpacity style={[styles.iconBtn, showFilters && styles.iconBtnActive]} onPress={() => setShowFilters(!showFilters)}>
+          <TouchableOpacity style={[styles.iconBtn, !!category && styles.iconBtnActive]} onPress={() => setShowFilters(true)}>
             <SlidersHorizontal size={17} color="#1E2A63" />
           </TouchableOpacity>
         </View>
@@ -1476,6 +1470,50 @@ export default function AdminCODCelebs() {
           {currentScreen === 'confirm' && renderConfirm()}
       </KeyboardAwareScrollView>
 
+
+      {/* Category Filter Dropdown */}
+      <Modal visible={showFilters} transparent animationType="slide" onRequestClose={() => setShowFilters(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }} activeOpacity={1} onPress={() => setShowFilters(false)}>
+          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 36, overflow: 'hidden' }}>
+            {/* Handle */}
+            <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 4 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0' }} />
+            </View>
+            {/* Header */}
+            <View style={{ paddingHorizontal: 24, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#1B2242' }}>Filter by Type</Text>
+              <Text style={{ fontSize: 12, color: '#5B6280', marginTop: 2 }}>Select a celebration category</Text>
+            </View>
+            {/* Options */}
+            {[
+              { key: null, label: '🎉  All Celebrations', sub: 'Show birthdays, weddings & baptisms' },
+              { key: 'birthday', label: '🎂  Birthday', sub: 'Birthday celebrations' },
+              { key: 'wedding', label: '💍  Wedding', sub: 'Wedding anniversaries' },
+              { key: 'baptism', label: '✝️  Baptism', sub: 'Baptism anniversaries' },
+            ].map(opt => {
+              const isActive = category === opt.key || (opt.key === null && !category);
+              return (
+                <TouchableOpacity
+                  key={String(opt.key)}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F8FAFC', backgroundColor: isActive ? 'rgba(27,34,66,0.04)' : 'transparent' }}
+                  onPress={() => { setCategory(opt.key); setShowFilters(false); }}
+                >
+                  <View>
+                    <Text style={{ fontSize: 15, fontWeight: isActive ? '700' : '500', color: isActive ? '#1B2242' : '#374151' }}>{opt.label}</Text>
+                    <Text style={{ fontSize: 12, color: '#5B6280', marginTop: 2 }}>{opt.sub}</Text>
+                  </View>
+                  {isActive && (
+                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#1B2242', alignItems: 'center', justifyContent: 'center' }}>
+                      <Check size={14} color="#fff" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <Modal visible={!!themeToDelete} transparent={true} animationType="fade">
         <View style={{flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center'}}>
           <View style={{width: '80%', backgroundColor: '#fff', borderRadius: 20, padding: 24, alignItems: 'center'}}>
@@ -1583,6 +1621,14 @@ const styles = StyleSheet.create({
   iconBtn: { width: 40, height: 40, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(27,34,66,0.09)', alignItems: 'center', justifyContent: 'center' },
   iconBtnActive: { borderColor: '#BE9A3A' },
   resultCount: { fontSize: 12, color: '#5B6280', marginHorizontal: 2, marginBottom: 12 },
+  filterPanel: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(27,34,66,0.09)' },
+  filterPanelLabel: { fontSize: 11, fontWeight: '700', color: '#5B6280', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 },
+  filterPanelRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filterPanelChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#F3F4F8', borderWidth: 1, borderColor: 'rgba(27,34,66,0.09)' },
+  filterPanelChipActive: { backgroundColor: '#1E2A63', borderColor: 'transparent' },
+  filterPanelChipText: { fontSize: 13, fontWeight: '600', color: '#5B6280' },
+  filterPanelChipTextActive: { color: '#fff' },
+
   emptyState: { alignItems: 'center', paddingTop: 60 },
   emptyStateText: { fontSize: 13, color: '#5B6280', textAlign: 'center' },
   memberCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.7)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.7)', borderRadius: 22, padding: 12, marginBottom: 10 },

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Digital Ledger - Invoices</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&amp;family=Source+Serif+4:wght@400;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed": "#b9efcf",
+                        "on-secondary": "#ffffff",
+                        "tertiary-container": "#174a33",
+                        "red-ink": "#8B3A2A",
+                        "secondary-fixed": "#ffdeae",
+                        "error": "#ba1a1a",
+                        "paper-card": "#FAF7EC",
+                        "on-error-container": "#93000a",
+                        "subtle-text": "#7A7157",
+                        "inverse-primary": "#a6d0b7",
+                        "error-container": "#ffdad6",
+                        "background": "#fff9e9",
+                        "on-tertiary-fixed-variant": "#1e5038",
+                        "on-primary-fixed-variant": "#284e3b",
+                        "surface-container-high": "#eee8d5",
+                        "rule": "#CBBF9C",
+                        "surface-container-highest": "#e8e2d0",
+                        "inverse-on-surface": "#f7f1dd",
+                        "ink": "#22291F",
+                        "surface-tint": "#406652",
+                        "secondary-fixed-dim": "#efbf74",
+                        "cat-water": "#3E7A8C",
+                        "on-secondary-fixed-variant": "#604100",
+                        "secondary-container": "#fecd80",
+                        "surface-variant": "#e8e2d0",
+                        "primary": "#0a3221",
+                        "on-primary-container": "#8eb79f",
+                        "on-tertiary-fixed": "#002113",
+                        "primary-fixed": "#c2ecd2",
+                        "inverse-surface": "#333124",
+                        "brass-light": "#D3B36B",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#f4eedb",
+                        "on-error": "#ffffff",
+                        "cat-electricity": "#B08D3E",
+                        "outline": "#717973",
+                        "on-tertiary-container": "#86b99b",
+                        "surface-container-low": "#faf3e0",
+                        "on-surface-variant": "#414843",
+                        "surface-bright": "#fff9e9",
+                        "cat-food": "#5B7A4F",
+                        "secondary": "#7c5817",
+                        "paper-alt": "#E9E1C7",
+                        "on-primary-fixed": "#002113",
+                        "tertiary-fixed-dim": "#9ed2b3",
+                        "surface-dim": "#e0dac7",
+                        "surface-container-lowest": "#ffffff",
+                        "on-background": "#1e1c10",
+                        "on-secondary-fixed": "#281900",
+                        "outline-variant": "#c1c8c1",
+                        "on-secondary-container": "#785514",
+                        "cat-maintenance": "#8B5E3C",
+                        "tertiary": "#00331f",
+                        "on-surface": "#1e1c10",
+                        "surface": "#fff9e9",
+                        "on-primary": "#ffffff",
+                        "primary-fixed-dim": "#a6d0b7",
+                        "primary-container": "#234936"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "invoice-padding": "40px",
+                        "input-padding": "11px",
+                        "list-gap": "12px",
+                        "grid-gap": "10px",
+                        "card-padding": "15px",
+                        "base-margin": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-sm": ["\"Source Serif 4\""],
+                        "data-lg": ["IBM Plex Mono"],
+                        "display-lg": ["\"Source Serif 4\""],
+                        "headline-md": ["\"Source Serif 4\""],
+                        "body-md": ["\"Source Serif 4\""],
+                        "body-sm": ["\"Source Serif 4\""],
+                        "label-md": ["IBM Plex Mono"],
+                        "label-sm-caps": ["IBM Plex Mono"]
+                    },
+                    "fontSize": {
+                        "headline-sm": ["14.5px", { "lineHeight": "20px", "fontWeight": "600" }],
+                        "data-lg": ["13px", { "lineHeight": "16px", "fontWeight": "600" }],
+                        "display-lg": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "headline-md": ["19px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "body-md": ["15px", { "lineHeight": "22px", "fontWeight": "400" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "label-md": ["10.5px", { "lineHeight": "14px", "fontWeight": "400" }],
+                        "label-sm-caps": ["9.5px", { "lineHeight": "12px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.ink');
+            font-family: 'Source Serif 4', serif;
+        }
+        
+        .paper-texture {
+            background-color: theme('colors.paper-card');
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
+        }
+
+        .double-border-bottom {
+            border-bottom: 3px double theme('colors.ink');
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="bg-background text-primary font-headline-md text-headline-md w-full top-0 sticky border-b border-rule flex justify-between items-center px-base-margin h-14 w-full z-40 transition-colors duration-200">
+<button class="text-primary hover:bg-surface-container p-2 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="account_balance">account_balance</span>
+</button>
+<h1 class="font-headline-md text-headline-md text-primary font-bold tracking-tight">Digital Ledger</h1>
+<button class="text-primary hover:bg-surface-container p-2 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+</header>
+<main class="max-w-3xl mx-auto px-base-margin pt-6">
+<!-- Page Header -->
+<div class="mb-8 text-center">
+<h2 class="font-display-lg text-display-lg text-ink mb-2">Voucher Generation</h2>
+<p class="font-body-md text-body-md text-subtle-text">Select ledger entries to compile an official invoice document.</p>
+</div>
+<!-- Period Generation Actions -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-grid-gap mb-10">
+<button class="bg-primary text-on-primary font-label-md text-label-md py-4 px-6 rounded-lg flex flex-col items-center justify-center border border-primary hover:bg-tertiary-container transition-colors shadow-sm">
+<span class="material-symbols-outlined mb-2" data-icon="calendar_today" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
+<span>Generate Weekly</span>
+</button>
+<button class="bg-paper-card text-ink font-label-md text-label-md py-4 px-6 rounded-lg flex flex-col items-center justify-center border border-rule hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined mb-2 text-subtle-text" data-icon="calendar_month">calendar_month</span>
+<span>Generate Monthly</span>
+</button>
+<button class="bg-paper-card text-ink font-label-md text-label-md py-4 px-6 rounded-lg flex flex-col items-center justify-center border border-rule hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined mb-2 text-subtle-text" data-icon="date_range">date_range</span>
+<span>Generate Yearly</span>
+</button>
+</section>
+<!-- Document Preview Area (Bento-ish) -->
+<div class="paper-texture p-card-padding md:p-invoice-padding rounded border border-rule shadow-sm mb-10 relative">
+<div class="absolute top-0 right-0 p-4 opacity-20">
+<span class="material-symbols-outlined text-4xl" data-icon="receipt_long">receipt_long</span>
+</div>
+<div class="flex justify-between items-end mb-6 double-border-bottom pb-2">
+<div>
+<span class="font-label-sm-caps text-label-sm-caps text-subtle-text block uppercase">Document Type</span>
+<h3 class="font-headline-md text-headline-md text-ink">Pending Invoices</h3>
+</div>
+<div class="text-right">
+<span class="font-label-sm-caps text-label-sm-caps text-subtle-text block uppercase">Selected Total</span>
+<span class="font-data-lg text-data-lg text-ink" id="selected-total">£0.00</span>
+</div>
+</div>
+<!-- Ledger List -->
+<div class="space-y-list-gap">
+<!-- Row 1 -->
+<label class="flex items-center justify-between py-2 border-b border-paper-alt cursor-pointer group hover:bg-surface-container/50 px-2 rounded -mx-2 transition-colors">
+<div class="flex items-center gap-4">
+<input class="form-checkbox h-4 w-4 text-primary border-rule rounded-sm focus:ring-primary-container focus:ring-offset-paper-card" onchange="calculateTotal()" type="checkbox" value="450.00"/>
+<div class="flex items-center justify-center w-8 h-8 rounded border border-rule bg-surface-container-lowest text-subtle-text">
+<span class="material-symbols-outlined text-lg" data-icon="water_drop">water_drop</span>
+</div>
+<div>
+<span class="font-body-md text-body-md text-ink block">Cathedral Utilities - Water</span>
+<span class="font-label-sm-caps text-label-sm-caps text-subtle-text block mt-1 uppercase">Oct 12, 1892 • Ref: 0492A</span>
+</div>
+</div>
+<span class="font-data-lg text-data-lg text-ink text-right">£450.00</span>
+</label>
+<!-- Row 2 -->
+<label class="flex items-center justify-between py-2 border-b border-paper-alt cursor-pointer group hover:bg-surface-container/50 px-2 rounded -mx-2 transition-colors">
+<div class="flex items-center gap-4">
+<input class="form-checkbox h-4 w-4 text-primary border-rule rounded-sm focus:ring-primary-container focus:ring-offset-paper-card" onchange="calculateTotal()" type="checkbox" value="1250.00"/>
+<div class="flex items-center justify-center w-8 h-8 rounded border border-rule bg-surface-container-lowest text-subtle-text">
+<span class="material-symbols-outlined text-lg" data-icon="construction">construction</span>
+</div>
+<div>
+<span class="font-body-md text-body-md text-ink block">Nave Restoration Fund</span>
+<span class="font-label-sm-caps text-label-sm-caps text-subtle-text block mt-1 uppercase">Oct 15, 1892 • Ref: 0495B</span>
+</div>
+</div>
+<span class="font-data-lg text-data-lg text-ink text-right">£1,250.00</span>
+</label>
+<!-- Row 3 -->
+<label class="flex items-center justify-between py-2 border-b border-paper-alt cursor-pointer group hover:bg-surface-container/50 px-2 rounded -mx-2 transition-colors">
+<div class="flex items-center gap-4">
+<input class="form-checkbox h-4 w-4 text-primary border-rule rounded-sm focus:ring-primary-container focus:ring-offset-paper-card" onchange="calculateTotal()" type="checkbox" value="75.50"/>
+<div class="flex items-center justify-center w-8 h-8 rounded border border-rule bg-surface-container-lowest text-subtle-text">
+<span class="material-symbols-outlined text-lg" data-icon="inventory_2">inventory_2</span>
+</div>
+<div>
+<span class="font-body-md text-body-md text-ink block">Clergy Vestments Repair</span>
+<span class="font-label-sm-caps text-label-sm-caps text-subtle-text block mt-1 uppercase">Oct 18, 1892 • Ref: 0501C</span>
+</div>
+</div>
+<span class="font-data-lg text-data-lg text-ink text-right">£75.50</span>
+</label>
+<!-- Row 4 -->
+<label class="flex items-center justify-between py-2 border-b border-paper-alt cursor-pointer group hover:bg-surface-container/50 px-2 rounded -mx-2 transition-colors">
+<div class="flex items-center gap-4">
+<input class="form-checkbox h-4 w-4 text-primary border-rule rounded-sm focus:ring-primary-container focus:ring-offset-paper-card" onchange="calculateTotal()" type="checkbox" value="320.00"/>
+<div class="flex items-center justify-center w-8 h-8 rounded border border-rule bg-surface-container-lowest text-subtle-text">
+<span class="material-symbols-outlined text-lg" data-icon="music_note">music_note</span>
+</div>
+<div>
+<span class="font-body-md text-body-md text-ink block">Choir Sheet Music (Annual)</span>
+<span class="font-label-sm-caps text-label-sm-caps text-subtle-text block mt-1 uppercase">Oct 20, 1892 • Ref: 0512D</span>
+</div>
+</div>
+<span class="font-data-lg text-data-lg text-ink text-right">£320.00</span>
+</label>
+</div>
+<button class="mt-6 w-full py-3 border border-dashed border-rule text-subtle-text font-label-md text-label-md rounded flex items-center justify-center gap-2 hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+                ADD MANUAL ENTRY
+            </button>
+</div>
+</main>
+<!-- Selection Bar (Sticky Bottom) -->
+<div class="fixed bottom-16 md:bottom-6 left-1/2 transform -translate-x-1/2 w-11/12 max-w-2xl bg-inverse-surface text-inverse-on-surface p-4 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.25)] flex items-center justify-between opacity-0 pointer-events-none transition-all duration-300 z-40 translate-y-4" id="selection-bar">
+<div class="flex flex-col">
+<span class="font-label-sm-caps text-label-sm-caps uppercase text-outline-variant">Items Selected</span>
+<span class="font-headline-sm text-headline-sm"><span id="selection-count">0</span> Entries</span>
+</div>
+<button class="bg-brass-light text-on-secondary-fixed font-label-md text-label-md px-6 py-2 rounded-lg hover:bg-secondary-fixed-dim transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="print">print</span>
+            Compile Invoice
+        </button>
+</div>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden bg-paper-card text-primary font-label-md text-label-md fixed bottom-0 w-full z-50 border-t border-rule shadow-sm fixed bottom-0 left-0 w-full flex justify-around items-center px-4 py-2">
+<a class="flex flex-col items-center justify-center text-subtle-text p-2 hover:opacity-80 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="home">home</span>
+<span>Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-subtle-text p-2 hover:opacity-80 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="history">history</span>
+<span>History</span>
+</a>
+<a class="flex flex-col items-center justify-center text-subtle-text p-2 hover:opacity-80 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="add_circle">add_circle</span>
+<span>Add</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-xl p-2 hover:opacity-80 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="receipt_long" style="font-variation-settings: 'FILL' 1;">receipt_long</span>
+<span>Invoices</span>
+</a>
+</nav>
+<script>
+        function calculateTotal() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            let total = 0;
+            let count = 0;
+
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    total += parseFloat(cb.value);
+                    count++;
+                }
+            });
+
+            document.getElementById('selected-total').innerText = '£' + total.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('selection-count').innerText = count;
+
+            const selectionBar = document.getElementById('selection-bar');
+            if (count > 0) {
+                selectionBar.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-4');
+                selectionBar.classList.add('opacity-100', 'translate-y-0');
+            } else {
+                selectionBar.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
+                selectionBar.classList.remove('opacity-100', 'translate-y-0');
+            }
+        }
+    </script>
+</body></html>

@@ -113,4 +113,22 @@ export declare const triggerTestYouTubeLive: import("firebase-functions/v2/https
     message?: never;
 }>, unknown>;
 export * from './whatsapp.js';
+export declare const createBibleClass: import("firebase-functions/v2/https").CallableFunction<any, Promise<{
+    success: boolean;
+    classId: any;
+    meetingUri: any;
+}>, unknown>;
+export declare const updateBibleClassStatus: import("firebase-functions/v2/https").CallableFunction<any, Promise<{
+    success: boolean;
+}>, unknown>;
+export declare const recordBibleClassAttendance: import("firebase-functions/v2/https").CallableFunction<any, Promise<{
+    success: boolean;
+}>, unknown>;
+export declare const bibleClassNotificationsScheduler: import("firebase-functions/v2/scheduler").ScheduleFunction;
+/**
+ * 💌 BATCHED WISH PUSH NOTIFICATIONS
+ * Triggers when a member sends a wish in DailyCelebrationChatScreen.
+ * Collects wishes per recipient in 5-minute sliding windows to prevent push spam.
+ */
+export declare const onCelebrationWishCreated: functionsCompat.CloudFunction<functionsCompat.firestore.QueryDocumentSnapshot>;
 //# sourceMappingURL=index.d.ts.map

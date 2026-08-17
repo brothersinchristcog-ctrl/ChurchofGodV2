@@ -84,5 +84,36 @@ service cloud.firestore {
     match /church_gallery_photos/{photoId} {
       allow read, write: if isAuthenticated();
     }
+
+    // 12. Ledger Expenses
+    match /ledger_expenses/{expenseId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 13. Ledger Donations
+    match /ledger_donations/{donationId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 14. Bible Classes
+    match /churches/{churchId}/bibleClasses/{classId} {
+      allow read, write: if isAuthenticated();
+      
+      match /attendance/{attendanceId} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+    // 15. Daily Celebration Chats
+    match /daily_celebration_chats/{date} {
+      allow read, write: if isAuthenticated();
+      
+      match /messages/{messageId} {
+        allow read, write: if isAuthenticated();
+      }
+      
+      match /typing/{userId} {
+        allow read, write: if isAuthenticated();
+      }
+    }
   }
 }
