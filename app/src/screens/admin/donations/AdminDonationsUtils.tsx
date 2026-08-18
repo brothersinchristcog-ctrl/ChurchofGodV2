@@ -1,7 +1,8 @@
-import { Alert, Platform, Image } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as MediaLibrary from 'expo-media-library';
 
 export const COLORS = {
   indigo: '#1B1F3B',
@@ -297,6 +298,7 @@ export const generateDonationReceipt = async (donation: any, share: boolean = fa
     });
 
     if (share) {
+      // Share the PDF via system share sheet
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(newUri, {
           mimeType: 'application/pdf',
@@ -307,11 +309,55 @@ export const generateDonationReceipt = async (donation: any, share: boolean = fa
         Alert.alert('Error', 'Sharing is not available on this device');
       }
     } else {
-      // Just view it (on iOS preview is built-in to share sheet, but we can use Print.printAsync to show it)
-      if (Platform.OS === 'ios') {
-          await Sharing.shareAsync(newUri);
+      // Download — save to device Downloads folder
+      if (Platform.OS === 'android') {
+        try {
+          // Request media library permission first
+          const { status } = await MediaLibrary.requestPermissionsAsync();
+          if (status !== 'granted') {
+            // Fallback to share sheet if permission denied
+            if (await Sharing.isAvailableAsync()) {
+              await Sharing.shareAsync(newUri, { mimeType: 'application/pdf', dialogTitle: 'Save Donation Receipt' });
+            }
+            return;
+          }
+
+          // Use StorageAccessFramework to save PDF to Downloads
+          const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync(
+            'content://com.android.externalstorage.documents/document/primary%3ADownload'
+          );
+
+          if (permissions.granted) {
+            // Write directly to the user-chosen directory
+            const destUri = await FileSystem.StorageAccessFramework.createFileAsync(
+              permissions.directoryUri,
+              fileName,
+              'application/pdf'
+            );
+            const base64 = await FileSystem.readAsStringAsync(newUri, { encoding: FileSystem.EncodingType.Base64 });
+            await FileSystem.writeAsStringAsync(destUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+            Alert.alert('Downloaded! ✅', `Receipt saved as "${fileName}" to your Downloads folder.`);
+          } else {
+            // User cancelled directory picker — fallback to share
+            if (await Sharing.isAvailableAsync()) {
+              await Sharing.shareAsync(newUri, { mimeType: 'application/pdf', dialogTitle: 'Save Donation Receipt' });
+            }
+          }
+        } catch (androidErr) {
+          console.warn('SAF save failed, falling back to share:', androidErr);
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(newUri, { mimeType: 'application/pdf', dialogTitle: 'Save Donation Receipt' });
+          }
+        }
       } else {
-          await Print.printAsync({ uri: newUri });
+        // iOS — use share sheet to save to Files
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(newUri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Save Donation Receipt',
+            UTI: 'com.adobe.pdf'
+          });
+        }
       }
     }
   } catch (error) {

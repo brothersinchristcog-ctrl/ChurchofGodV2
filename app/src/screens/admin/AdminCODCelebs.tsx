@@ -1236,7 +1236,17 @@ export default function AdminCODCelebs() {
         <View style={styles.waBody}>
           <View style={styles.waBubble}>
             {layoutStyle === 'theme' ? (
-              <View style={[{height: 120, borderRadius: 6}, {backgroundColor: t!.c[0]}]} />
+              imageBase64 ? (
+                <View style={{ borderRadius: 8, overflow: 'hidden', marginBottom: 6, backgroundColor: '#f1f3f5' }}>
+                  <Image 
+                    source={{ uri: imageBase64.startsWith('data:image') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}` }} 
+                    style={{ width: '100%', height: 180 }} 
+                    resizeMode="contain" 
+                  />
+                </View>
+              ) : (
+                <View style={[{height: 120, borderRadius: 6}, {backgroundColor: t!.c[0]}]} />
+              )
             ) : (
               <View style={{height: 120, borderRadius: 6, backgroundColor: '#f1f3f5', overflow: 'hidden'}}>
                 {image && <Image source={{ uri: image }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />}
@@ -1270,7 +1280,12 @@ export default function AdminCODCelebs() {
                 const b64Data = imageBase64.startsWith('data:image') 
                   ? imageBase64.split(',')[1] 
                   : imageBase64;
-                const fileUri = FileSystem.cacheDirectory + 'whatsapp_wish.jpg';
+                try {
+                  await Clipboard.setImageAsync(b64Data);
+                } catch (clipErr) {
+                  console.warn("Clipboard setImageAsync error:", clipErr);
+                }
+                const fileUri = FileSystem.cacheDirectory + `celebration_card_${Date.now()}.jpg`;
                 await FileSystem.writeAsStringAsync(fileUri, b64Data, {
                   encoding: FileSystem.EncodingType.Base64,
                 });
@@ -1287,7 +1302,18 @@ export default function AdminCODCelebs() {
                 shareOptions.url = shareUrl;
               }
 
-              await Share.shareSingle(shareOptions);
+              try {
+                await Share.shareSingle(shareOptions);
+              } catch (shareErr: any) {
+                console.log("Share.shareSingle failed, opening direct WhatsApp chat:", shareErr);
+                const whatsappUrl = `whatsapp://send?phone=${cleanPhone}&text=${encodeURIComponent(fullText)}`;
+                const canOpen = await Linking.canOpenURL(whatsappUrl).catch(() => false);
+                if (canOpen) {
+                  await Linking.openURL(whatsappUrl);
+                } else {
+                  await Linking.openURL(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(fullText)}`);
+                }
+              }
               
               // Log manual open in app
               const admin = auth().currentUser;

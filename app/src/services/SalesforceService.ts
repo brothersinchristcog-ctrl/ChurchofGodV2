@@ -235,6 +235,33 @@ spfkUchVp71l4aWpCW50lro=
     }
   }
 
+  async getContactUserTypePicklistValues(): Promise<{ label: string; value: string }[]> {
+    try {
+      const token = await this.getAccessToken();
+      const resp = await fetch(`${this.instanceUrl}/services/data/v60.0/sobjects/Contact/describe`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const userTypeField = data.fields?.find((f: any) => f.name === 'User_Type__c');
+        if (userTypeField && userTypeField.picklistValues) {
+          return userTypeField.picklistValues
+            .filter((p: any) => p.active)
+            .map((p: any) => ({ label: p.label, value: p.value }));
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ [SalesforceService] Failed to fetch User_Type__c describe picklist values:', e);
+    }
+    return [
+      { label: 'Member', value: 'Member' },
+      { label: 'Admin', value: 'Admin' },
+      { label: 'Pastor', value: 'Pastor' },
+      { label: 'Youth', value: 'Youth' },
+      { label: 'Non-Member', value: 'Non-Member' }
+    ];
+  }
+
   async checkContactExists(phone: string, uid?: string): Promise<any> {
     const rawDigits = phone.replace(/\D/g, '');
     if (rawDigits.length < 10) return { exists: false };
@@ -418,11 +445,11 @@ spfkUchVp71l4aWpCW50lro=
         FirstName: data.firstName,
         LastName: data.lastName,
         AccountId: accountId,
-        Phone: data.phone,
         MobilePhone: data.phone,
-        Email: data.email,
-        User_Type__c: 'Member',
-        Mobile_App_ID__c: data.uid
+        Email: data.email || null,
+        User_Type__c: data.userType || 'Member',
+        MailingCity: data.city || null,
+        Mobile_App_ID__c: data.uid || null
       };
 
       let resp = await fetch(`${this.instanceUrl}/services/data/v60.0/sobjects/Contact`, {

@@ -313,4 +313,34 @@ export class SalesforceBackend {
       return [];
     }
   }
+
+  /**
+   * Fetches all Salesforce Contacts where User_Type__c = 'Admin'.
+   * Used to CC admins on automated daily celebration WhatsApp wishes.
+   * Returns an array of { name, phone } objects with valid phone numbers only.
+   */
+  async getAdminContacts(): Promise<{ name: string; phone: string }[]> {
+    try {
+      const soql = `SELECT Id, FirstName, LastName, Phone, MobilePhone
+                    FROM Contact
+                    WHERE User_Type__c = 'Admin'
+                    AND (Phone != null OR MobilePhone != null)
+                    ORDER BY LastName ASC`;
+      const result = await this.query(soql);
+      if (!result || !result.records || result.records.length === 0) {
+        console.log('ℹ️ No admin contacts found in Salesforce.');
+        return [];
+      }
+      return result.records
+        .map((r: any) => ({
+          name: `${r.FirstName || ''} ${r.LastName || ''}`.trim() || 'Admin',
+          phone: (r.MobilePhone || r.Phone || '').trim()
+        }))
+        .filter((a: { name: string; phone: string }) => !!a.phone);
+    } catch (error) {
+      console.error('Error fetching admin contacts from Salesforce:', error);
+      return [];
+    }
+  }
 }
+

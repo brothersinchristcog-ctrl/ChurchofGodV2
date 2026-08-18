@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal, Linking, Image, StatusBar } from 'react-native';
-import { ArrowLeft, User, Calendar, Tag, Target, FileText, CreditCard, Link, Receipt, Info, Clock, Eye, Share2, Edit2, Trash2, Printer, Download } from 'lucide-react-native';
+import { ArrowLeft, User, Calendar, Tag, Target, FileText, CreditCard, Link, Receipt, Info, Clock, Eye, Share2, Edit2, Trash2, Printer, Download, CheckCircle2 } from 'lucide-react-native';
 import { COLORS, formatCurrency, formatDate, getInitials, generateDonationReceipt, getDonationReceiptHTML } from './AdminDonationsUtils';
 import { db } from '../../../services/firebaseConfig';
 import { WebView } from 'react-native-webview';
@@ -8,6 +8,7 @@ import { useAuth } from '../../../context/AuthContext';
 
 export default function AdminDonationsDetails({ donation, onNavigate }: any) {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteSuccess, setDeleteSuccess] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showAttachmentModal, setShowAttachmentModal] = useState(false);
   const { user, member } = useAuth();
@@ -18,8 +19,7 @@ export default function AdminDonationsDetails({ donation, onNavigate }: any) {
     setDeleteModalVisible(false);
     try {
       await db.collection('ledger_donations').doc(donation.id).delete();
-      Alert.alert('Success', 'Donation deleted successfully.');
-      onNavigate('list');
+      setDeleteSuccess(true);
     } catch (e) {
       Alert.alert('Error', 'Failed to delete donation.');
     }
@@ -130,6 +130,77 @@ export default function AdminDonationsDetails({ donation, onNavigate }: any) {
           <Text style={styles.dangerBtnText}>Delete Donation</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* ===== DELETE SUCCESS MODAL ===== */}
+      <Modal visible={deleteSuccess} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(18,21,43,0.92)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 }}>
+          {/* Animated card */}
+          <View style={{
+            backgroundColor: '#fff',
+            borderRadius: 28,
+            padding: 32,
+            width: '100%',
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.35,
+            shadowRadius: 20,
+            elevation: 20,
+          }}>
+
+            {/* Icon circle */}
+            <View style={{
+              width: 88, height: 88, borderRadius: 44,
+              backgroundColor: '#FEF2F2',
+              borderWidth: 3, borderColor: '#FECACA',
+              justifyContent: 'center', alignItems: 'center',
+              marginBottom: 20,
+            }}>
+              <Trash2 size={40} color="#EF4444" />
+            </View>
+
+            {/* Title */}
+            <Text style={{ fontSize: 22, fontWeight: '800', color: '#111827', marginBottom: 8, textAlign: 'center' }}>
+              Donation Deleted
+            </Text>
+
+            {/* Subtitle */}
+            <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 21, marginBottom: 6 }}>
+              The donation record for
+            </Text>
+            <View style={{ backgroundColor: '#FEF2F2', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, marginBottom: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#DC2626' }}>
+                {donation.name === 'Anonymous' ? 'Unknown Donor' : donation.name}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 21, marginBottom: 28 }}>
+              has been permanently removed.{`\n`}This action cannot be undone.
+            </Text>
+
+            {/* Divider */}
+            <View style={{ width: '100%', height: 1, backgroundColor: '#F3F4F6', marginBottom: 20 }} />
+
+            {/* Back button */}
+            <TouchableOpacity
+              style={{
+                backgroundColor: COLORS.indigo,
+                borderRadius: 16,
+                paddingVertical: 14,
+                paddingHorizontal: 32,
+                width: '100%',
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+              onPress={() => onNavigate('list')}
+            >
+              <ArrowLeft size={18} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>Back to Donations List</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Delete Confirmation Modal */}
       <Modal visible={deleteModalVisible} transparent animationType="fade">

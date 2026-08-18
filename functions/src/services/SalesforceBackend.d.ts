@@ -64,5 +64,14 @@ export declare class SalesforceBackend {
      * Fetches today's wedding anniversaries from Salesforce
      */
     getTodayAnniversaries(): Promise<any[]>;
+    /**
+     * Fetches all Salesforce Contacts where User_Type__c = 'Admin'.
+     * Used to CC admins on automated daily celebration WhatsApp wishes.
+     * Returns an array of { name, phone } objects with valid phone numbers only.
+     */
+    getAdminContacts(): Promise<{
+        name: string;
+        phone: string;
+    }[]>;
 }
 //# sourceMappingURL=SalesforceBackend.d.ts.map

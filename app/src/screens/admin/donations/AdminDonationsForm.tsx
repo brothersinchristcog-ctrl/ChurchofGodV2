@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Modal, FlatList, ActivityIndicator, Image } from 'react-native';
-import { ArrowLeft, Check, ChevronDown, Camera, Image as ImageIcon, FileText as FilePdfIcon, X } from 'lucide-react-native';
-import { COLORS, formatCurrency, formatDate, DEFAULT_CATEGORIES, PAYMENT_METHODS, getDonationReceiptHTML } from './AdminDonationsUtils';
+import { ArrowLeft, Check, ChevronDown, Camera, Image as ImageIcon, FileText as FilePdfIcon, X, Download, Share2 } from 'lucide-react-native';
+import { COLORS, formatCurrency, formatDate, DEFAULT_CATEGORIES, PAYMENT_METHODS, getDonationReceiptHTML, generateDonationReceipt } from './AdminDonationsUtils';
 import { WebView } from 'react-native-webview';
 import { db, storage } from '../../../services/firebaseConfig';
 import { useAuth } from '../../../context/AuthContext';
@@ -32,6 +32,7 @@ export default function AdminDonationsForm({ editData, onNavigate }: any) {
   const [showAddType, setShowAddType] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [savedDonation, setSavedDonation] = useState<any>(null);
 
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [showMethodDropdown, setShowMethodDropdown] = useState(false);
@@ -205,6 +206,7 @@ export default function AdminDonationsForm({ editData, onNavigate }: any) {
         purpose: purpose.trim(),
         notes: notes.trim(),
       };
+      setSavedDonation(donationForReceipt);
       const html = getDonationReceiptHTML(donationForReceipt, member?.name || 'Authorized Administrator');
       setReceiptHtml(html);
       setShowReceipt(true);
@@ -440,6 +442,24 @@ export default function AdminDonationsForm({ editData, onNavigate }: any) {
             style={{ flex: 1, backgroundColor: '#fff' }}
             scalesPageToFit
           />
+
+          {/* Download & Share buttons */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6, backgroundColor: COLORS.indigoDeep }}>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: COLORS.indigo, paddingVertical: 12, borderRadius: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}
+              onPress={() => generateDonationReceipt(savedDonation, false, member?.name || 'Authorized Administrator')}
+            >
+              <Download size={16} color="#fff" />
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Download</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: COLORS.indigo, paddingVertical: 12, borderRadius: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}
+              onPress={() => generateDonationReceipt(savedDonation, true, member?.name || 'Authorized Administrator')}
+            >
+              <Share2 size={16} color="#fff" />
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Share</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Bottom close button */}
           <TouchableOpacity

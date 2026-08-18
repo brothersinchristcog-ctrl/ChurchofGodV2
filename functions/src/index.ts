@@ -776,8 +776,60 @@ async function runDailyWishes(): Promise<void> {
       return null;
     };
 
+    // ─── ADMIN CC: Fetch all admin phones from Salesforce once ───────────────
+    const adminContacts = await sf.getAdminContacts().catch(() => []);
+    const adminPhones = adminContacts
+      .map((a: { name: string; phone: string }) => formatPhone(a.phone))
+      .filter(Boolean) as string[];
+    console.log(`👑 Admin CC targets: ${adminPhones.length} admin(s) — ${adminPhones.join(', ')}`);
+
+    /**
+     * Sends the same cod_card template to each admin as a CC.
+     * Failures are caught individually — they will NOT block member wishes.
+     */
+    const sendAdminCC = async (
+      memberPhone: string,
+      memberName: string,
+      category: 'birthday' | 'anniversary' | 'baptism',
+      greeting: string,
+      verseStr: string,
+      mediaId: string,
+      fbImageUrl: string | null
+    ): Promise<void> => {
+      const ccLabel = category === 'birthday'    ? '🎂 Birthday'
+                    : category === 'anniversary' ? '💍 Wedding Anniversary'
+                    :                              '✝️ Baptism Anniversary';
+
+      const ccGreeting = `📋 *[Admin CC] Today's Celebration Alert*\n\n` +
+                         `*${memberName}* — ${ccLabel} today!\n\n` +
+                         `─────────────────\n` +
+                         greeting;
+
+      for (const adminPhone of adminPhones) {
+        // Skip if this admin is the same person as the celebrating member
+        if (adminPhone === memberPhone) continue;
+        try {
+          // skipPush=true: only send the WhatsApp message to admin, no push notifications, no Firestore logs
+          await sendWish(adminPhone, mediaId, ccGreeting, verseStr, memberName, fbImageUrl, category, true);
+          console.log(`✅ Admin CC sent to ${adminPhone} for ${memberName} (${category})`);
+        } catch (ccErr: any) {
+          console.warn(`⚠️ Admin CC failed for ${adminPhone} (${memberName}):`, ccErr.message);
+        }
+      }
+    };
+    // ────────────────────────────────────────────────────────────────────────
+
     // Helper to send template wish using a pre-uploaded mediaId
-    const sendWish = async (toPhone: string, mediaId: string, greeting: string, verseParam: string, memberName: string, imageUrl: string | null, category: 'birthday' | 'anniversary' | 'baptism') => {
+    const sendWish = async (
+      toPhone: string,
+      mediaId: string,
+      greeting: string,
+      verseParam: string,
+      memberName: string,
+      imageUrl: string | null,
+      category: 'birthday' | 'anniversary' | 'baptism',
+      skipPush = false
+    ) => {
       try {
         const cleanParam = (str: string | undefined): string => {
           if (!str) return ' ';
@@ -817,64 +869,67 @@ async function runDailyWishes(): Promise<void> {
           }
         });
         console.log(`✅ Automated WhatsApp wish sent to ${toPhone}:`, response.data?.messages?.[0]?.id);
-        
-        await db.collection('whatsapp_messages').add({
-          fromPhone: toPhone,
-          fromName: memberName,
-          text: `[Auto Template] ${cleanMsg}\n\n${cleanVerse}`,
-          timestamp: new Date(),
-          type: 'outgoing',
-          adminId: 'system',
-          adminName: 'Automated System',
-          conversationOwner: 'system',
-          sendMethod: 'Auto Sent',
-          imageUrl: imageUrl || null,
-          createdAt: FieldValue.serverTimestamp()
-        });
 
-        let broadcastTitle = `🎉 Happy ${category}!`;
-        if (category === 'birthday') broadcastTitle = `🎂 Happy Birthday, ${memberName}!`;
-        if (category === 'anniversary') broadcastTitle = `💐 Happy Wedding Anniversary!`;
-        if (category === 'baptism') broadcastTitle = `✝️ Happy Baptism Anniversary, ${memberName}!`;
+        // Only log to Firestore and send push notification for the actual member (not admin CC calls)
+        if (!skipPush) {
+          await db.collection('whatsapp_messages').add({
+            fromPhone: toPhone,
+            fromName: memberName,
+            text: `[Auto Template] ${cleanMsg}\n\n${cleanVerse}`,
+            timestamp: new Date(),
+            type: 'outgoing',
+            adminId: 'system',
+            adminName: 'Automated System',
+            conversationOwner: 'system',
+            sendMethod: 'Auto Sent',
+            imageUrl: imageUrl || null,
+            createdAt: FieldValue.serverTimestamp()
+          });
 
-        await db.collection('broadcasts').add({
-          title: broadcastTitle,
-          content: `${cleanMsg}\n\n${cleanVerse}`,
-          date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' }),
-          type: category,
-          targetPhone: toPhone,
-          silent: true, // Prevent double-notification from onBroadcastCreated
-          createdAt: FieldValue.serverTimestamp()
-        });
-        
-        // Target individual user token if matches
-        const searchPhone = toPhone ? toPhone.replace(/[^0-9]/g, '').slice(-10) : '';
-        const pushToken = userMap.get(memberName.toLowerCase()) || (searchPhone ? userMap.get(searchPhone) : null);
-        if (pushToken) {
-          try {
-            await getMsg().send({
-              notification: {
-                title: broadcastTitle,
-                body: "Wishing you God's abundant blessings today! Tap to view your greeting."
-              },
-              data: { type: category },
-              android: {
-                priority: 'high',
+          let broadcastTitle = `🎉 Happy ${category}!`;
+          if (category === 'birthday') broadcastTitle = `🎂 Happy Birthday, ${memberName}!`;
+          if (category === 'anniversary') broadcastTitle = `💐 Happy Wedding Anniversary!`;
+          if (category === 'baptism') broadcastTitle = `✝️ Happy Baptism Anniversary, ${memberName}!`;
+
+          await db.collection('broadcasts').add({
+            title: broadcastTitle,
+            content: `${cleanMsg}\n\n${cleanVerse}`,
+            date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' }),
+            type: category,
+            targetPhone: toPhone,
+            silent: true,
+            createdAt: FieldValue.serverTimestamp()
+          });
+
+          // Target individual user token if matches
+          const searchPhone = toPhone ? toPhone.replace(/[^0-9]/g, '').slice(-10) : '';
+          const pushToken = userMap.get(memberName.toLowerCase()) || (searchPhone ? userMap.get(searchPhone) : null);
+          if (pushToken) {
+            try {
+              await getMsg().send({
                 notification: {
-                  sound: 'default',
-                  priority: 'max',
-                  channelId: 'church_alerts'
-                }
-              },
-              apns: {
-                headers: { 'apns-priority': '10' },
-                payload: { aps: { sound: 'default', badge: 1 } }
-              },
-              token: pushToken
-            });
-            console.log(`✅ Push banner sent for ${category} to ${memberName}`);
-          } catch (e: any) {
-            console.warn(`⚠️ Failed to send push banner to ${memberName}:`, e.message);
+                  title: broadcastTitle,
+                  body: "Wishing you God's abundant blessings today! Tap to view your greeting."
+                },
+                data: { type: category },
+                android: {
+                  priority: 'high',
+                  notification: {
+                    sound: 'default',
+                    priority: 'max',
+                    channelId: 'church_alerts'
+                  }
+                },
+                apns: {
+                  headers: { 'apns-priority': '10' },
+                  payload: { aps: { sound: 'default', badge: 1 } }
+                },
+                token: pushToken
+              });
+              console.log(`✅ Push banner sent for ${category} to ${memberName}`);
+            } catch (e: any) {
+              console.warn(`⚠️ Failed to send push banner to ${memberName}:`, e.message);
+            }
           }
         }
       } catch (error: any) {
@@ -1025,6 +1080,8 @@ async function runDailyWishes(): Promise<void> {
 
       console.log(`📤 Sending birthday wish to ${member.name} (${phone})...`);
       await sendWish(phone, mediaId, greeting, verseStr, member.name, fbImageUrl, 'birthday');
+      // CC all admins for this birthday
+      await sendAdminCC(phone, member.name, 'birthday', greeting, verseStr, mediaId, fbImageUrl);
     }
 
     // --- 2. WEDDING ANNIVERSARIES ---
@@ -1073,6 +1130,11 @@ async function runDailyWishes(): Promise<void> {
       } else {
         console.warn(`⚠️ Anniversary: No valid phone for wife ${ann.wife} (raw: ${ann.wifePhone})`);
       }
+      // CC all admins for this wedding anniversary (use couple card)
+      if (coupleMediaId) {
+        const coupleLabel = cardName || (ann.husband !== 'Spouse' ? ann.husband : ann.wife);
+        await sendAdminCC(husbandPhone || wifePhone || '', coupleLabel, 'anniversary', greeting, verseStr, coupleMediaId, fbImageUrl);
+      }
     }
 
     // --- 3. BAPTISM ANNIVERSARIES ---
@@ -1113,6 +1175,8 @@ async function runDailyWishes(): Promise<void> {
 
       console.log(`📤 Sending baptism wish to ${member.name} (${phone})...`);
       await sendWish(phone, mediaId, greeting, verseStr, member.name, fbImageUrl, 'baptism');
+      // CC all admins for this baptism anniversary
+      await sendAdminCC(phone, member.name, 'baptism', greeting, verseStr, mediaId, fbImageUrl);
     }
 
     // --- 4. 🔔 STREAM A & STREAM B PUSH NOTIFICATIONS FOR DAILY CELEBRATIONS ---

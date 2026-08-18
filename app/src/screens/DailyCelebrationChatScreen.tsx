@@ -264,7 +264,7 @@ function CelebrationCard({ member, isSelected, onPress, onAvatarPress }: { membe
 
       {/* Info - right side */}
       <View style={styles.celebInfo}>
-        <Text style={styles.celebName} numberOfLines={1}>{member.name}</Text>
+        <Text style={styles.celebName}>{member.name}</Text>
         <View style={styles.celebTypePill}>
           <Text style={styles.celebTypeEmoji}>{cfg.emoji}</Text>
           <Text style={[styles.celebTypeLabel, { color: cfg.color }]}>
@@ -1178,7 +1178,8 @@ export default function DailyCelebrationChatScreen() {
               renderItem={renderMessage}
               contentContainerStyle={styles.messageList}
               showsVerticalScrollIndicator={false}
-              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+              onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
               ListEmptyComponent={
                 <View style={styles.emptyChat}>
                   <Text style={styles.emptyChatText}>
