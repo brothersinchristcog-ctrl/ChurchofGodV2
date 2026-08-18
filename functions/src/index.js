@@ -1,13 +1,56 @@
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { setGlobalOptions } from 'firebase-functions/v2';
 import * as functionsCompat from 'firebase-functions/v1';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 import { getStorage } from 'firebase-admin/storage';
 import { SalesforceBackend } from './services/SalesforceBackend.js';
+import axios from 'axios';
 // Initialize Firebase Admin once at top level
 initializeApp();
+// Set global region to Mumbai (asia-south1) to bypass us-central1 quota issues
+setGlobalOptions({
+    region: 'asia-south1',
+    memory: '1GiB',
+    timeoutSeconds: 300
+});
+export const debugGetThemes = onRequest({ invoker: 'public' }, async (req, res) => {
+    try {
+        const doc = await getFirestore().collection('settings').doc('celebration_themes').get();
+        res.status(200).json(doc.exists ? doc.data() : { error: 'Not found' });
+    }
+    catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+export const debugDeliveryStatus = onRequest({ invoker: 'public' }, async (req, res) => {
+    try {
+        const snap = await getFirestore().collection('whatsapp_delivery_status')
+            .orderBy('createdAt', 'desc')
+            .limit(30)
+            .get();
+        const statuses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        res.status(200).json(statuses);
+    }
+    catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+/**
+ * 🧪 MANUAL TRIGGER - run the daily wishes on demand for testing
+ * Call: GET https://us-central1-church-mobile-app-b7e27.cloudfunctions.net/triggerDailyWishes
+ */
+export const triggerDailyWishes = onRequest({ invoker: 'public', timeoutSeconds: 300 }, async (req, res) => {
+    try {
+        await runDailyWishes();
+        res.status(200).json({ success: true, message: 'Daily wishes triggered successfully' });
+    }
+    catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
 // Lazy initialization helpers
 let _db;
 let _messaging;
@@ -72,33 +115,55 @@ export const checkContactExists = onCall({ invoker: 'public' }, async (request) 
 /**
  * 🔔 NOTIFY MEMBERS
  */
-export const notifyMembers = onRequest(async (request, response) => {
-    const { title, body, target, type } = request.body;
+export const notifyMembers = onCall({ invoker: 'public' }, async (request) => {
+    const { title, body, target, type, targetPhone } = request.data || {};
     if (!title || !body) {
-        response.status(400).send({ success: false, error: 'Missing title or body' });
-        return;
+        throw new HttpsError('invalid-argument', 'Missing title or body');
     }
+    const cleanBody = body.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim();
     try {
-        console.log(`🔔 Sending Notification: [${title}] to [${target || 'All'}]`);
-        let query = getDb().collection('users');
-        if (target && target !== 'all') {
-            query = query.where('cellGroup', '==', target);
+        console.log(`🔔 Sending Notification: [${title}] to [${targetPhone || target || 'All'}]`);
+        const isPersonal = type === 'birthday' || type === 'anniversary' || type === 'baptism' || type === 'whatsapp_reply';
+        if (isPersonal && (!targetPhone || targetPhone.replace(/[^0-9]/g, '').length === 0)) {
+            console.log('🛑 Skipping personal push notification because targetPhone is empty.');
+            return { success: false, message: 'Missing target phone for personal notification' };
         }
-        const snapshot = await query.get();
-        const tokenSet = new Set();
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            if (data.fcmToken)
-                tokenSet.add(data.fcmToken);
-        });
-        const tokens = Array.from(tokenSet);
+        let tokens = [];
+        if (targetPhone && targetPhone.trim().length > 0) {
+            const cleanPhone = targetPhone.replace(/[^0-9]/g, '');
+            const snapshot = await getDb().collection('users').get();
+            const tokenSet = new Set();
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data.fcmToken && data.phone) {
+                    const userPhone = data.phone.replace(/[^0-9]/g, '');
+                    if (userPhone.slice(-10) === cleanPhone.slice(-10)) {
+                        tokenSet.add(data.fcmToken);
+                    }
+                }
+            });
+            tokens = Array.from(tokenSet);
+        }
+        else {
+            let query = getDb().collection('users');
+            if (target && target !== 'all') {
+                query = query.where('cellGroup', '==', target);
+            }
+            const snapshot = await query.get();
+            const tokenSet = new Set();
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data.fcmToken)
+                    tokenSet.add(data.fcmToken);
+            });
+            tokens = Array.from(tokenSet);
+        }
         if (tokens.length === 0) {
-            response.status(200).send({ success: true, message: 'No registered tokens found' });
-            return;
+            return { success: true, message: 'No registered tokens found' };
         }
         const message = {
-            notification: { title, body },
-            data: { type: type || 'general' },
+            notification: { title, body: cleanBody },
+            data: { type: type || 'general', targetPhone: targetPhone || '' },
             android: {
                 priority: 'high',
                 notification: {
@@ -122,13 +187,11 @@ export const notifyMembers = onRequest(async (request, response) => {
         };
         const fcmResponse = await getMsg().sendEachForMulticast(message);
         console.log(`✅ Push Sent: ${fcmResponse.successCount} success, ${fcmResponse.failureCount} failed`);
-        response.status(200).send({
-            success: true, sent: fcmResponse.successCount, failed: fcmResponse.failureCount
-        });
+        return { success: true, sent: fcmResponse.successCount, failed: fcmResponse.failureCount };
     }
     catch (error) {
         console.error('notifyMembers Error:', error);
-        response.status(500).send({ success: false, error: error.message });
+        throw new HttpsError('internal', error.message);
     }
 });
 /**
@@ -152,7 +215,20 @@ export const automatedDailyPromise = onSchedule({ schedule: '0 5 * * *', timeZon
             return;
         }
         const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-        const content = promise.Promises__c || promise.Promise_text_telugu__c || 'Grace and Peace be multiplied to you today.';
+        const enContent = promise.Promises__c ? promise.Promises__c.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim() : '';
+        const teContent = promise.Promise_text_telugu__c ? promise.Promise_text_telugu__c.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim() : '';
+        // Combine English and Telugu content for notification & broadcast
+        let content = '';
+        if (enContent && teContent) {
+            content = `📖 ${enContent}\n\nదువా / వాగ్దానం:\n📖 ${teContent}`;
+        }
+        else {
+            content = enContent || teContent || 'Grace and Peace be multiplied to you today.';
+        }
+        // Short summary for push notification body (bilingual)
+        const notifBody = enContent && teContent
+            ? `✝️ ${enContent.slice(0, 70)}...\n📖 ${teContent.slice(0, 70)}...`
+            : content.slice(0, 120);
         // Pushed to broadcasts collection
         await db.collection('broadcasts').add({
             title: '📖 Today\'s Promise · ఈ రోజు వాగ్దానం',
@@ -175,15 +251,15 @@ export const automatedDailyPromise = onSchedule({ schedule: '0 5 * * *', timeZon
             const message = {
                 notification: {
                     title: '📖 Daily Promise · ఈ రోజు వాగ్దానం',
-                    body: content.slice(0, 100) + '...'
+                    body: notifBody
                 },
-                data: { type: 'general' },
+                data: { type: 'promise' },
                 android: {
                     priority: 'high',
                     notification: {
                         sound: 'default',
                         priority: 'max',
-                        channelId: 'church_alerts'
+                        channelId: 'default'
                     }
                 },
                 apns: {
@@ -213,7 +289,8 @@ export const automatedDailyPromise = onSchedule({ schedule: '0 5 * * *', timeZon
  */
 export const automatedDailyBirthdays = onSchedule({ schedule: '0 6 * * *', timeZone: 'Asia/Kolkata' }, async (event) => {
     try {
-        console.log('⏰ Running automatedDailyBirthdays scheduler...');
+        console.log('⏰ Skipping automatedDailyBirthdays scheduler (delegated to 7 AM runDailyWishes)...');
+        return;
         const db = getDb();
         // Check if enabled
         const settingsDoc = await db.collection('settings').doc('notifications').get();
@@ -269,7 +346,7 @@ export const automatedDailyBirthdays = onSchedule({ schedule: '0 6 * * *', timeZ
                         notification: {
                             sound: 'default',
                             priority: 'max',
-                            channelId: 'church_alerts'
+                            channelId: 'default'
                         }
                     },
                     apns: {
@@ -300,7 +377,8 @@ export const automatedDailyBirthdays = onSchedule({ schedule: '0 6 * * *', timeZ
  */
 export const automatedDailyAnniversaries = onSchedule({ schedule: '30 6 * * *', timeZone: 'Asia/Kolkata' }, async (event) => {
     try {
-        console.log('⏰ Running automatedDailyAnniversaries scheduler...');
+        console.log('⏰ Skipping automatedDailyAnniversaries scheduler (delegated to 7 AM runDailyWishes)...');
+        return;
         const db = getDb();
         // Check if enabled
         const settingsDoc = await db.collection('settings').doc('notifications').get();
@@ -357,7 +435,7 @@ export const automatedDailyAnniversaries = onSchedule({ schedule: '30 6 * * *', 
                         notification: {
                             sound: 'default',
                             priority: 'max',
-                            channelId: 'church_alerts'
+                            channelId: 'default'
                         }
                     },
                     apns: {
@@ -382,6 +460,767 @@ export const automatedDailyAnniversaries = onSchedule({ schedule: '30 6 * * *', 
         console.error('Error in automatedDailyAnniversaries scheduler:', error);
     }
 });
+// ─── Default monthly theme gradient colors (matches app's DEFAULT_MONTHLY_THEMES) ───
+const DEFAULT_MONTHLY_THEME_COLORS = [
+    ['#1E3A8A', '#3B82F6'], // Jan
+    ['#BE185D', '#F472B6'], // Feb
+    ['#047857', '#34D399'], // Mar
+    ['#7C3AED', '#A78BFA'], // Apr
+    ['#B45309', '#F59E0B'], // May
+    ['#0369A1', '#38BDF8'], // Jun
+    ['#0F766E', '#2DD4BF'], // Jul
+    ['#854D0E', '#FACC15'], // Aug
+    ['#374151', '#9CA3AF'], // Sep
+    ['#BE9A3A', '#E7C767'], // Oct
+    ['#C2410C', '#FB923C'], // Nov
+    ['#991B1B', '#F87171'], // Dec
+];
+/**
+ * Build the SVG icon path for the category (matches the app's getPreviewIcon exactly).
+ * birthday  → Lucide Cake path
+ * wedding   → Two interlocking circles (SVG rings)
+ * baptism   → Orthodox cross (♰)
+ */
+function categoryIconSvg(category, cx, cy) {
+    const ic = '#FDF1D6'; // icon color matches app's iconColor = "#FDF1D6"
+    if (category === 'birthday') {
+        // Lucide Cake icon paths (simplified), centered at (cx, cy)
+        const tx = cx - 12;
+        const ty = cy - 12;
+        return `<g transform="translate(${tx},${ty}) scale(1.8)" fill="none" stroke="${ic}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <!-- base rectangle -->
+      <rect x="2" y="11" width="20" height="10" rx="2" />
+      <!-- candles -->
+      <path d="M7 11V8" />
+      <path d="M12 11V8" />
+      <path d="M17 11V8" />
+      <!-- flames -->
+      <path d="M7 8 C7 6 9 6 9 8" />
+      <path d="M12 8 C12 6 14 6 14 8" />
+      <path d="M17 8 C17 6 19 6 19 8" />
+      <!-- wave top of cake -->
+      <path d="M2 15 Q5 13 8 15 Q11 17 14 15 Q17 13 20 15" stroke-width="1.2" />
+    </g>`;
+    }
+    if (category === 'wedding') {
+        // Two interlocking circles matching app's SVG rings
+        return `<g fill="none" stroke="${ic}" stroke-width="3">
+      <circle cx="${cx - 14}" cy="${cy}" r="18" />
+      <circle cx="${cx + 14}" cy="${cy}" r="18" />
+    </g>`;
+    }
+    // Baptism: standard cross ♰
+    const x = cx;
+    const y = cy;
+    return `<g fill="none" stroke="${ic}" stroke-width="3.5" stroke-linecap="round">
+    <!-- vertical bar -->
+    <line x1="${x}" y1="${y - 22}" x2="${x}" y2="${y + 22}" />
+    <!-- main crossbar -->
+    <line x1="${x - 14}" y1="${y - 4}" x2="${x + 14}" y2="${y - 4}" />
+  </g>`;
+}
+/**
+ * Generate a greeting card matching the app's Preview Greeting design exactly.
+ * Uses SVG path icons (no emoji), exact blessing text per category,
+ * and solid month-theme background color.
+ */
+async function generateThemeCard(memberName, category, topColor, _bottomColor) {
+    const W = 900;
+    const H = 900;
+    const R = 48;
+    const subtitle = category === 'baptism' ? 'CELEBRATING YOUR' : 'WISHING YOU A';
+    const title = category === 'birthday' ? 'HAPPY BIRTHDAY'
+        : category === 'wedding' ? 'HAPPY ANNIVERSARY'
+            : 'BAPTISM ANNIVERSARY';
+    // Exact blessing text from app's renderPreview() — lines 925-936 of AdminCODCelebs.tsx
+    const blessing = category === 'birthday'
+        ? "May God's grace and blessings\nbe with you today and always!"
+        : category === 'wedding'
+            ? "Wishing you a lifetime of love,\njoy, and covenant peace!"
+            : "Celebrating your walk in the\nlight and grace of Christ!";
+    // Escape XML entities in member name
+    const safeName = memberName
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    // Split blessing into two lines for tspan
+    const blessingLines = blessing.split('\n');
+    const blessingTspan = blessingLines
+        .map((line, i) => `<tspan x="450" dy="${i === 0 ? '0' : '44'}" text-anchor="middle">${line.replace(/'/g, '&apos;')}</tspan>`)
+        .join('');
+    // Icon SVG centered at top of card
+    const iconSvg = categoryIconSvg(category, 450, 130);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <!-- Card background with rounded corners -->
+  <rect x="0" y="0" width="${W}" height="${H}" rx="${R}" ry="${R}" fill="${topColor}" />
+
+  <!-- Inner border ring matching app -->
+  <rect x="14" y="14" width="${W - 28}" height="${H - 28}" rx="${R - 6}" ry="${R - 6}"
+        fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1" />
+
+  <!-- Category icon (SVG paths, no emoji) -->
+  ${iconSvg}
+
+  <!-- Subtitle: WISHING YOU A / CELEBRATING YOUR -->
+  <text x="450" y="200"
+        font-family="Helvetica Neue, Arial, sans-serif"
+        font-size="26" font-weight="400" letter-spacing="6"
+        fill="rgba(255,255,255,0.85)" text-anchor="middle">${subtitle}</text>
+
+  <!-- Bold category title -->
+  <text x="450" y="296"
+        font-family="Helvetica Neue, Arial Black, sans-serif"
+        font-size="68" font-weight="900" letter-spacing="2"
+        fill="#E8D5A3" text-anchor="middle">${title}</text>
+
+  <!-- Member name -->
+  <text x="450" y="388"
+        font-family="Helvetica Neue, Arial, sans-serif"
+        font-size="46" font-weight="700"
+        fill="#FFFFFF" text-anchor="middle">${safeName}</text>
+
+  <!-- Divider line -->
+  <line x1="300" y1="424" x2="600" y2="424" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+
+  <!-- Blessing text (italic, matching app's gBlessing style) -->
+  <text x="450" y="500"
+        font-family="Georgia, Times New Roman, serif"
+        font-size="32" font-style="italic" font-weight="400"
+        fill="rgba(255,255,255,0.92)" text-anchor="middle">
+    ${blessingTspan}
+  </text>
+
+  <!-- Divider line 2 -->
+  <line x1="240" y1="600" x2="660" y2="600" stroke="rgba(255,255,255,0.22)" stroke-width="1" />
+
+  <!-- Footer: Sent with love, CHURCH OF GOD -->
+  <text x="450" y="652"
+        font-family="Helvetica Neue, Arial, sans-serif"
+        font-size="20" font-weight="400" letter-spacing="4"
+        fill="rgba(255,255,255,0.65)" text-anchor="middle">SENT WITH LOVE, CHURCH OF GOD</text>
+</svg>`;
+    const sharp = (await import('sharp')).default;
+    return sharp(Buffer.from(svg))
+        .jpeg({ quality: 92 })
+        .toBuffer();
+}
+/**
+ * ⏰ AUTOMATED DAILY WHATSAPP CELEBRATIONS WISHES SCHEDULER
+ * Runs every day at 08:00 PM IST (14:30 UTC)
+ */
+/**
+ * Core logic: fetch today's celebrations and send WhatsApp wishes to each member.
+ * Called by both the scheduler and the manual trigger HTTP endpoint.
+ */
+async function runDailyWishes() {
+    try {
+        console.log('⏰ Running runDailyWishes...');
+        const token = process.env.WHATSAPP_TOKEN;
+        const phoneId = process.env.WHATSAPP_PHONE_ID;
+        if (!token || !phoneId) {
+            console.error('🛑 WhatsApp credentials are not configured on the server.');
+            return;
+        }
+        const sf = getSf();
+        const birthdays = await sf.getTodayBirthdays().catch(() => []);
+        const anniversaries = await sf.getTodayAnniversaries().catch(() => []);
+        const baptisms = await sf.getTodayBaptisms().catch(() => []);
+        console.log(`📊 Today's Celebrations - Birthdays: ${birthdays.length}, Anniversaries: ${anniversaries.length}, Baptisms: ${baptisms.length}`);
+        if (birthdays.length === 0 && anniversaries.length === 0 && baptisms.length === 0) {
+            console.log('ℹ️ No celebrations to wish today.');
+            return;
+        }
+        const db = getDb();
+        // Pre-load user FCM tokens for push notifications
+        const snapshot = await db.collection('users').get();
+        const userMap = new Map();
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.fcmToken) {
+                if (data.name)
+                    userMap.set(data.name.toLowerCase(), data.fcmToken);
+                if (data.phone)
+                    userMap.set(data.phone.replace(/[^0-9]/g, '').slice(-10), data.fcmToken);
+            }
+        });
+        // Load the current month's gradient colors from Firestore (with app defaults as fallback)
+        const currentMonthIndex = new Date().getMonth(); // 0-11
+        let themeTopColor = DEFAULT_MONTHLY_THEME_COLORS[currentMonthIndex][0];
+        let themeBotColor = DEFAULT_MONTHLY_THEME_COLORS[currentMonthIndex][1];
+        try {
+            const themesDoc = await db.collection('settings').doc('celebration_themes').get();
+            if (themesDoc.exists) {
+                const themesData = themesDoc.data();
+                const themeObj = themesData?.monthly?.[currentMonthIndex];
+                if (themeObj?.colors?.[0])
+                    themeTopColor = themeObj.colors[0];
+                if (themeObj?.colors?.[1])
+                    themeBotColor = themeObj.colors[1];
+                // Also try 'c' key (same as app uses)
+                if (themeObj?.c?.[0])
+                    themeTopColor = themeObj.c[0];
+                if (themeObj?.c?.[1])
+                    themeBotColor = themeObj.c[1];
+            }
+        }
+        catch (err) {
+            console.error('Error loading current monthly theme, using defaults:', err);
+        }
+        console.log(`🎨 Using theme colors for month ${currentMonthIndex + 1}: ${themeTopColor} → ${themeBotColor}`);
+        // Helper: upload a JPEG Buffer to WhatsApp media and return mediaId
+        const uploadCardBuffer = async (buffer) => {
+            try {
+                const blob = new Blob([new Uint8Array(buffer)], { type: 'image/jpeg' });
+                const formData = new FormData();
+                formData.append('messaging_product', 'whatsapp');
+                formData.append('file', blob, 'card.jpg');
+                const uploadUrl = `https://graph.facebook.com/v19.0/${phoneId}/media`;
+                const uploadResponse = await axios.post(uploadUrl, formData, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                return uploadResponse.data.id;
+            }
+            catch (err) {
+                console.error('Failed to upload card buffer:', err.response?.data || err.message);
+                return null;
+            }
+        };
+        // Helper: upload a Buffer to Firebase Storage and return public URL
+        const uploadToFirebaseStorage = async (buffer, name) => {
+            try {
+                const bucket = getStorage().bucket('church-mobile-app-b7e27.appspot.com');
+                const cleanName = name.replace(/[^a-zA-Z0-9]/g, '_');
+                const fileName = `whatsapp_media/auto_${Date.now()}_${cleanName}.jpg`;
+                const file = bucket.file(fileName);
+                await file.save(buffer, {
+                    metadata: { contentType: 'image/jpeg' }
+                });
+                await file.makePublic();
+                return `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+            }
+            catch (err) {
+                console.error('Failed to upload to Firebase Storage:', err.message);
+                return null;
+            }
+        };
+        // Helper to format phone number → WhatsApp-ready string (e.g. 91XXXXXXXXXX)
+        const formatPhone = (phoneStr) => {
+            if (!phoneStr)
+                return null;
+            let clean = phoneStr.replace(/\D/g, '');
+            if (clean.length === 10)
+                return '91' + clean;
+            if (clean.length === 11 && clean.startsWith('0'))
+                return '91' + clean.substring(1);
+            if (clean.length === 12 && clean.startsWith('91'))
+                return clean;
+            if (clean.length > 10)
+                return clean; // fallback for international
+            return null;
+        };
+        // ─── ADMIN CC: Fetch all admin phones from Salesforce once ───────────────
+        const adminContacts = await sf.getAdminContacts().catch(() => []);
+        const adminPhones = adminContacts
+            .map((a) => formatPhone(a.phone))
+            .filter(Boolean);
+        console.log(`👑 Admin CC targets: ${adminPhones.length} admin(s) — ${adminPhones.join(', ')}`);
+        /**
+         * Sends the same cod_card template to each admin as a CC.
+         * Failures are caught individually — they will NOT block member wishes.
+         */
+        const sendAdminCC = async (memberPhone, memberName, category, greeting, verseStr, mediaId, fbImageUrl) => {
+            const ccLabel = category === 'birthday' ? '🎂 Birthday'
+                : category === 'anniversary' ? '💍 Wedding Anniversary'
+                    : '✝️ Baptism Anniversary';
+            const ccGreeting = `📋 *[Admin CC] Today's Celebration Alert*\n\n` +
+                `*${memberName}* — ${ccLabel} today!\n\n` +
+                `─────────────────\n` +
+                greeting;
+            for (const adminPhone of adminPhones) {
+                // Skip if this admin is the same person as the celebrating member
+                if (adminPhone === memberPhone)
+                    continue;
+                try {
+                    // skipPush=true: only send the WhatsApp message to admin, no push notifications, no Firestore logs
+                    await sendWish(adminPhone, mediaId, ccGreeting, verseStr, memberName, fbImageUrl, category, true);
+                    console.log(`✅ Admin CC sent to ${adminPhone} for ${memberName} (${category})`);
+                }
+                catch (ccErr) {
+                    console.warn(`⚠️ Admin CC failed for ${adminPhone} (${memberName}):`, ccErr.message);
+                }
+            }
+        };
+        // ────────────────────────────────────────────────────────────────────────
+        // Helper to send template wish using a pre-uploaded mediaId
+        const sendWish = async (toPhone, mediaId, greeting, verseParam, memberName, imageUrl, category, skipPush = false) => {
+            try {
+                const cleanParam = (str) => {
+                    if (!str)
+                        return ' ';
+                    return str.replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim() || ' ';
+                };
+                const cleanMsg = cleanParam(greeting);
+                const cleanVerse = cleanParam(verseParam);
+                const url = `https://graph.facebook.com/v19.0/${phoneId}/messages`;
+                const payload = {
+                    messaging_product: 'whatsapp',
+                    to: toPhone,
+                    type: 'template',
+                    template: {
+                        name: 'cod_card',
+                        language: { code: 'en' },
+                        components: [
+                            {
+                                type: 'header',
+                                parameters: [{ type: 'image', image: { id: mediaId } }]
+                            },
+                            {
+                                type: 'body',
+                                parameters: [
+                                    { type: 'text', text: cleanMsg.slice(0, 1024) },
+                                    { type: 'text', text: cleanVerse.slice(0, 1024) }
+                                ]
+                            }
+                        ]
+                    }
+                };
+                const response = await axios.post(url, payload, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                console.log(`✅ Automated WhatsApp wish sent to ${toPhone}:`, response.data?.messages?.[0]?.id);
+                // Only log to Firestore and send push notification for the actual member (not admin CC calls)
+                if (!skipPush) {
+                    await db.collection('whatsapp_messages').add({
+                        fromPhone: toPhone,
+                        fromName: memberName,
+                        text: `[Auto Template] ${cleanMsg}\n\n${cleanVerse}`,
+                        timestamp: new Date(),
+                        type: 'outgoing',
+                        adminId: 'system',
+                        adminName: 'Automated System',
+                        conversationOwner: 'system',
+                        sendMethod: 'Auto Sent',
+                        imageUrl: imageUrl || null,
+                        createdAt: FieldValue.serverTimestamp()
+                    });
+                    let broadcastTitle = `🎉 Happy ${category}!`;
+                    if (category === 'birthday')
+                        broadcastTitle = `🎂 Happy Birthday, ${memberName}!`;
+                    if (category === 'anniversary')
+                        broadcastTitle = `💐 Happy Wedding Anniversary!`;
+                    if (category === 'baptism')
+                        broadcastTitle = `✝️ Happy Baptism Anniversary, ${memberName}!`;
+                    await db.collection('broadcasts').add({
+                        title: broadcastTitle,
+                        content: `${cleanMsg}\n\n${cleanVerse}`,
+                        date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' }),
+                        type: category,
+                        targetPhone: toPhone,
+                        silent: true,
+                        createdAt: FieldValue.serverTimestamp()
+                    });
+                    // Target individual user token if matches
+                    const searchPhone = toPhone ? toPhone.replace(/[^0-9]/g, '').slice(-10) : '';
+                    const pushToken = userMap.get(memberName.toLowerCase()) || (searchPhone ? userMap.get(searchPhone) : null);
+                    if (pushToken) {
+                        try {
+                            await getMsg().send({
+                                notification: {
+                                    title: broadcastTitle,
+                                    body: "Wishing you God's abundant blessings today! Tap to view your greeting."
+                                },
+                                data: { type: category },
+                                android: {
+                                    priority: 'high',
+                                    notification: {
+                                        sound: 'default',
+                                        priority: 'max',
+                                        channelId: 'church_alerts'
+                                    }
+                                },
+                                apns: {
+                                    headers: { 'apns-priority': '10' },
+                                    payload: { aps: { sound: 'default', badge: 1 } }
+                                },
+                                token: pushToken
+                            });
+                            console.log(`✅ Push banner sent for ${category} to ${memberName}`);
+                        }
+                        catch (e) {
+                            console.warn(`⚠️ Failed to send push banner to ${memberName}:`, e.message);
+                        }
+                    }
+                }
+            }
+            catch (error) {
+                console.error(`❌ Failed to send automated WhatsApp wish to ${toPhone}:`, error.response?.data || error.message);
+            }
+        };
+        // 📖 30 Tailored Telugu Scriptures for Birthday, Wedding, and Baptism rotations
+        // Each member gets a UNIQUE verse — tracked with per-category counters
+        const VERSES_TELUGU = {
+            birthday: [
+                { ref: 'సంఖ్యాకాండము 6:24', text: 'యెహోవా నిన్ను ఆశీర్వదించి నిన్ను కాపాడును.' },
+                { ref: 'సంఖ్యాకాండము 6:25', text: 'యెహోవా తన ముఖకాంతిని నీ మీద ప్రకాశింపజేసి నీ మీద కృప చూపును.' },
+                { ref: 'కీర్తన 118:24', text: 'ఈ దినము యెహోవా ఏర్పరచినది; దీనియందు మనము సంతోషించి ఆనందింతుము.' },
+                { ref: 'సామెతలు 3:5', text: 'నీ పూర్ణహృదయముతో యెహోవాను నమ్ముకొనుము.' },
+                { ref: 'సామెతలు 3:6', text: 'నీ మార్గములన్నిటిలో ఆయనను స్మరించుము; అప్పుడు ఆయన నీ త్రోవలను సరిచేయును.' },
+                { ref: 'కీర్తన 37:4', text: 'యెహోవాలో ఆనందించుము; ఆయన నీ హృదయ వాంఛలను నెరవేర్చును.' },
+                { ref: 'కీర్తన 37:5', text: 'నీ కార్యములన్నియు యెహోవాకు అప్పగించుము.' },
+                { ref: 'కీర్తన 20:4', text: 'ఆయన నీ హృదయ కోరికలను నెరవేర్చును.' },
+                { ref: 'కీర్తన 23:1', text: 'యెహోవా నా కాపరి; నాకు కొదువలేదు.' },
+                { ref: 'కీర్తన 34:8', text: 'యెహోవా మేలైనవాడు; ఆయనను ఆశ్రయించువాడుధన్యుడు.' },
+                { ref: 'నెహెమ్యా 8:10', text: 'యెహోవానందమే మీ బలము.' },
+                { ref: 'యెషయా 41:10', text: 'భయపడకుము, నేను నీకు తోడై యున్నాను.' },
+                { ref: 'యెషయా 41:10', text: 'నేను నిన్ను బలపరచెదను; నీకు సహాయము చేసెదను.' },
+                { ref: 'ఫిలిప్పీయులకు 4:13', text: 'క్రీస్తు నన్ను బలపరచుచున్నందున నేను సమస్తమును చేయగలను.' },
+                { ref: 'ఫిలిప్పీయులకు 4:19', text: 'నా దేవుడు మీ ప్రతి అవసరమును తీర్చును.' },
+                { ref: 'యాకోబు 1:17', text: 'ప్రతి మంచి వరమును, ప్రతి పరిపూర్ణమైన దానమును పైనుండి వచ్చును.' },
+                { ref: 'రోమీయులకు 15:13', text: 'ఆశ కలిగించు దేవుడు మిమ్మును సమస్త సంతోషముతోను సమాధానముతోను నింపును.' },
+                { ref: 'యెహోషువ 1:9', text: 'ధైర్యముగా నుండుము; భయపడకుము.' },
+                { ref: 'కీర్తన 145:13', text: 'యెహోవా తన వాగ్దానములన్నిటిలో నమ్మదగినవాడు.' },
+                { ref: 'కీర్తన 103:5', text: 'ఆయన నీ యౌవనమును గ్రద్దవలె నూతనపరచును.' },
+                { ref: '3 యోహాను 1:2', text: 'నీకు సమస్తమును క్షేమముగా ఉండునట్లు నేను ప్రార్థించుచున్నాను.' },
+                { ref: 'నహూము 1:7', text: 'యెహోవా శరణాగతులకు ఆశ్రయము.' },
+                { ref: '1 పేతురు 5:7', text: 'మీ చింతలన్నిటిని ఆయన మీద వేయుడి; ఆయన మీ సంగతి చింతించుచున్నాడు.' },
+                { ref: 'కీర్తన 16:11', text: 'నీ సన్నిధిలో సంపూర్ణ సంతోషము కలదు.' },
+                { ref: 'కీర్తన 121:8', text: 'యెహోవా నీ వెళ్లుటను రాకడను కాపాడును.' },
+                { ref: 'కీర్తన 90:17', text: 'మన దేవుని దయ మన మీద ఉండును గాక.' },
+                { ref: 'కీర్తన 27:1', text: 'యెహోవా నా వెలుగును నా రక్షణయు.' },
+                { ref: 'విలాపవాక్యములు 3:22–23', text: 'యెహోవా కృపలు అంతము లేనివి; ఆయన కనికరములు ప్రతి ఉదయము నూతనములు.' },
+                { ref: 'విలాపవాక్యములు 3:22', text: 'యెహోవా ప్రేమ ఎన్నటికీ నిలిచియుండును.' },
+                { ref: 'ఎఫెసీయులకు 3:20', text: 'మనము అడుగుదానికంటెను ఊహించుదానికంటెను అత్యధికముగా చేయగలవాడు దేవుడు.' },
+            ],
+            wedding: [
+                { ref: 'ఆదికాండము 2:24', text: 'కాబట్టి పురుషుడు తన తండ్రిని తన తల్లిని విడిచిపెట్టి తన భార్యను హత్తుకొనును; వారు ఒక శరీరముగా ఉండుదురు.' },
+                { ref: 'ప్రసంగి 4:9', text: 'ఇద్దరు ఒక్కనికంటె మేలు; వారు తమ పరిశ్రమకు మంచి ఫలము పొందుదురు.' },
+                { ref: 'ప్రసంగి 4:12', text: 'ముగ్గురితో పేనిన త్రాడు త్వరగా తెగిపోదు.' },
+                { ref: 'మార్కు 10:9', text: 'దేవుడు జతపరచిన వారిని మనుష్యుడు వేరు చేయకూడదు.' },
+                { ref: 'మత్తయి 19:6', text: 'వారు ఇక ఇద్దరు కాదు, ఒక శరీరము; కాబట్టి దేవుడు జతపరచిన వారిని మనుష్యుడు వేరు చేయకూడదు.' },
+                { ref: 'ఎఫెసీయులకు 5:2', text: 'క్రీస్తు మిమ్మును ప్రేమించినట్లు ప్రేమలో నడుచుకొనుడి.' },
+                { ref: 'ఎఫెసీయులకు 5:25', text: 'భర్తలారా, క్రీస్తు సంఘమును ప్రేమించినట్లు మీ భార్యలను ప్రేమించుడి.' },
+                { ref: 'ఎఫెసీయులకు 5:33', text: 'మీలో ప్రతి వాడు తన భార్యను తనను ప్రేమించినట్లు ప్రేమించవలెను; భార్య తన భర్తను గౌరవించవలెను.' },
+                { ref: 'కొలస్సయులకు 3:14', text: 'వీటన్నిటికంటె ప్రేమను ధరించుకొనుడి; అది పరిపూర్ణతకు బంధము.' },
+                { ref: 'కొలస్సయులకు 3:15', text: 'క్రీస్తు సమాధానము మీ హృదయములలో ఏలుచుండనియ్యుడి.' },
+                { ref: '1 కొరింథీయులకు 13:4', text: 'ప్రేమ దీర్ఘశాంతము కలిగి దయగలదై యుండును.' },
+                { ref: '1 కొరింథీయులకు 13:7', text: 'ప్రేమ అన్నిటిని భరించును, అన్నిటిని నమ్మును, అన్నిటిని నిరీక్షించును, అన్నిటిని సహించును.' },
+                { ref: '1 కొరింథీయులకు 13:8', text: 'ప్రేమ ఎన్నటికిని తరుగదు.' },
+                { ref: '1 పేతురు 4:8', text: 'ప్రేమ అనేక పాపములను కప్పివేయును.' },
+                { ref: '1 యోహాను 4:7', text: 'ప్రియులారా, మనము ఒకరినొకరు ప్రేమించుకొందము; ప్రేమ దేవునివలన కలుగును.' },
+                { ref: '1 యోహాను 4:12', text: 'మనము ఒకరినొకరు ప్రేమించుకొనినయెడల దేవుడు మనలో నివసించును.' },
+                { ref: 'రోమీయులకు 12:10', text: 'సహోదర ప్రేమలో ఒకరియెడల ఒకరు అనురాగము కలిగి ఉండుడి.' },
+                { ref: 'రోమీయులకు 15:5', text: 'దేవుడు మీకు ఒకే మనస్సును అనుగ్రహించును గాక.' },
+                { ref: 'ఫిలిప్పీయులకు 2:2', text: 'ఒకే ప్రేమగలవారై, ఒకే మనస్సుతో ఉండుడి.' },
+                { ref: 'ఫిలిప్పీయులకు 4:7', text: 'దేవుని సమాధానము మీ హృదయములను కాపాడును.' },
+                { ref: 'గలతీయులకు 5:22–23', text: 'ఆత్మ ఫలము ప్రేమ, సంతోషము, సమాధానము, దీర్ఘశాంతము, దయ, మంచితనము, విశ్వాసము, సాత్వికము, ఆశానిగ్రహము.' },
+                { ref: 'సామెతలు 3:3', text: 'కృపాసత్యములు నిన్ను విడువకుండునట్లు వాటిని నీ హృదయముమీద వ్రాసికొనుము.' },
+                { ref: 'సామెతలు 17:17', text: 'స్నేహితుడు అన్ని కాలములందును ప్రేమించును.' },
+                { ref: 'సామెతలు 18:22', text: 'భార్యను పొందినవాడు మేలైనదానిని పొందెను; యెహోవా అనుగ్రహము పొందెను.' },
+                { ref: 'సామెతలు 31:10', text: 'గుణవతియైన భార్య అమూల్యమైనది.' },
+                { ref: 'కీర్తనలు 127:1', text: 'యెహోవా ఇల్లు కట్టకపోతే కట్టువారి శ్రమ వ్యర్థము.' },
+                { ref: 'కీర్తనలు 128:1', text: 'యెహోవాయందు భయభక్తులు కలిగి ఆయన మార్గములందు నడుచువారందరు ధన్యులు.' },
+                { ref: 'కీర్తనలు 133:1', text: 'సహోదరులు ఐక్యముగా నివసించుట ఎంత మేలైనది!' },
+                { ref: 'సంఖ్యాకాండము 6:24–26', text: 'యెహోవా నిన్ను ఆశీర్వదించి నిన్ను కాపాడును గాక... తన సమాధానమును నీకు అనుగ్రహించును గాక.' },
+                { ref: 'యోహాను 15:12', text: 'నేను మిమ్మును ప్రేమించినట్లు మీరు ఒకరినొకరు ప్రేమించుకొనుడి.' },
+            ],
+            baptism: [
+                { ref: 'మత్తయి 28:19', text: 'కాబట్టి మీరు వెళ్లి సమస్త జనులను శిష్యులనుగా చేయుడి; వారికి తండ్రి, కుమారుడు, పరిశుద్ధాత్మ నామమున బాప్తిస్మమిచ్చుడి.' },
+                { ref: 'మార్కు 16:16', text: 'విశ్వసించి బాప్తిస్మము పొందినవాడు రక్షింపబడును; విశ్వసింపనివాడు శిక్షింపబడును.' },
+                { ref: 'అపొస్తలుల కార్యములు 2:38', text: 'మీరు మనస్సు మార్చుకొని, మీ పాపముల క్షమాపణ కొరకు యేసుక్రీస్తు నామమున బాప్తిస్మము పొందుడి; అప్పుడు పరిశుద్ధాత్మ వరమును పొందుదురు.' },
+                { ref: 'అపొస్తలుల కార్యములు 2:41', text: 'ఆయన మాటను ఆనందముగా అంగీకరించినవారు బాప్తిస్మము పొందిరి.' },
+                { ref: 'అపొస్తలుల కార్యములు 8:36', text: 'ఇదిగో నీరు ఉంది; నేను బాప్తిస్మము పొందుటకు ఏమి ఆటంకము?' },
+                { ref: 'అపొస్తలుల కార్యములు 8:38', text: 'వారు నీళ్లలోకి దిగిరి; ఫిలిప్పు అతనికి బాప్తిస్మము ఇచ్చెను.' },
+                { ref: 'అపొస్తలుల కార్యములు 10:47', text: 'పరిశుద్ధాత్మను పొందిన వీరికి బాప్తిస్మము ఇవ్వకుండా ఎవడు అడ్డగించగలడు?' },
+                { ref: 'అపొస్తలుల కార్యములు 22:16', text: 'లేచి బాప్తిస్మము పొంది, ఆయన నామమును ప్రార్థించుచు నీ పాపములను కడుగుకొనుము.' },
+                { ref: 'రోమీయులకు 6:3', text: 'క్రీస్తుయేసునందు బాప్తిస్మము పొందిన మనమందరము ఆయన మరణములో బాప్తిస్మము పొందినవారమని మీకు తెలియదా?' },
+                { ref: 'రోమీయులకు 6:4', text: 'క్రీస్తు లేపబడినట్లే మనమును నూతన జీవితములో నడుచుకొనుటకై బాప్తిస్మము ద్వారా ఆయనతో కూడ సమాధి చేయబడితిమి.' },
+                { ref: 'రోమీయులకు 6:11', text: 'మీరు పాపమునకు చనిపోయినవారై, క్రీస్తుయేసునందు దేవునికి బ్రతికియున్నవారమని ఎంచుకొనుడి.' },
+                { ref: '2 కొరింథీయులకు 5:17', text: 'ఎవడైనను క్రీస్తునందు ఉన్నయెడల అతడు నూతన సృష్టి; పాతవి గతించెను, ఇదిగో సమస్తము క్రొత్తవాయెను.' },
+                { ref: 'గలతీయులకు 3:26', text: 'మీరు అందరూ క్రీస్తుయేసునందు విశ్వాసమువలన దేవుని కుమారులై యున్నారు.' },
+                { ref: 'గలతీయులకు 3:27', text: 'క్రీస్తునందు బాప్తిస్మము పొందిన మీరందరూ క్రీస్తునుధరించుకొనియున్నారు.' },
+                { ref: 'ఎఫెసీయులకు 4:5', text: 'ఒక ప్రభువు, ఒక విశ్వాసము, ఒక బాప్తిస్మము.' },
+                { ref: 'కొలస్సయులకు 2:12', text: 'బాప్తిస్మములో ఆయనతో కూడ సమాధి చేయబడి, దేవుని శక్తిని విశ్వసించినందున ఆయనతో కూడ లేపబడితిరి.' },
+                { ref: 'తీతుకు 3:5', text: 'ఆయన తన కృపచేత పునర్జన్మస్నానమువలనను పరిశుద్ధాత్మ నూతనీకరణమువలనను మనలను రక్షించెను.' },
+                { ref: '1 పేతురు 3:21', text: 'బాప్తిస్మము ఇప్పుడు మిమ్మును రక్షించుచున్నది.' },
+                { ref: 'యోహాను 3:5', text: 'నీరు మరియు ఆత్మవలన జన్మించని వాడు దేవుని రాజ్యములో ప్రవేశింపలేడు.' },
+                { ref: 'యోహాను 3:16', text: 'దేవుడు లోకమును ఎంతో ప్రేమజేశాడు గనుక తన అద్వితీయ కుమారుని అనుగ్రహించెను.' },
+                { ref: 'యోహాను 1:12', text: 'ఆయనను అంగీకరించిన వారికి దేవుని పిల్లలగుటకు అధికారము ఇచ్చెను.' },
+                { ref: '1 యోహాను 1:7', text: 'ఆయన కుమారుడైన యేసు రక్తము మనలను సమస్త పాపములనుండి శుద్ధి చేయును.' },
+                { ref: 'హెబ్రీయులకు 10:22', text: 'శుద్ధమైన హృదయముతో విశ్వాసపూర్ణత కలిగి దేవుని సమీపించుదము.' },
+                { ref: 'ఫిలిప్పీయులకు 1:6', text: 'మీలో మంచి కార్యమును ప్రారంభించినవాడు దానిని సంపూర్ణము చేయును.' },
+                { ref: 'ఫిలిప్పీయులకు 3:14', text: 'దేవుని ఉన్నతమైన పిలుపు బహుమానము కొరకు లక్ష్యమువైపు పరుగెత్తుచున్నాను.' },
+                { ref: 'యాకోబు 1:22', text: 'వాక్యము వినుвариగానే కాక దాని ప్రకారము చేయువారుగా ఉండుడి.' },
+                { ref: 'కీర్తనలు 119:105', text: 'నీ వాక్యము నా పాదములకు దీపమును, నా మార్గమునకు వెలుగును.' },
+                { ref: 'యెహెజ్కేలు 36:26', text: 'మీకు క్రొత్త హృదయమును ఇచ్చి, క్రొత్త ఆత్మను మీలో ఉంచెదను.' },
+                { ref: 'యెషయా 43:1', text: 'నేను నిన్ను విమోచించితిని; పేరుపెట్టి నిన్ను పిలిచితిని; నీవు నావాడవు.' },
+                { ref: '2 తిమోతికి 1:9', text: 'ఆయన మనలను రక్షించి పరిశుద్ధమైన పిలుపుతో పిలిచెను.' },
+            ]
+        };
+        // Verse counters — use day of the year so verses rotate globally every day
+        const now = new Date();
+        const start = new Date(now.getFullYear(), 0, 0);
+        const diff = now.getTime() - start.getTime();
+        const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
+        let bdayVerseIdx = dayOfYear;
+        let weddingVerseIdx = dayOfYear;
+        let baptismVerseIdx = dayOfYear;
+        // --- 1. BIRTHDAYS ---
+        console.log(`🎂 Processing ${birthdays.length} birthday(s)...`);
+        for (let i = 0; i < birthdays.length; i++) {
+            const member = birthdays[i];
+            const phone = formatPhone(member.phone);
+            if (!phone) {
+                console.warn(`⚠️ Birthday: No valid phone for ${member.name} (raw: ${member.phone}), skipping.`);
+                continue;
+            }
+            // Generate personalized theme card for this member
+            const cardBuffer = await generateThemeCard(member.name, 'birthday', themeTopColor, themeBotColor);
+            const mediaId = await uploadCardBuffer(cardBuffer);
+            if (!mediaId) {
+                console.warn(`⚠️ Birthday: Could not upload card for ${member.name}, skipping.`);
+                continue;
+            }
+            const greeting = `Dear ${member.name},\n\n🎉 *జన్మదిన శుభాకాంక్షలు!* 🎂\n\nఈ ప్రత్యేకమైన రోజున దేవుని అపారమైన ప్రేమ, కృప, ఆశీర్వాదాలు మీ జీవితమంతా నింపుగాక. ఆయనే మీకు మంచి ఆరోగ్యం, ఆనందం, సమాధానం, దీర్ఘాయుష్షు అనుగ్రహించి, ప్రతి అడుగులోను తన చిత్తానుసారంగా నడిపించుగాక.\n\n*మీకు హృదయపూర్వక జన్మదిన శుభాకాంక్షలు!* 🎉🎂💐`;
+            const verseObj = VERSES_TELUGU.birthday[bdayVerseIdx % VERSES_TELUGU.birthday.length];
+            bdayVerseIdx++;
+            const verseStr = `"${verseObj.text}" - ${verseObj.ref}`;
+            const fbImageUrl = await uploadToFirebaseStorage(cardBuffer, member.name);
+            console.log(`📤 Sending birthday wish to ${member.name} (${phone})...`);
+            await sendWish(phone, mediaId, greeting, verseStr, member.name, fbImageUrl, 'birthday');
+            // CC all admins for this birthday
+            await sendAdminCC(phone, member.name, 'birthday', greeting, verseStr, mediaId, fbImageUrl);
+        }
+        // --- 2. WEDDING ANNIVERSARIES ---
+        console.log(`💍 Processing ${anniversaries.length} wedding anniversary(ies)...`);
+        for (let i = 0; i < anniversaries.length; i++) {
+            const ann = anniversaries[i];
+            let greetingName = '';
+            let cardName = '';
+            if (ann.husband && ann.wife && ann.husband !== 'Spouse' && ann.wife !== 'Spouse') {
+                greetingName = `Brother ${ann.husband} & Sister ${ann.wife}`;
+                cardName = `${ann.husband} & ${ann.wife}`;
+            }
+            else if (ann.husband && ann.husband !== 'Spouse') {
+                greetingName = `Brother ${ann.husband}`;
+                cardName = `${ann.husband}`;
+            }
+            else if (ann.wife && ann.wife !== 'Spouse') {
+                greetingName = `Sister ${ann.wife}`;
+                cardName = `${ann.wife}`;
+            }
+            const greeting = `Dear ${greetingName},\n\n💍 *వివాహ వార్షికోత్సవ శుభాకాంక్షలు!* 💐\n\nదేవుడు మిమ్మల్ని ప్రేమ, ఆనందం, సమాధానం మరియు ఐక్యతతో ఎల్లప్పుడూ ఆశీర్వదించుగాక. మీ దాంపత్య జీవితం ఆయన కృపతో మరింత బలపడి, సంతోషం, ఆరోగ్యం, సమృద్ధితో నిండియుండుగాక.\n\n*మీ ఇద్దరికీ హృదయపూర్వక వివాహ వార్షికోత్సవ శుభాకాంక్షలు!* ❤️🎉`;
+            const verseObj = VERSES_TELUGU.wedding[weddingVerseIdx % VERSES_TELUGU.wedding.length];
+            weddingVerseIdx++;
+            const verseStr = `"${verseObj.text}" - ${verseObj.ref}`;
+            // Generate a shared card for this couple (using formatted name as title)
+            const coupleCardBuffer = await generateThemeCard(cardName, 'wedding', themeTopColor, themeBotColor);
+            const coupleMediaId = await uploadCardBuffer(coupleCardBuffer);
+            const fbImageUrl = await uploadToFirebaseStorage(coupleCardBuffer, cardName);
+            // Send to husband using phone from Salesforce directly
+            const husbandPhone = formatPhone(ann.husbandPhone);
+            if (husbandPhone && coupleMediaId) {
+                console.log(`📤 Sending anniversary wish to ${ann.husband} (${husbandPhone})...`);
+                await sendWish(husbandPhone, coupleMediaId, greeting, verseStr, ann.husband, fbImageUrl, 'anniversary');
+            }
+            else {
+                console.warn(`⚠️ Anniversary: No valid phone for husband ${ann.husband} (raw: ${ann.husbandPhone})`);
+            }
+            // Send to wife using phone from Salesforce directly
+            const wifePhone = formatPhone(ann.wifePhone);
+            if (wifePhone && coupleMediaId) {
+                console.log(`📤 Sending anniversary wish to ${ann.wife} (${wifePhone})...`);
+                await sendWish(wifePhone, coupleMediaId, greeting, verseStr, ann.wife, fbImageUrl, 'anniversary');
+            }
+            else {
+                console.warn(`⚠️ Anniversary: No valid phone for wife ${ann.wife} (raw: ${ann.wifePhone})`);
+            }
+            // CC all admins for this wedding anniversary (use couple card)
+            if (coupleMediaId) {
+                const coupleLabel = cardName || (ann.husband !== 'Spouse' ? ann.husband : ann.wife);
+                await sendAdminCC(husbandPhone || wifePhone || '', coupleLabel, 'anniversary', greeting, verseStr, coupleMediaId, fbImageUrl);
+            }
+        }
+        // --- 3. BAPTISM ANNIVERSARIES ---
+        console.log(`✝️ Processing ${baptisms.length} baptism anniversary(ies)...`);
+        for (let i = 0; i < baptisms.length; i++) {
+            const member = baptisms[i];
+            const phone = formatPhone(member.phone);
+            if (!phone) {
+                console.warn(`⚠️ Baptism: No valid phone for ${member.name} (raw: ${member.phone}), skipping.`);
+                continue;
+            }
+            let years = 1;
+            if (member.baptismDate) {
+                const parts = member.baptismDate.split('-');
+                if (parts.length > 0) {
+                    const bapYear = parseInt(parts[0], 10);
+                    years = new Date().getFullYear() - bapYear;
+                }
+            }
+            if (isNaN(years) || years <= 0)
+                years = 1;
+            // Generate personalized theme card for this member
+            const cardBuffer = await generateThemeCard(member.name, 'baptism', themeTopColor, themeBotColor);
+            const mediaId = await uploadCardBuffer(cardBuffer);
+            if (!mediaId) {
+                console.warn(`⚠️ Baptism: Could not upload card for ${member.name}, skipping.`);
+                continue;
+            }
+            const greeting = `Dear ${member.name},\n\n💧 *బాప్తిస్మ వార్షికోత్సవ శుభాకాంక్షలు!* ✝️\n\nప్రభువైన యేసుక్రీస్తునందు మీరు తీసుకున్న విశ్వాస నిర్ణయాన్ని ఈ ప్రత్యేకమైన రోజున ఆనందంతో జ్ఞాపకం చేసుకుంటూ, దేవుని కృప, ప్రేమ, సమాధానం మీ జీవితంలో సమృద్ధిగా ఉండుగాక. ఆయన మిమ్మల్ని తన చిత్తానుసారంగా నడిపించి, ఆత్మీయంగా మరింత వృద్ధి చెందేలా ఆశీర్వదించుగాక.\n\n*మీకు హృదయపూర్వక బాప్తిస్మ వార్షికోత్సవ శుభాకాంక్షలు!* 💙🙏`;
+            const verseObj = VERSES_TELUGU.baptism[baptismVerseIdx % VERSES_TELUGU.baptism.length];
+            baptismVerseIdx++;
+            const verseStr = `"${verseObj.text}" - ${verseObj.ref}`;
+            const fbImageUrl = await uploadToFirebaseStorage(cardBuffer, member.name);
+            console.log(`📤 Sending baptism wish to ${member.name} (${phone})...`);
+            await sendWish(phone, mediaId, greeting, verseStr, member.name, fbImageUrl, 'baptism');
+            // CC all admins for this baptism anniversary
+            await sendAdminCC(phone, member.name, 'baptism', greeting, verseStr, mediaId, fbImageUrl);
+        }
+        // --- 4. 🔔 STREAM A & STREAM B PUSH NOTIFICATIONS FOR DAILY CELEBRATIONS ---
+        const currentDate = new Date();
+        const todayDateKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+        // Collect all celebrants for today
+        const celebSummaryList = [];
+        birthdays.forEach((b) => celebSummaryList.push({ name: b.name, type: 'Birthday' }));
+        anniversaries.forEach((a) => {
+            let coupleName = '';
+            if (a.husband && a.wife && a.husband !== 'Spouse' && a.wife !== 'Spouse')
+                coupleName = `${a.husband} & ${a.wife}`;
+            else
+                coupleName = a.husband || a.wife || 'Couple';
+            celebSummaryList.push({ name: coupleName, type: 'Wedding Anniversary' });
+        });
+        baptisms.forEach((b) => celebSummaryList.push({ name: b.name, type: 'Baptism Anniversary' }));
+        const totalCelebs = celebSummaryList.length;
+        if (totalCelebs > 0) {
+            // ── STREAM A: Notification to All Members
+            let broadcastTitle = "🎉 Today's Celebration";
+            let broadcastBody = "";
+            let actionLabel = "JOIN CELEBRATION";
+            const c0 = celebSummaryList[0];
+            const c1 = celebSummaryList[1];
+            if (totalCelebs === 1 && c0) {
+                broadcastTitle = "🎉 Today's Celebration";
+                broadcastBody = `Today we celebrate ${c0.name}'s ${c0.type}!\nJoin our church family in sending wishes and blessings.`;
+                actionLabel = "JOIN CELEBRATION";
+            }
+            else if (totalCelebs === 2 && c0 && c1) {
+                broadcastTitle = "🎉 Today's Celebrations";
+                broadcastBody = `Today we celebrate ${c0.name}'s ${c0.type} and ${c1.name}'s ${c1.type}!\nJoin our church family and share your wishes and blessings.`;
+                actionLabel = "JOIN LIVE CHAT";
+            }
+            else {
+                broadcastTitle = "🎉 Today's Celebrations";
+                const lines = celebSummaryList.map(c => `• ${c.name} — ${c.type}`).join('\n');
+                broadcastBody = `${lines}\n\nLet's celebrate our church family together!`;
+                actionLabel = "JOIN LIVE CHAT";
+            }
+            console.log(`📣 Sending Stream A Broadcast Push Notification for ${todayDateKey}...`);
+            await sendPushToAllMembers({
+                notification: {
+                    title: broadcastTitle,
+                    body: broadcastBody,
+                },
+                data: {
+                    type: 'daily_celebration',
+                    dateKey: todayDateKey,
+                    actionButton: actionLabel,
+                }
+            });
+            // ── STREAM B: Personalized Notifications to Celebrated Recipients
+            for (const b of birthdays) {
+                const phone = formatPhone(b.phone);
+                const searchPhone = phone ? phone.slice(-10) : '';
+                const token = userMap.get(b.name.toLowerCase()) || (searchPhone ? userMap.get(searchPhone) : null);
+                if (token) {
+                    await getMsg().send({
+                        notification: {
+                            title: "🎂 Your Birthday Celebration is Live!",
+                            body: "Your church family is celebrating with you today. ❤️\nCome see the wishes and blessings from everyone."
+                        },
+                        data: {
+                            type: 'daily_celebration',
+                            dateKey: todayDateKey,
+                            celebrationId: `BDAY_${b.name}_${todayDateKey}`,
+                            actionButton: 'JOIN_CELEBRATION'
+                        },
+                        token
+                    }).catch((err) => console.warn(`Failed Stream B push to ${b.name}:`, err.message));
+                }
+            }
+            for (const a of anniversaries) {
+                const hPhone = formatPhone(a.husbandPhone);
+                const wPhone = formatPhone(a.wifePhone);
+                const hToken = a.husband ? (userMap.get(a.husband.toLowerCase()) || (hPhone ? userMap.get(hPhone.slice(-10)) : null)) : null;
+                const wToken = a.wife ? (userMap.get(a.wife.toLowerCase()) || (wPhone ? userMap.get(wPhone.slice(-10)) : null)) : null;
+                if (hToken) {
+                    await getMsg().send({
+                        notification: {
+                            title: "💍 Your Anniversary Celebration is Live!",
+                            body: `Your church family is celebrating with you and ${a.wife || 'your spouse'} today. ❤️`
+                        },
+                        data: {
+                            type: 'daily_celebration',
+                            dateKey: todayDateKey,
+                            celebrationId: `ANNIV_${a.husband}_${todayDateKey}`,
+                            actionButton: 'JOIN_CELEBRATION'
+                        },
+                        token: hToken
+                    }).catch((err) => console.warn(`Failed Stream B push to husband ${a.husband}:`, err.message));
+                }
+                if (wToken) {
+                    await getMsg().send({
+                        notification: {
+                            title: "💍 Your Anniversary Celebration is Live!",
+                            body: `Your church family is celebrating with you and ${a.husband || 'your spouse'} today. ❤️`
+                        },
+                        data: {
+                            type: 'daily_celebration',
+                            dateKey: todayDateKey,
+                            celebrationId: `ANNIV_${a.wife}_${todayDateKey}`,
+                            actionButton: 'JOIN_CELEBRATION'
+                        },
+                        token: wToken
+                    }).catch((err) => console.warn(`Failed Stream B push to wife ${a.wife}:`, err.message));
+                }
+            }
+            for (const bap of baptisms) {
+                const phone = formatPhone(bap.phone);
+                const searchPhone = phone ? phone.slice(-10) : '';
+                const token = userMap.get(bap.name.toLowerCase()) || (searchPhone ? userMap.get(searchPhone) : null);
+                if (token) {
+                    await getMsg().send({
+                        notification: {
+                            title: "💧 Your Baptism Anniversary is Live!",
+                            body: "Your church family is celebrating your spiritual journey today. 🕊️"
+                        },
+                        data: {
+                            type: 'daily_celebration',
+                            dateKey: todayDateKey,
+                            celebrationId: `BAP_${bap.name}_${todayDateKey}`,
+                            actionButton: 'JOIN_CELEBRATION'
+                        },
+                        token
+                    }).catch((err) => console.warn(`Failed Stream B push to ${bap.name}:`, err.message));
+                }
+            }
+        }
+    }
+    catch (error) {
+        console.error('Error in runDailyWishes:', error);
+    }
+}
+/**
+ * ⏰ AUTOMATED DAILY WHATSAPP CELEBRATIONS WISHES SCHEDULER
+ * Runs every day at 07:00 AM IST
+ */
+export const automatedDailyWhatsAppWishes = onSchedule({ schedule: '0 7 * * *', timeZone: 'Asia/Kolkata' }, async (event) => {
+    await runDailyWishes();
+});
 /**
  * 📣 ON BROADCAST CREATED TRIGGER (Gen 1 to bypass Eventarc permission issues)
  * Automatically sends push notifications when a new broadcast is added to Firestore (e.g. Emergency Meeting or custom admin updates)
@@ -403,6 +1242,11 @@ export const onBroadcastCreated = functionsCompat.firestore
     const body = data.content || '';
     const type = data.type || 'general';
     console.log(`🔔 onBroadcastCreated (Gen 1) fired for: [${title}] type: [${type}]`);
+    const isPersonal = type === 'birthday' || type === 'anniversary' || type === 'baptism' || type === 'whatsapp_reply';
+    if (isPersonal && (!data.targetPhone || data.targetPhone.trim().length === 0)) {
+        console.log('🛑 Skipping broadcast push: personal message with no target phone');
+        return;
+    }
     try {
         const db = getDb();
         let query = db.collection('users');
@@ -438,14 +1282,15 @@ export const onBroadcastCreated = functionsCompat.firestore
             },
             data: {
                 type,
-                id: context.params.broadcastId
+                id: context.params.broadcastId,
+                targetPhone: data.targetPhone || ''
             },
             android: {
                 priority: 'high',
                 notification: {
                     sound: 'default',
                     priority: 'max',
-                    channelId: 'church_alerts'
+                    channelId: 'default'
                 }
             },
             apns: {
@@ -575,7 +1420,7 @@ export const checkYouTubeLive = onSchedule('*/5 * * * *', async (event) => {
                         notification: {
                             sound: 'default',
                             priority: 'max',
-                            channelId: 'church_alerts'
+                            channelId: 'default'
                         }
                     },
                     apns: {
@@ -669,4 +1514,310 @@ export const triggerTestYouTubeLive = onCall({ invoker: 'public' }, async (reque
     }
 });
 export * from './whatsapp.js';
+/**
+ * ============================================================================
+ * 📱 ONLINE BIBLE CLASSES
+ * ============================================================================
+ */
+async function sendPushToAllMembers(payload) {
+    try {
+        const snapshot = await getDb().collection('users').get();
+        const tokenSet = new Set();
+        snapshot.forEach((doc) => {
+            if (doc.data().fcmToken)
+                tokenSet.add(doc.data().fcmToken);
+        });
+        const tokens = Array.from(tokenSet);
+        if (tokens.length === 0)
+            return;
+        const message = {
+            notification: payload.notification,
+            data: payload.data || {},
+            android: {
+                priority: 'high',
+                notification: { sound: 'default', priority: 'max', channelId: 'church_alerts' }
+            },
+            apns: {
+                headers: { 'apns-priority': '10' },
+                payload: { aps: { sound: 'default', badge: 1 } }
+            },
+            tokens
+        };
+        await getMsg().sendEachForMulticast(message);
+    }
+    catch (error) {
+        console.error('sendPushToAllMembers Error:', error);
+    }
+}
+export const createBibleClass = onCall({ invoker: 'public', memory: '256MiB' }, async (request) => {
+    try {
+        const { churchId, title, description, teacherId, teacherName, bibleBook, topic, imageUrl, date, startTime, endTime, recurrence, meetingLink, startTimestamp } = request.data;
+        // 2. Save to Firestore
+        const classRef = getDb().collection(`churches/${churchId}/bibleClasses`).doc();
+        const classData = {
+            classId: classRef.id,
+            churchId,
+            title,
+            description: description || null,
+            teacherId,
+            teacherName,
+            bibleBook: bibleBook || null,
+            topic: topic || null,
+            imageUrl: imageUrl || null,
+            date,
+            startTime,
+            endTime,
+            recurrence: recurrence || 'NONE',
+            status: 'SCHEDULED',
+            meetingUri: meetingLink,
+            startTimestamp: startTimestamp || null,
+            notified1Hour: false,
+            notified10Min: false,
+            createdBy: request.auth?.uid || 'admin',
+            createdAt: FieldValue.serverTimestamp(),
+        };
+        await classRef.set(classData);
+        // 3. Send Notification to all members
+        // Convert e.g., '24-05-2023' into a Date to get the day of the week
+        let dayName = 'Today';
+        try {
+            if (date) {
+                const [d, m, y] = date.split('-');
+                const parsedDate = new Date(`${y}-${m}-${d}`);
+                if (!isNaN(parsedDate.getTime())) {
+                    dayName = parsedDate.toLocaleDateString('en-US', { weekday: 'long' });
+                }
+            }
+        }
+        catch (e) { }
+        const payload = {
+            notification: {
+                title: '📖 New Bible Class',
+                body: `A new Bible class has been scheduled for ${dayName} at ${startTime}. Tap to view details.`,
+            },
+            data: {
+                type: 'BIBLE_CLASS',
+                classId: classRef.id,
+            }
+        };
+        try {
+            await sendPushToAllMembers(payload);
+        }
+        catch (e) {
+            console.error("FCM Error in createBibleClass:", e);
+        }
+        return { success: true, classId: classRef.id, meetingUri: meetingLink };
+    }
+    catch (error) {
+        console.error('createBibleClass Error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+export const updateBibleClassStatus = onCall({ invoker: 'public', memory: '256MiB' }, async (request) => {
+    try {
+        const { churchId, classId, status } = request.data;
+        const classRef = getDb().collection(`churches/${churchId}/bibleClasses`).doc(classId);
+        await classRef.update({ status });
+        if (status === 'LIVE') {
+            const doc = await classRef.get();
+            const classData = doc.data();
+            if (classData && classData.title) {
+                const payload = {
+                    notification: {
+                        title: '🔴 Bible Class is Live',
+                        body: `${classData.title} is live now. Tap to join.`,
+                    },
+                    data: {
+                        type: 'BIBLE_CLASS',
+                        classId: classId,
+                    }
+                };
+                try {
+                    await sendPushToAllMembers(payload);
+                }
+                catch (e) {
+                    console.error("FCM Error in updateBibleClassStatus:", e);
+                }
+            }
+        }
+        return { success: true };
+    }
+    catch (error) {
+        throw new HttpsError('internal', error.message);
+    }
+});
+export const recordBibleClassAttendance = onCall({ invoker: 'public' }, async (request) => {
+    try {
+        const { churchId, classId, memberId, memberName, joinedAt } = request.data;
+        const ref = getDb().collection(`churches/${churchId}/bibleClasses/${classId}/attendance`).doc(memberId);
+        await ref.set({
+            memberId,
+            memberName,
+            joinedAt: joinedAt || FieldValue.serverTimestamp(),
+        }, { merge: true });
+        return { success: true };
+    }
+    catch (error) {
+        throw new HttpsError('internal', error.message);
+    }
+});
+export const bibleClassNotificationsScheduler = onSchedule({ schedule: '* * * * *', timeZone: 'Asia/Kolkata', memory: '256MiB' }, async (event) => {
+    try {
+        const db = getDb();
+        const snapshot = await db.collection('churches/default/bibleClasses')
+            .where('status', '==', 'SCHEDULED')
+            .get();
+        if (snapshot.empty)
+            return;
+        const now = Date.now();
+        const promises = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (!data.startTimestamp)
+                return;
+            const timeLeftMs = data.startTimestamp - now;
+            const timeLeftMinutes = Math.floor(timeLeftMs / 1000 / 60);
+            if (timeLeftMinutes < -120)
+                return;
+            const updates = {};
+            let title = '';
+            let body = '';
+            if (timeLeftMinutes <= 10 && timeLeftMinutes >= 0 && !data.notified10Min) {
+                title = '🔔 Bible Class Starting Soon';
+                body = `${data.title} starts in 10 minutes. Tap to join the class.`;
+                updates.notified10Min = true;
+                if (!data.notified1Hour)
+                    updates.notified1Hour = true;
+            }
+            else if (timeLeftMinutes <= 60 && timeLeftMinutes > 10 && !data.notified1Hour) {
+                title = '⏰ Bible Class in 1 Hour';
+                body = `${data.title} begins at ${data.startTime}. Get ready to join!`;
+                updates.notified1Hour = true;
+            }
+            if (title && body) {
+                const payload = {
+                    notification: { title, body },
+                    data: {
+                        type: 'BIBLE_CLASS',
+                        classId: doc.id,
+                    }
+                };
+                promises.push(sendPushToAllMembers(payload)
+                    .then(() => doc.ref.update(updates))
+                    .catch((e) => console.error("FCM Error in scheduler:", e)));
+            }
+        });
+        await Promise.all(promises);
+    }
+    catch (error) {
+        console.error('bibleClassNotificationsScheduler Error:', error);
+    }
+});
+/**
+ * 💌 BATCHED WISH PUSH NOTIFICATIONS
+ * Triggers when a member sends a wish in DailyCelebrationChatScreen.
+ * Collects wishes per recipient in 5-minute sliding windows to prevent push spam.
+ */
+export const onCelebrationWishCreated = functionsCompat.firestore
+    .document('daily_celebration_chats/{dateKey}/messages/{messageId}')
+    .onCreate(async (snap, context) => {
+    try {
+        const data = snap.data();
+        const celebrationId = data?.celebrationId;
+        const senderUid = data?.senderUid;
+        const senderName = data?.senderName || 'A member';
+        const dateKey = context.params.dateKey;
+        if (!celebrationId)
+            return;
+        const db = getDb();
+        const batchRef = db.collection('celebration_wish_batches').doc(`${dateKey}_${celebrationId}`);
+        const now = Date.now();
+        await db.runTransaction(async (transaction) => {
+            const doc = await transaction.get(batchRef);
+            if (!doc.exists) {
+                transaction.set(batchRef, {
+                    pendingCount: 1,
+                    lastNotifiedAt: now,
+                    initialSent: true,
+                });
+                // Extract celebrant name from celebrationId (format: CATEGORY_NAME_DATE)
+                const parts = celebrationId.split('_');
+                const celebrantName = parts.length >= 3 ? parts[1] : '';
+                // Look up celebrant FCM token
+                const userSnap = await db.collection('users').get();
+                let targetToken = null;
+                userSnap.forEach((uDoc) => {
+                    const uData = uDoc.data();
+                    if (uData.fcmToken && uDoc.id !== senderUid) {
+                        if (celebrantName && uData.name && uData.name.toLowerCase().includes(celebrantName.toLowerCase())) {
+                            targetToken = uData.fcmToken;
+                        }
+                    }
+                });
+                if (targetToken) {
+                    await getMsg().send({
+                        notification: {
+                            title: "🎉 New Celebration Wishes",
+                            body: `${senderName} sent you a celebration wish! ❤️\nTap to view wishes and blessings.`
+                        },
+                        data: {
+                            type: 'daily_celebration',
+                            dateKey: dateKey,
+                            celebrationId: celebrationId,
+                            actionButton: 'VIEW_WISHES'
+                        },
+                        token: targetToken
+                    }).catch((err) => console.warn('Failed initial wish push:', err.message));
+                }
+            }
+            else {
+                const bData = doc.data();
+                const lastNotified = bData.lastNotifiedAt || 0;
+                const pendingCount = (bData.pendingCount || 0) + 1;
+                // 5-minute sliding window (300,000 ms)
+                if (now - lastNotified > 300000) {
+                    transaction.update(batchRef, {
+                        pendingCount: 0,
+                        lastNotifiedAt: now,
+                    });
+                    // Extract celebrant name
+                    const parts = celebrationId.split('_');
+                    const celebrantName = parts.length >= 3 ? parts[1] : '';
+                    // Look up celebrant FCM token
+                    const userSnap = await db.collection('users').get();
+                    let targetToken = null;
+                    userSnap.forEach((uDoc) => {
+                        const uData = uDoc.data();
+                        if (uData.fcmToken && uDoc.id !== senderUid) {
+                            if (celebrantName && uData.name && uData.name.toLowerCase().includes(celebrantName.toLowerCase())) {
+                                targetToken = uData.fcmToken;
+                            }
+                        }
+                    });
+                    if (targetToken) {
+                        await getMsg().send({
+                            notification: {
+                                title: "❤️ More Celebration Wishes!",
+                                body: `${pendingCount} more church members have sent you blessings.`
+                            },
+                            data: {
+                                type: 'daily_celebration',
+                                dateKey: dateKey,
+                                celebrationId: celebrationId,
+                                actionButton: 'VIEW_WISHES'
+                            },
+                            token: targetToken
+                        }).catch((err) => console.warn('Failed batched wish push:', err.message));
+                    }
+                }
+                else {
+                    transaction.update(batchRef, { pendingCount });
+                }
+            }
+        });
+    }
+    catch (err) {
+        console.error('Error in onCelebrationWishCreated:', err.message);
+    }
+});
 //# sourceMappingURL=index.js.map

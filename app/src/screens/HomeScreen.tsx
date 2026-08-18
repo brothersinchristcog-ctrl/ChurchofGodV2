@@ -21,6 +21,7 @@ import {
   PanResponder,
   InteractionManager
 } from 'react-native';
+
 import { 
   Bell, 
   Book, 
@@ -48,7 +49,10 @@ import {
   Info,
   Shield,
   ShieldCheck,
-  Check
+  Check,
+  Droplet,
+  Image as ImageIcon,
+  Video,
 } from 'lucide-react-native';
 
 import firestore from '@react-native-firebase/firestore';
@@ -56,8 +60,9 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import Theme from '../theme/Theme';
 import SalesforceService, { DailyPromise, ScheduleEvent, SalesforceMember, Sermon } from '../services/SalesforceService';
-import Svg, { Path, Circle, Rect, Polygon } from 'react-native-svg';
+import Svg, { Path, Circle, Rect, Polygon, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const YoutubeIcon = ({ size = 26, color = '#fff' }: { size?: number; color?: string }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
@@ -75,6 +80,7 @@ const stripHtml = (html: string | undefined): string => {
 };
 
 import { useTheme } from '../context/ThemeContext';
+import FloatingCelebrationButton from '../components/FloatingCelebrationButton';
 
 const EventMarqueeItem = React.memo(({ ev, index, isLive, formatTimeStr, onEventPress }: any) => (
   <TouchableOpacity
@@ -224,6 +230,96 @@ const EventMarquee = ({ events, onEventPress }: { events: any[], onEventPress: (
   );
 };
 
+const InfographicNav = ({ navigation, setShowMorePopup, isDark }: any) => {
+  const { width } = Dimensions.get('window');
+  
+  // Height of the container
+  const H = 140; 
+  
+  // Curve points for the arch
+  const startX = -20;
+  const startY = 70;
+  const endX = width + 20;
+  const endY = 70;
+  const controlX = width / 2;
+  const controlY = -30;
+
+  const dCombined = `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
+
+  // Positions for the buttons
+  const cyMid = 25; 
+  const cySide = 50;
+  
+  const cx1 = width * 0.20;
+  const cx2 = width * 0.5;
+  const cx3 = width * 0.80;
+
+  const renderNode = (
+    cx: number, cy: number, 
+    title: string, 
+    desc: string, 
+    icon: any, 
+    onPress: () => void
+  ) => {
+    const r = 26; // radius of the button
+    
+    return (
+      <View style={{ position: 'absolute', left: cx - 60, top: cy - r, width: 120, alignItems: 'center' }}>
+        <TouchableOpacity 
+          style={{ 
+            width: r * 2, 
+            height: r * 2, 
+            borderRadius: r, 
+            backgroundColor: isDark ? '#1e293b' : '#fff', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            borderWidth: 3,
+            borderColor: isDark ? '#64748b' : '#94a3b8',
+            shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 6,
+            marginBottom: 10
+          }}
+          onPress={onPress}
+          activeOpacity={0.8}
+        >
+          {icon}
+        </TouchableOpacity>
+        <Text style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#f8fafc' : '#1a2d5a', textAlign: 'center', marginBottom: 2 }}>{title}</Text>
+        <Text style={{ fontSize: 10, color: isDark ? '#94a3b8' : '#64748b', textAlign: 'center' }}>{desc}</Text>
+      </View>
+    );
+  };
+
+  return (
+    <View style={{ width, height: H, alignSelf: 'center', marginVertical: 10 }}>
+      <Svg width={width} height={H} style={{ position: 'absolute' }}>
+        <Defs>
+          {isDark ? (
+            <SvgLinearGradient id="gradCurved" x1="0" y1="0" x2="1" y2="0">
+              <Stop offset="0" stopColor="#60a5fa" stopOpacity="1" />
+              <Stop offset="0.5" stopColor="#3b82f6" stopOpacity="1" />
+              <Stop offset="1" stopColor="#60a5fa" stopOpacity="1" />
+            </SvgLinearGradient>
+          ) : (
+            <SvgLinearGradient id="gradCurved" x1="0" y1="0" x2="1" y2="0">
+              <Stop offset="0" stopColor="#ff512f" stopOpacity="1" />
+              <Stop offset="0.25" stopColor="#dd2476" stopOpacity="1" />
+              <Stop offset="0.5" stopColor="#8b5cf6" stopOpacity="1" />
+              <Stop offset="0.75" stopColor="#3b82f6" stopOpacity="1" />
+              <Stop offset="1" stopColor="#2dd4bf" stopOpacity="1" />
+            </SvgLinearGradient>
+          )}
+        </Defs>
+        {/* Simple dashed arch curve */}
+        <Path d={dCombined} fill="none" stroke="url(#gradCurved)" strokeWidth={2} strokeDasharray="6,6" strokeLinecap="round" />
+      </Svg>
+
+      {renderNode(cx1, cySide, 'About us', 'Our mission', <Users size={22} color="#ff512f" />, () => navigation.navigate('AboutUs'))}
+      {renderNode(cx2, cyMid, 'Contact us', 'Get in touch', <MessageSquare size={22} color="#8b5cf6" />, () => navigation.navigate('ContactUs'))}
+      {renderNode(cx3, cySide, 'Church gallery', 'Our memories', <ImageIcon size={22} color="#2dd4bf" />, () => navigation.navigate('MemberGalleryDashboard'))}
+    </View>
+  );
+};
+
 const UpcomingEventItem = React.memo(({ item, index, eventsLength, navigation, formatTime, formatTeluguDate }: any) => (
   <View>
     <TouchableOpacity 
@@ -270,26 +366,155 @@ const UpcomingEventItem = React.memo(({ item, index, eventsLength, navigation, f
   </View>
 ));
 
+function Embers() {
+  const embers = useRef([...Array(22)].map(() => ({
+    scale: new Animated.Value(0),
+    translateY: new Animated.Value(0),
+    translateX: new Animated.Value(0),
+    opacity: new Animated.Value(0),
+  }))).current;
+
+  useEffect(() => {
+    embers.forEach((ember) => {
+      const animateEmber = () => {
+        const drift = (Math.random() - 0.5) * 40;
+        const duration = 4000 + Math.random() * 4000;
+        
+        ember.scale.setValue(1);
+        ember.translateY.setValue(0);
+        ember.translateX.setValue(0);
+        ember.opacity.setValue(0);
+        
+        Animated.sequence([
+          Animated.delay(Math.random() * 7000),
+          Animated.parallel([
+            Animated.timing(ember.opacity, {
+              toValue: 1,
+              duration: duration * 0.15,
+              useNativeDriver: true,
+            }),
+            Animated.timing(ember.translateY, {
+              toValue: -200,
+              duration: duration,
+              easing: Easing.linear,
+              useNativeDriver: true,
+            }),
+            Animated.timing(ember.translateX, {
+              toValue: drift,
+              duration: duration,
+              easing: Easing.linear,
+              useNativeDriver: true,
+            }),
+            Animated.sequence([
+              Animated.delay(duration * 0.5),
+              Animated.timing(ember.opacity, {
+                toValue: 0,
+                duration: duration * 0.5,
+                useNativeDriver: true,
+              })
+            ]),
+            Animated.timing(ember.scale, {
+              toValue: 0.4,
+              duration: duration,
+              easing: Easing.linear,
+              useNativeDriver: true,
+            })
+          ])
+        ]).start(({ finished }) => {
+          if (finished) animateEmber();
+        });
+      };
+      
+      animateEmber();
+    });
+  }, []);
+
+  return (
+    <View style={[StyleSheet.absoluteFill, { overflow: 'hidden', borderRadius: 30 }]} pointerEvents="none">
+      {embers.map((ember, i) => {
+        const size = 2 + Math.random() * 3;
+        const left = 10 + Math.random() * 80;
+        return (
+          <Animated.View
+            key={i}
+            style={{
+              position: 'absolute',
+              bottom: -6,
+              left: `${left}%`,
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              backgroundColor: '#ffe6b0',
+              opacity: ember.opacity,
+              transform: [
+                { translateY: ember.translateY },
+                { translateX: ember.translateX },
+                { scale: ember.scale }
+              ]
+            }}
+          />
+        );
+      })}
+    </View>
+  );
+};
+
+const AnimatedSweepLine = () => {
+  const sweepAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(sweepAnim, {
+        toValue: 1,
+        duration: 6000, // Very slow, elegant speed
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, [sweepAnim]);
+
+  const translateX = sweepAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-150, width + 50],
+  });
+
+  return (
+    <Animated.View style={{ 
+      position: 'absolute', 
+      top: 0,
+      bottom: 0, 
+      left: 0, 
+      width: 150, // Small glowing head
+      transform: [{ translateX }] 
+    }}>
+      <LinearGradient
+        colors={['transparent', '#60a5fa', '#fff', '#60a5fa', 'transparent']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{ flex: 1 }}
+      />
+    </Animated.View>
+  );
+};
+
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
-  const { user, signOut, viewMode, setViewMode, member: authMember } = useAuth();
+  const { user, signOut, viewMode, setViewMode, member, setMember } = useAuth();
   const { mode, isDark, toggleTheme, colors } = useTheme();
-  const [member, setMember] = useState<SalesforceMember | null>(authMember);
   const [promise, setPromise] = useState<DailyPromise | null>(null);
   const [todayEvents, setTodayEvents] = useState<ScheduleEvent[]>([]);
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [latestSermon, setLatestSermon] = useState<Sermon | null>(null);
   const [latestPrayer, setLatestPrayer] = useState<any | null>(null);
   const [prayerCount, setPrayerCount] = useState(0);
-  const [loading, setLoading] = useState(!authMember); 
+  const [loading, setLoading] = useState(!member); 
   const [refreshing, setRefreshing] = useState(false);
   const [showGivePopup, setShowGivePopup] = useState(false);
   const [showMorePopup, setShowMorePopup] = useState(false);
   const [showDevotionPopup, setShowDevotionPopup] = useState(false);
   const [isLanguageModalVisible, setIsLanguageModalVisible] = useState(false);
 
-  const activeMember = member || authMember;
-  const userTypeStr = activeMember?.userType?.toLowerCase() || '';
+  const userTypeStr = member?.userType?.toLowerCase() || '';
   const isActualAdmin = userTypeStr === 'admin' || 
                         userTypeStr === 'pastor' || 
                         userTypeStr === 'system administrator' || 
@@ -330,6 +555,7 @@ export default function HomeScreen() {
         .then(res => {
           if (res?.exists && res.member) {
             setMember(res.member);
+            AsyncStorage.setItem('@cached_member', JSON.stringify(res.member)).catch(() => {});
             SalesforceService.updateLastAppOpened(res.member.id);
             // Fetch prayers based on member ID
             SalesforceService.getPrayerRequests({ contactId: res.member.id })
@@ -350,6 +576,10 @@ export default function HomeScreen() {
           setPromise(prom);
           setPromiseThumbnail(prom.imageUrl || null);
           AsyncStorage.setItem('@cached_daily_promise', JSON.stringify(prom)).catch(() => {});
+        } else {
+          setPromise(null);
+          setPromiseThumbnail(null);
+          AsyncStorage.removeItem('@cached_daily_promise').catch(() => {});
         }
       }).catch(console.error);
 
@@ -493,53 +723,125 @@ export default function HomeScreen() {
     <View style={[styles.mainContainer, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
       <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
       
-      <View style={styles.appHeader}>
-        <View style={styles.headerTopRow}>
-          <View style={styles.headerLeft}>
-            <View style={styles.logoCircle}>
-              <Image 
-                source={require('../../assets/logo.png')} 
-                style={styles.logoImg}
-                resizeMode="cover"
-              />
+      <LinearGradient
+        colors={isDark ? ['#1e40af', '#3b82f6'] : ['transparent', 'transparent']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{
+          borderBottomLeftRadius: 30,
+          borderBottomRightRadius: 30,
+          paddingBottom: isDark ? 4 : 0,
+          elevation: 8,
+          shadowColor: '#030a1e',
+          shadowOpacity: 0.75,
+          shadowRadius: 15,
+          shadowOffset: { width: 0, height: 10 },
+          overflow: 'hidden', // Add hidden so sweep doesn't bleed horizontally
+        }}
+      >
+        {isDark && <AnimatedSweepLine />}
+        <LinearGradient 
+          colors={['#0a2350', '#071638', '#040c22']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={[styles.appHeader, { elevation: 0, shadowOpacity: 0 }]}
+        >
+          <Embers />
+          <View style={styles.headerTopRow}>
+            <View style={styles.headerLeft}>
+              <View style={styles.emblemContainer}>
+                <Image 
+                  source={require('../../assets/logo.png')} 
+                  style={{ width: 48, height: 48, borderRadius: 24 }} 
+                  resizeMode="cover" 
+                />
+              </View>
+              <View style={styles.titleCol}>
+                <Text style={styles.hdTitle}>Church of GOD</Text>
+                <Text style={styles.hdSub}>Kristhunandu Sahodarulu Sahavasamu</Text>
+              </View>
             </View>
-            <View style={styles.titleCol}>
-              <Text style={styles.hdTitle}>Church of GOD</Text>
-              <Text style={styles.hdSub}>Kristhunandu Sahodarulu Sahavasamu</Text>
+
+            <View style={styles.headerRight}>
+              <TouchableOpacity style={styles.actionIconButton} onPress={() => navigation.navigate('Updates')}>
+                <Svg viewBox="0 0 24 24" fill="none" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" width={16} height={16}>
+                  <Path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#e8d9ac" />
+                  <Path d="M13.73 21a2 2 0 01-3.46 0" stroke="#e8d9ac" />
+                </Svg>
+                <View style={styles.notifBadge} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.avatarWrapper} onPress={() => navigation.navigate('Profile')}>
+                {user?.photoURL ? (
+                  <Image source={{ uri: user.photoURL }} style={styles.avatarImg} />
+                ) : (
+                  <LinearGradient colors={['#d4b26a', '#8a6a2e']} style={styles.avatarPlaceholder}>
+                    <Text style={styles.avatarLetter}>
+                      {(member?.firstName || user?.displayName || 'S').charAt(0).toUpperCase()}
+                    </Text>
+                  </LinearGradient>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
 
-          <View style={styles.headerRight}>
+          <LinearGradient 
+            colors={['rgba(212, 178, 106, 0)', 'rgba(212, 178, 106, 0.7)', 'rgba(212, 178, 106, 0)']} 
+            start={{ x: 0, y: 0 }} 
+            end={{ x: 1, y: 0 }} 
+            style={styles.headerRule} 
+          />
 
-            <TouchableOpacity style={styles.actionIconButton} onPress={() => navigation.navigate('Updates')}>
-              <Bell color="#fff" size={22} />
-              <View style={styles.notifBadge} />
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.avatarWrapper} onPress={() => navigation.navigate('Profile')}>
-              {user?.photoURL ? (
-                <Image source={{ uri: user.photoURL }} style={styles.avatarImg} />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarLetter}>
-                    {(member?.firstName || user?.displayName || 'S').charAt(0).toUpperCase()}
+          <View style={[styles.greetingSection, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+            <View style={{ flex: 1 }}>
+              <View style={{ height: 44, justifyContent: 'center' }}>
+                <Svg height="100%" width="100%">
+                  <Defs>
+                    <SvgLinearGradient id="greetingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <Stop offset="0%" stopColor="#fde047" />
+                      <Stop offset="50%" stopColor="#f59e0b" />
+                      <Stop offset="100%" stopColor="#ef4444" />
+                    </SvgLinearGradient>
+                  </Defs>
+                  <SvgText
+                    fill="url(#greetingGrad)"
+                    fontSize="34"
+                    fontFamily="DancingScript_600SemiBold"
+                    y="34"
+                  >
+                    {getGreeting()},
+                  </SvgText>
+                </Svg>
+              </View>
+              <Text style={styles.userNameGold}>{member?.name || user?.displayName || 'Member'}</Text>
+            </View>
+
+            <View style={{ alignItems: 'center', marginLeft: 16, marginRight: 24, transform: [{ scale: 1.2 }] }}>
+              <View style={{ width: 56, height: 62, justifyContent: 'center', alignItems: 'center' }}>
+                <Svg width="100%" height="100%" viewBox="0 0 100 100" style={{ position: 'absolute' }}>
+                  <Polygon
+                    points="50,5 90,28 90,72 50,95 10,72 10,28"
+                    fill="rgba(232, 217, 172, 0.12)"
+                    stroke="#e8d9ac"
+                    strokeWidth="4"
+                  />
+                </Svg>
+                <View style={{ alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+                  <Text style={{ color: '#e8d9ac', fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }}>
+                    {new Date().toLocaleDateString('en-US', { month: 'short' })}
+                  </Text>
+                  <Text style={{ color: '#ffffff', fontSize: 18, fontWeight: '800', marginTop: -3 }}>
+                    {new Date().getDate()}
                   </Text>
                 </View>
-              )}
-              <View style={styles.onlineBadge} />
-            </TouchableOpacity>
+              </View>
+              <Text style={{ color: '#7f96b8', fontSize: 11, fontWeight: '700', marginTop: 6, letterSpacing: 0.5 }}>
+                {new Date().toLocaleDateString('en-US', { weekday: 'long' })}
+              </Text>
+            </View>
           </View>
-        </View>
-
-        <View style={styles.greetingSection}>
-          <Text style={styles.greetingText}>
-            {getGreeting()}, <Text style={styles.userNameGold}>{member?.name || user?.displayName || 'Member'}</Text> 🙏
-          </Text>
-          <Text style={styles.dateText}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · {getTeluguDay()}
-          </Text>
-        </View>
-      </View>
+        </LinearGradient>
+      </LinearGradient>
 
       <ScrollView 
         style={styles.scroll} 
@@ -566,40 +868,82 @@ export default function HomeScreen() {
               style={{ borderRadius: 20 }}
             >
               {/* Slide 1 — Promise Text */}
-              <View style={[styles.phSlide, styles.phInner]}>
-                <Text style={styles.phLabel}>TODAY'S PROMISE · ఈ రోజు వాగ్దానం</Text>
-                <Text style={styles.phEn}>{promise ? `"${stripHtml(promise.verse)}"` : ''}</Text>
-                <Text style={styles.phRefEn}>{promise ? `— ${promise.verseReferenceEn || promise.verseReference}` : ''}</Text>
-                <View style={styles.phDivider} />
-                <Text style={styles.phTe}>{promise?.verseTelugu ? `"${stripHtml(promise.verseTelugu)}"` : ''}</Text>
-                <Text style={styles.phRefTe}>{promise?.verseReferenceTe ? `— ${promise.verseReferenceTe}` : ''}</Text>
-                <View style={styles.phActions}>
-                  <TouchableOpacity style={styles.phShareBtn} onPress={handleSharePromise}>
-                    <Share2 size={18} color="#fff" />
-                    <Text style={styles.phBtnTxt}>Share</Text>
-                  </TouchableOpacity>
+              <LinearGradient 
+                colors={['#0f172a', '#2b4a92']} 
+                start={{ x: 0, y: 0 }} 
+                end={{ x: 1, y: 1 }} 
+                style={[styles.phSlide, styles.phInner]}
+              >
+                {/* Top Right Circles Background */}
+                <View style={styles.phCircleBg1} />
+                <View style={styles.phCircleBg2} />
+
+                <View style={styles.phHeaderCenter}>
+                  <Text style={styles.phLabelCenter}>TODAY'S PROMISE</Text>
+                  <Text style={styles.phTeSubCenter}>ఈ రోజు వాగ్దానం</Text>
+                  <View style={styles.phRedDivider} />
+                </View>
+
+                <Text style={styles.phEnLeft}>{promise ? `"${stripHtml(promise.verse)}"` : ''}</Text>
+                <Text style={styles.phRefEnLeft}>{promise ? (promise.verseReferenceEn || promise.verseReference || '').toUpperCase() : ''}</Text>
+                <Text style={styles.phTeLeft}>{promise?.verseTelugu ? `"${stripHtml(promise.verseTelugu)}"` : ''}</Text>
+                <Text style={[styles.phRefEnLeft, { marginBottom: 32 }]}>{promise ? (promise.verseReferenceTe || '').toUpperCase() : ''}</Text>
+
+                <View style={styles.phActionsBottom}>
                   <TouchableOpacity 
-                    style={styles.phWatchBtn} 
+                    style={styles.phSmallBtn} 
                     onPress={() => navigation.navigate('DailyVideo', { 
                       youtubeId: promise?.youtubeId,
                       videoTitle: promise?.videoTitle,
                       pastor: promise?.pastor
                     })}
                   >
-                    <Play size={18} color="#fff" fill="#fff" />
-                    <Text style={styles.phBtnTxt}>Watch video</Text>
+                    <Play size={14} color="#fff" fill="#fff" />
+                    <Text style={styles.phSmallBtnTxt}>Watch</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.phSmallBtn} onPress={handleSharePromise}>
+                    <Share2 size={14} color="#fff" />
+                    <Text style={styles.phSmallBtnTxt}>Share</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
+              </LinearGradient>
 
               {/* Slide 2 — Thumbnail (only if image exists) */}
               {promiseThumbnail && (
-                <View style={[styles.phSlide, styles.phThumbnailSlide]}>
-                  <Image
-                    source={{ uri: promiseThumbnail }}
-                    style={styles.phThumbnailImg}
-                    resizeMode="cover"
+                <View style={[styles.phSlide, { borderRadius: 24, padding: 0, overflow: 'hidden' }]}>
+                  <LinearGradient 
+                    colors={['#0f172a', '#2b4a92']} 
+                    start={{ x: 0, y: 0 }} 
+                    end={{ x: 1, y: 1 }} 
+                    style={StyleSheet.absoluteFill}
                   />
+                  
+                  <View style={[styles.phHeaderCenter, { zIndex: 2, padding: 24, paddingBottom: 16 }]}>
+                    <Text style={styles.phLabelCenter}>TODAY'S PROMISE</Text>
+                    <Text style={styles.phTeSubCenter}>ఈ రోజు వాగ్దానం</Text>
+                    <View style={styles.phRedDivider} />
+                  </View>
+
+                  <View style={{
+                    width: '96%',
+                    alignSelf: 'center',
+                    aspectRatio: 16 / 9,
+                    shadowColor: '#000',
+                    shadowOpacity: 0.4,
+                    shadowRadius: 25,
+                    shadowOffset: { width: 0, height: 10 },
+                    elevation: 15,
+                    borderRadius: 16,
+                    backgroundColor: '#1e293b',
+                    marginBottom: 16,
+                  }}>
+                    <Image
+                      source={{ uri: promiseThumbnail }}
+                      style={{ width: '100%', height: '100%', borderRadius: 16 }}
+                      resizeMode="cover"
+                    />
+                  </View>
                 </View>
               )}
             </ScrollView>
@@ -616,7 +960,7 @@ export default function HomeScreen() {
             )}
           </View>
 
-          <Text style={styles.secLbl}>QUICK ACCESS</Text>
+          <Text style={[styles.secLbl, isDark && { color: '#fff' }]}>QUICK ACCESS</Text>
           <View style={styles.iconGrid}>
             <GridItem icon={<Mic size={26} color="#fff" />} label="Sermons" color="#1a2d5a" onPress={() => navigation.navigate('Sermons')} />
             <GridItem icon={<Heart size={26} color="#fff" />} label="Prayer Wall" color="#c0392b" onPress={() => navigation.navigate('Prayer')} />
@@ -631,23 +975,21 @@ export default function HomeScreen() {
             <GridItem icon={<Bell size={26} color="#fff" />} label="Updates" color="#0284c7" onPress={() => navigation.navigate('Updates')} />
             <GridItem icon={<YoutubeIcon size={26} color="#fff" />} label="YouTube Live" color="#ef4444" onPress={() => Linking.openURL('https://www.youtube.com/@Brothersinchristfellowship/live')} />
             <GridItem icon={<Users size={26} color="#fff" />} label="Members" color="#db2777" onPress={handleOpenMembers} />
-            <GridItem icon={<Sun size={26} color="#fff" />} label="Devotion" color="#b45309" onPress={() => setShowDevotionPopup(true)} />
-            <GridItem icon={<Info size={26} color="#fff" />} label="About Us" color="#1a2d5a" onPress={() => navigation.navigate('AboutUs')} />
-            <GridItem icon={<Phone size={26} color="#fff" />} label="Contact Us" color="#0F766E" onPress={() => navigation.navigate('ContactUs')} />
-            <GridItem icon={<MoreHorizontal size={26} color="#fff" />} label="More" color="#64748b" onPress={() => setShowMorePopup(true)} />
+            <GridItem icon={<Video size={26} color="#fff" />} label="Bible Classes" color="#b45309" onPress={() => navigation.navigate('BibleClasses')} />
           </View>
 
-          <View style={styles.eventBanner}>
-            <View style={styles.ebHd}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Calendar size={14} color="#FCD34D" />
-                <Text style={styles.ebHdLbl}>UPCOMING EVENTS · రాబోయే కార్యక్రమాలు</Text>
-              </View>
-              <TouchableOpacity onPress={() => navigation.navigate('Events')}>
-                <Text style={styles.ebSeeAll}>See all →</Text>
-              </TouchableOpacity>
-            </View>
+          <InfographicNav 
+            navigation={navigation} 
+            setShowMorePopup={setShowMorePopup} isDark={isDark} />
 
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 24, marginBottom: 12, marginTop: 15 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: isDark ? '#fff' : '#1a2d5a' }}>Upcoming Events</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Events')}>
+              <Text style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', fontWeight: '600' }}>See all →</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={[styles.eventBanner, { marginTop: 0 }]}>
             <View style={styles.ebList}>
               {events.length > 0 ? (
                 events.map((item: any, index: number) => (
@@ -671,16 +1013,13 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <View style={styles.sermonCard}>
-            <View style={styles.scHd}>
-              <View style={styles.scHdLblRow}>
-                <Mic size={16} color="#fff" />
-                <Text style={styles.scHdLbl}>LATEST SERMON · తాజా ప్రసంగం</Text>
-              </View>
-              <TouchableOpacity onPress={() => navigation.navigate('Sermons')}>
-                <Text style={styles.scSee}>See all →</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 24, marginBottom: 12, marginTop: 15 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: isDark ? '#fff' : '#1a2d5a' }}>Latest Sermon</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Sermons')}>
+              <Text style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', fontWeight: '600' }}>See all →</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={[styles.sermonCard, { marginTop: 0 }]}>
             <TouchableOpacity style={styles.scBody} onPress={() => navigation.navigate('Sermons')}>
               <View style={styles.scThumb}>
                 <View style={styles.playIconOverlay}>
@@ -699,14 +1038,11 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={[styles.prayerCard, { marginBottom: 40 }]}>
-            <View style={styles.pcHd}>
-              <View style={styles.pcHdLblRow}>
-                <Heart size={16} color="#fff" fill="rgba(255,255,255,0.3)" />
-                <Text style={styles.pcHdLbl}>PRAYER WALL · ప్రార్థన</Text>
-              </View>
-              <Text style={styles.pcCount}>{prayerCount} requests</Text>
-            </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 24, marginBottom: 12, marginTop: 15 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: isDark ? '#fff' : '#1a2d5a' }}>Prayer Wall</Text>
+            <Text style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', fontWeight: '600' }}>{prayerCount} requests</Text>
+          </View>
+          <View style={[styles.prayerCard, { marginTop: 0, marginBottom: 40 }]}>
             <TouchableOpacity style={styles.pcBody} onPress={() => navigation.navigate('Prayer')}>
               <View style={styles.pcTextContainer}>
                 <Text style={styles.pcText} numberOfLines={3}>
@@ -943,17 +1279,21 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
+      {/* Floating Celebration Button — overlaid above all content */}
+      <FloatingCelebrationButton navigation={navigation} />
+
     </View>
   );
 }
 
 function GridItem({ icon, label, color, onPress }: { icon: any; label: string; color: string; onPress: () => void }) {
+  const { isDark } = useTheme();
   return (
     <TouchableOpacity style={styles.iconItem} onPress={onPress}>
       <View style={[styles.iconBox, { backgroundColor: color }]}>
         {icon}
       </View>
-      <Text style={styles.iconLbl} numberOfLines={2}>{label}</Text>
+      <Text style={[styles.iconLbl, isDark && { color: '#fff' }]} numberOfLines={2}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -967,59 +1307,167 @@ const styles = StyleSheet.create({
   contentPad: { paddingBottom: 120 },
   
   appHeader: {
-    backgroundColor: '#1a2d5a',
     paddingTop: Platform.OS === 'ios' ? 60 : 45,
     paddingHorizontal: 20,
-    paddingBottom: 30,
+    paddingBottom: 16,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#030a1e',
+    shadowOpacity: 0.75,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 10 },
   },
-  headerTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15, justifyContent: 'space-between' },
+  headerTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', zIndex: 2 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  logoCircle: { width: 46, height: 46, backgroundColor: '#fff', borderRadius: 23, justifyContent: 'center', alignItems: 'center', elevation: 4, overflow: 'hidden' },
-  logoImg: { width: 46, height: 46, borderRadius: 23 },
-  titleCol: { marginLeft: 10 },
-  hdTitle: { color: '#FCD34D', fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
-  hdSub: { color: '#aac4e8', fontSize: 8.5, marginTop: 1, fontWeight: '500' },
+  emblemContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#071638',
+    borderWidth: 1.5,
+    borderColor: '#d4b26a',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  titleCol: { marginLeft: 12 },
+  hdTitle: { color: '#e8d9ac', fontSize: 19, fontWeight: '600' },
+  hdSub: { color: '#7f96b8', fontSize: 11, marginTop: 2 },
   
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  actionIconButton: { padding: 4, position: 'relative' },
-  themeIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
-  notifBadge: { position: 'absolute', top: 4, right: 4, width: 8, height: 8, backgroundColor: '#ef4444', borderRadius: 4, borderWidth: 1.5, borderColor: '#1a2d5a' },
-  avatarWrapper: { width: 38, height: 38, position: 'relative' },
-  avatarImg: { width: 38, height: 38, borderRadius: 19, borderWidth: 1.5, borderColor: '#FCD34D' },
-  avatarPlaceholder: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#FCD34D' },
-  avatarLetter: { color: '#FCD34D', fontWeight: '800', fontSize: 14 },
-  onlineBadge: { position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#22c55e', borderWidth: 1.5, borderColor: '#1a2d5a' },
+  actionIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(212,178,106,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(212,178,106,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    zIndex: 2,
+  },
+  notifBadge: { position: 'absolute', top: 6, right: 6, width: 6, height: 6, backgroundColor: '#e0637e', borderRadius: 3 },
+  avatarWrapper: { width: 38, height: 38, position: 'relative', zIndex: 2 },
+  avatarImg: { width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: '#0a2350' },
+  avatarPlaceholder: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#0a2350' },
+  avatarLetter: { color: '#fff', fontWeight: '800', fontSize: 14 },
   
-  greetingSection: { marginTop: 10 },
-  greetingText: { color: '#fff', fontSize: 17, fontWeight: '600', marginBottom: 2 },
-  userNameGold: { color: '#FCD34D', fontWeight: '800' },
-  dateText: { color: '#aac4e8', fontSize: 12, fontWeight: '500' },
+  headerRule: {
+    marginTop: 20,
+    marginBottom: 18,
+    height: 1.5,
+    zIndex: 2,
+  },
+  greetingSection: { zIndex: 2 },
+  greetingText: { 
+    fontSize: 34, 
+    fontFamily: 'DancingScript_600SemiBold',
+    lineHeight: 44,
+  },
+  userNameGold: { 
+    color: '#e8d9ac', 
+    fontSize: 22,
+    fontWeight: '700', 
+    marginTop: 4,
+    letterSpacing: 0.5,
+  },
+  dateText: { color: '#7f96b8', fontSize: 12.5, marginTop: 14 },
+  telDateText: { color: '#d4b26a' },
 
   promiseHero: {
     marginHorizontal: 16,
     marginTop: 20,
     borderRadius: 20,
-    // Removed background color and shadow from the wrapper so the image slide can be transparent
   },
   phSlide: {
     width: width - 32,
     borderRadius: 20,
+    minHeight: 160,
   },
   phInner: {
-    backgroundColor: '#1a2d5a',
-    borderRadius: 20,
-    padding: 24,
+    backgroundColor: '#1B2138', // Exact deep muted navy from the image
+    borderRadius: 24,
+    padding: 16,
     elevation: 8,
     shadowColor: '#000',
     shadowOpacity: 0.25,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  phCircleBg1: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.25)', // Increased visibility
+  },
+  phCircleBg2: {
+    position: 'absolute',
+    top: 20,
+    right: -80,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.25)', // Increased visibility
+  },
+  phHeaderCenter: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  phLabelCenter: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  phTeSubCenter: {
+    color: '#FCD34D',
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+  phRedDivider: {
+    width: 30,
+    height: 3,
+    backgroundColor: '#94a3b8',
+    borderRadius: 2,
+  },
+  phEnLeft: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '400',
+    fontStyle: 'italic',
+    lineHeight: 28,
+    marginBottom: 10,
+  },
+  phRefEnLeft: {
+    color: '#FCD34D',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  phTeLeft: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '400',
+    lineHeight: 26,
+    marginBottom: 10, // Reduced margin since reference comes next
   },
   phThumbnailSlide: {
     width: width - 32,
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
     backgroundColor: 'transparent',
     justifyContent: 'center',
@@ -1027,9 +1475,8 @@ const styles = StyleSheet.create({
   phThumbnailImg: {
     width: '100%',
     aspectRatio: 16 / 9,
-    borderRadius: 20,
+    borderRadius: 24,
   },
-  // Dot indicators
   dotRow: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -1051,23 +1498,33 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#FCD34D',
   },
-  phLabel: {
-    color: '#FCD34D',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    marginBottom: 16,
-    textAlign: 'center',
+
+  phActionsBottom: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+    alignItems: 'center',
   },
-  phEn: { color: '#fff', fontSize: 15, fontWeight: '600', fontStyle: 'italic', lineHeight: 24, marginBottom: 4 },
-  phRefEn: { color: '#FCD34D', fontSize: 12, fontWeight: '700', marginBottom: 15, textAlign: 'right' },
-  phDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginBottom: 15 },
-  phTe: { color: '#fff', fontSize: 16, fontStyle: 'italic', lineHeight: 26, marginBottom: 4 },
-  phRefTe: { color: '#FCD34D', fontSize: 13, fontWeight: '700', marginBottom: 20, textAlign: 'right' },
-  phActions: { flexDirection: 'row', gap: 12 },
-  phShareBtn: { flex: 1, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingVertical: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  phWatchBtn: { flex: 1, backgroundColor: '#c0392b', borderRadius: 12, paddingVertical: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  phBtnTxt: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  phSmallBtn: {
+    backgroundColor: '#1a2d5a', // App color background
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1.5,
+    borderStyle: 'solid',
+    borderColor: '#94a3b8', // Ash/slate color solid line
+  },
+  phSmallBtnTxt: {
+    color: '#fff', // White text for contrast
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
 
   marqueeWrapper: {
     marginHorizontal: 16,

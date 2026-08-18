@@ -49,12 +49,24 @@ export default function VerifyOtpScreen({ route, navigation }: VerifyOtpScreenPr
         try {
           await SalesforceService.syncMember(contactId, result.user.uid);
           
+          let rawRole = 'member';
+          try {
+            const sfResult = await SalesforceService.checkContactExists(phoneNumber);
+            if (sfResult && sfResult.exists) {
+              rawRole = (sfResult.member?.userType || 'Member').toLowerCase();
+            }
+          } catch (e) {
+            console.log('⚠️ Could not fetch role from Salesforce, defaulting to member');
+          }
+          
+          const role = ['admin', 'pastor'].includes(rawRole) ? rawRole : 'member';
+
           // Save profile details to Firestore so Push Notifications can match them by name
           const firestore = require('@react-native-firebase/firestore').default;
           await firestore().collection('users').doc(result.user.uid).set({
             name: memberName || '',
             phone: phoneNumber || '',
-            role: 'Member',
+            role: role,
             onboardingComplete: true
           }, { merge: true });
           console.log('✨ Saved member profile to Firestore successfully!');

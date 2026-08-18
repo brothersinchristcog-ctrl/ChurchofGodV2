@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Dimensions, Animated, Easing, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Dimensions, Animated, Easing, BackHandler, DeviceEventEmitter } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
+  LayoutGrid,
   BookOpen, 
   Edit3, 
   Calendar, 
@@ -17,13 +18,21 @@ import {
   Gift,
   Smartphone,
   Info,
-  Phone
+  Phone,
+  MessageCircle,
+  Sun,
+  Moon,
+  Image as ImageIcon,
+  Music,
+  Video
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import Theme from '../theme/Theme';
 import { AdminTabContext } from '../context/AdminTabContext';
 
 // Import Screens
+import AdminDashboard from '../screens/admin/AdminDashboard';
 import AdminPromiseList from '../screens/admin/AdminPromiseList';
 import AdminPromiseEditor from '../screens/admin/AdminPromiseEditor';
 import AdminPromiseCalendar from '../screens/admin/AdminPromiseCalendar';
@@ -36,63 +45,29 @@ import AdminEventEditor from '../screens/admin/AdminEventEditor';
 import AdminPrayerModeration from '../screens/admin/AdminPrayerModeration';
 import AdminSongEditor from '../screens/admin/AdminSongEditor';
 import AdminMembers from '../screens/admin/AdminMembers';
-import AdminCelebrations from '../screens/admin/AdminCelebrations';
 import PastorEventNavigator from './PastorEventNavigator';
 import AdminAboutUsEditor from '../screens/admin/AdminAboutUsEditor';
 import AdminContactUsEditor from '../screens/admin/AdminContactUsEditor';
 import AdminCODCelebs from '../screens/admin/AdminCODCelebs';
+import AdminInbox from '../screens/admin/AdminInbox';
+import AdminGalleryNavigator from '../screens/admin/gallery/AdminGalleryNavigator';
+import AdminExpenseMain from '../screens/admin/expenses/AdminExpenseMain';
+import AdminDonationsMain from '../screens/admin/donations/AdminDonationsMain';
+import AdminBibleClassesMain from '../screens/admin/bible_classes/AdminBibleClassesMain';
 
 const { width } = Dimensions.get('window');
 
 export default function AdminNavigator() {
   const { signOut, user, member, setViewMode } = useAuth();
+  const { isDark, toggleTheme, colors } = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [editingData, setEditingData] = useState(null);
-  const [isDrawerVisible, setIsDrawerVisible] = useState(false);
-  
-  const slideAnim = useRef(new Animated.Value(-width)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
   const openDrawer = () => {
-    setIsDrawerVisible(true);
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        easing: Easing.out(Easing.poly(3)),
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      })
-    ]).start();
+    requestAnimationFrame(() => setActiveTab(0));
   };
 
-  const closeDrawer = () => {
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: -width,
-        duration: 250,
-        easing: Easing.in(Easing.poly(3)),
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      })
-    ]).start(() => {
-      setIsDrawerVisible(false);
-    });
-  };
   useEffect(() => {
     const backAction = () => {
-      if (isDrawerVisible) {
-        closeDrawer();
-        return true;
-      }
       if (activeTab !== 0) {
         // Return to the first tab (Promises List) instead of exiting the portal
         requestAnimationFrame(() => {
@@ -109,28 +84,63 @@ export default function AdminNavigator() {
       backAction
     );
 
-    return () => backHandler.remove();
-  }, [activeTab, isDrawerVisible]);
+    // Listen for deep link events from Push Notifications
+    const navSub = DeviceEventEmitter.addListener('NAVIGATE_ADMIN', (data) => {
+      requestAnimationFrame(() => {
+        if (typeof data === 'number') {
+          setActiveTab(data);
+        } else if (data.tabId !== undefined) {
+          setActiveTab(data.tabId);
+          if (data.innerTab) {
+             DeviceEventEmitter.emit('NAVIGATE_ADMIN_INNER', data.innerTab);
+          }
+        }
+      });
+    });
+
+    return () => {
+      backHandler.remove();
+      navSub.remove();
+    };
+  }, [activeTab]);
 
   const tabs = [
+    { name: 'Dashboard', icon: LayoutGrid, component: AdminDashboard },
     { name: 'Promises', icon: BookOpen, component: AdminPromiseList },
     { name: 'New Promise', icon: Edit3, component: AdminPromiseEditor },
     { name: 'Schedule', icon: Calendar, component: AdminPromiseCalendar },
     { name: 'Sermons', icon: Mic, component: AdminSermonList },
     { name: 'New Sermon', icon: PlusSquare, component: AdminSermonEditor },
-    { name: 'New Song', icon: PlusSquare, component: AdminSongEditor },
+    { name: 'Songs', icon: Music, component: AdminSongEditor },
     { name: 'Notifications', icon: Bell, component: AdminNotificationBroadcast },
     { name: 'Pastor Events', icon: Calendar, component: PastorEventNavigator },
     { name: 'Events', icon: MapPin, component: AdminEventList },
     { name: 'New Event', icon: PlusSquare, component: AdminEventEditor },
     { name: 'Prayers', icon: Heart, component: AdminPrayerModeration },
     { name: 'Members', icon: Users, component: AdminMembers },
-    { name: 'Celebrations', icon: Gift, component: AdminCelebrations },
-    { name: 'COD Celeb\'s', icon: Gift, component: AdminCODCelebs },
+    { name: 'WhatsApp', icon: MessageCircle, component: AdminInbox },
+    { name: 'Celebrations', icon: Gift, component: AdminCODCelebs },
+    { name: 'Gallery', icon: ImageIcon, component: AdminGalleryNavigator },
     { name: 'About Us', icon: Info, component: AdminAboutUsEditor },
     { name: 'Contact Us', icon: Phone, component: AdminContactUsEditor },
+    { name: 'Expenses', icon: BookOpen, component: AdminExpenseMain },
+    { name: 'Donations', icon: Heart, component: AdminDonationsMain },
+    { name: 'Bible Classes', icon: Video, component: AdminBibleClassesMain },
   ];
   const ActiveComponent = tabs[activeTab].component;
+  const isWhatsApp = tabs[activeTab].name === 'WhatsApp';
+  const isDashboard = activeTab === 0;
+  const isExpenses = tabs[activeTab].name === 'Expenses';
+  const isDonations = tabs[activeTab].name === 'Donations';
+  const isBibleClasses = tabs[activeTab].name === 'Bible Classes';
+  
+  let headerBgColor = '#1a2d5a';
+  if (isDashboard) headerBgColor = colors.background;
+  else if (isWhatsApp) headerBgColor = '#0b141a';
+  else if (isExpenses) headerBgColor = '#FFF9E9';
+  else if (isDonations) headerBgColor = '#1B1F3B';
+  else if (isBibleClasses) headerBgColor = isDark ? '#0f172a' : '#f8fafc';
+
   const goBack = () => {
     requestAnimationFrame(() => {
       setActiveTab(0);
@@ -138,110 +148,22 @@ export default function AdminNavigator() {
   };
 
   return (
-    <AdminTabContext.Provider value={{ activeTab, setActiveTab, editingData, setEditingData, goBack }}>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity onPress={openDrawer} style={styles.hamburgerBtn}>
-              <Menu color="#fff" size={26} />
-            </TouchableOpacity>
-            <View style={styles.logoCircle}>
-              <Image 
-                source={require('../../assets/logo.png')} 
-                style={styles.logoImage}
-                resizeMode="contain"
-              />
-            </View>
-            <View style={styles.headerText}>
-              <Text style={styles.headerTitle}>Church of GOD</Text>
-              <Text style={styles.headerSub}>Admin Dashboard</Text>
-            </View>
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleTxt}>Pastor</Text>
+    <AdminTabContext.Provider value={{ activeTab, setActiveTab, editingData, setEditingData, goBack, openDrawer }}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: headerBgColor }]}>
+        {![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(activeTab) && (
+          <View style={[styles.header, { backgroundColor: headerBgColor }]}>
+            <View style={styles.headerTop}>
+              <TouchableOpacity onPress={openDrawer} style={styles.hamburgerBtn}>
+                <Menu color="#fff" size={26} />
+              </TouchableOpacity>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#fff', marginLeft: 15 }}>{tabs[activeTab].name}</Text>
             </View>
           </View>
-        </View>
+        )}
 
         <View style={styles.content}>
           <ActiveComponent />
         </View>
-
-        {/* Full-Height Left Side Drawer Overlay */}
-        {isDrawerVisible && (
-          <View style={styles.drawerOverlay}>
-            <Animated.View style={[StyleSheet.absoluteFill, { opacity: fadeAnim }]}>
-              <TouchableOpacity 
-                style={styles.drawerBackdrop} 
-                activeOpacity={1} 
-                onPress={closeDrawer} 
-              />
-            </Animated.View>
-            <Animated.View style={[styles.drawerContent, { transform: [{ translateX: slideAnim }] }]}>
-              
-              {/* Profile Section */}
-              <View style={styles.drawerProfileSection}>
-                <View style={styles.drawerAvatar}>
-                  <Image source={require('../../assets/logo.png')} style={{ width: 56, height: 56 }} resizeMode="cover" />
-                </View>
-                <View>
-                  <Text style={styles.drawerName}>Church of GOD</Text>
-                  <Text style={styles.drawerEmail}>{member?.name || user?.displayName || 'Admin Member'}</Text>
-                </View>
-              </View>
-
-              <View style={styles.drawerDivider} />
-
-              <ScrollView 
-                showsVerticalScrollIndicator={false} 
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingBottom: 100 }}
-              >
-                <View style={{ paddingVertical: 10 }}>
-                  {tabs.map((tab, index) => {
-                    const isActive = activeTab === index;
-                    return (
-                      <TouchableOpacity 
-                        key={index} 
-                        style={[styles.drawerItem, isActive && styles.drawerItemActive]}
-                        onPress={() => {
-                          setActiveTab(index);
-                          closeDrawer();
-                          if ([1, 4, 5, 8].indexOf(index) === -1) setEditingData(null); 
-                        }}
-                      >
-                        <tab.icon 
-                          size={20} 
-                          color={isActive ? "#FCD34D" : "#fff"} 
-                          strokeWidth={isActive ? 2.5 : 1.5}
-                        />
-                        <Text style={[styles.drawerItemText, isActive && styles.drawerItemTextActive]}>
-                          {tab.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-
-              {/* Footer: Member View + Sign Out */}
-              <View style={styles.drawerFooter}>
-                <TouchableOpacity
-                  style={styles.memberViewBtn}
-                  onPress={() => {
-                    setViewMode('member');
-                    closeDrawer();
-                  }}
-                >
-                  <Smartphone size={18} color="#FCD34D" />
-                  <Text style={styles.memberViewTxt}>Member View</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.drawerSignOutBtn} onPress={signOut}>
-                  <Text style={styles.drawerSignOutTxt}>Sign out</Text>
-                </TouchableOpacity>
-              </View>
-            </Animated.View>
-          </View>
-        )}
 
       </SafeAreaView>
     </AdminTabContext.Provider>

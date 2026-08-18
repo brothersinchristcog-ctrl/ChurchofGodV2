@@ -77,18 +77,36 @@ class NotificationService {
         navigation.navigate('Events');
         break;
       case 'promise':
-        navigation.navigate('Tabs', { screen: 'Home' });
+        navigation.navigate('Tabs', { screen: 'Promise' });
         break;
       case 'birthday':
       case 'anniversary':
       case 'emergency':
         navigation.navigate('Updates', { highlightId: id, highlightType: type });
         break;
+      case 'expense_approval':
+        import('react-native').then(({ DeviceEventEmitter }) => {
+          DeviceEventEmitter.emit('NAVIGATE_ADMIN', { tabId: 18, innerTab: 'approvals' });
+        });
+        break;
       case 'youtube_live':
         {
           const liveUrl = remoteMessage.data?.url || 'https://www.youtube.com/@Brothersinchristfellowship/live';
           Linking.openURL(liveUrl).catch(err => {
             console.error("Couldn't open live stream URL", err);
+          });
+        }
+        break;
+      case 'BIBLE_CLASS':
+        navigation.navigate('BibleClasses');
+        break;
+      case 'daily_celebration':
+        {
+          const dateKey = remoteMessage.data?.dateKey;
+          const celebrationId = remoteMessage.data?.celebrationId;
+          navigation.navigate('DailyCelebrationChat', {
+            dateKey: dateKey || undefined,
+            highlightCelebrationId: celebrationId
           });
         }
         break;

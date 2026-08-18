@@ -15,8 +15,10 @@ import {
   Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Music, Save, ChevronDown, CheckCircle, Pencil, X, List, Eye, Square, Trash2, Star } from 'lucide-react-native';
+import { Music, Save, ChevronDown, CheckCircle, Pencil, X, List, Eye, Square, Trash2, Star, Menu } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '../../context/ThemeContext';
 import { AdminTabContext } from '../../context/AdminTabContext';
 import SalesforceService, { WorshipSong } from '../../services/SalesforceService';
 import {
@@ -51,11 +53,15 @@ const KEYS = [
 ];
 
 export default function AdminSongEditor() {
-  const { setActiveTab } = useContext(AdminTabContext);
+  const { setActiveTab, openDrawer } = useContext(AdminTabContext);
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors, isDark);
 
   // Screen-level tab
-  const [screenTab, setScreenTab] = useState<'post' | 'list' | 'member'>('post');
+  const [screenTab, setScreenTab] = useState<'list' | 'theme'>('list');
+  const [showPostModal, setShowPostModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
   // ── POST SONG FORM ──────────────────────────────
   const [titleEn, setTitleEn] = useState('');
@@ -63,23 +69,20 @@ export default function AdminSongEditor() {
   const [artist, setArtist] = useState('COG Worship');
   const [lyrics, setLyrics] = useState('');
   const [status, setStatus] = useState('Published');
-  const [categories, setCategories] = useState<string[]>(['Stuthi Songs']);
+  const [categories, setCategories] = useState<string[]>([]);
   const [youtubeId, setYoutubeId] = useState('');
 
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [syncReceipt, setSyncReceipt] = useState({ savedTo: '', id: '' });
 
-  // ── MEMBER VIEW STATE ────────────────────────────
-  const [memberSongs, setMemberSongs] = useState<WorshipSong[]>([]);
-  const [memberSearch, setMemberSearch] = useState('');
-  const [memberTab, setMemberTab] = useState<'browse' | 'theme'>('browse');
-  const [savedIds, setSavedIds] = useState<string[]>([]);
-
   // ── POSTED SONGS LIST ───────────────────────────
   const [postedSongs, setPostedSongs] = useState<WorshipSong[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [listSearchQuery, setListSearchQuery] = useState('');
+  const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
+  const [deletedSongTitle, setDeletedSongTitle] = useState('');
+  const [songToDelete, setSongToDelete] = useState<{ id: string; title: string } | null>(null);
 
   // ── EDIT MODAL ──────────────────────────────────
   const [editingSong, setEditingSong] = useState<WorshipSong | null>(null);
@@ -88,7 +91,7 @@ export default function AdminSongEditor() {
   const [editArtist, setEditArtist] = useState('');
   const [editKey, setEditKey] = useState('C');
   const [editLyrics, setEditLyrics] = useState('');
-  const [editCategories, setEditCategories] = useState<string[]>(['Stuthi Songs']);
+  const [editCategories, setEditCategories] = useState<string[]>([]);
   const [editYoutubeId, setEditYoutubeId] = useState('');
   const [editStatus, setEditStatus] = useState('Published');
   const [savingEdit, setSavingEdit] = useState(false);
@@ -108,20 +111,8 @@ export default function AdminSongEditor() {
   };
 
   useEffect(() => {
-    if (screenTab === 'list') fetchPostedSongs();
-    if (screenTab === 'member') fetchMemberSongs();
-  }, [screenTab]);
-
-  const fetchMemberSongs = async () => {
-    try {
-      const data = await SalesforceService.getWorshipSongs();
-      setMemberSongs(data);
-      const stored = await AsyncStorage.getItem(SONGBOOK_KEY);
-      if (stored) setSavedIds(JSON.parse(stored));
-    } catch (err) {
-      console.error(err);
-    }
-  };
+    fetchPostedSongs();
+  }, []);
 
   // ── PUBLISH NEW SONG ─────────────────────────────
   const handlePublishSong = async () => {
@@ -176,7 +167,7 @@ export default function AdminSongEditor() {
 
   const resetForm = () => {
     setTitleEn(''); setTitleTe(''); setLyrics(''); setYoutubeId('');
-    setArtist('COG Worship'); setCategories(['Stuthi Songs']); setStatus('Published');
+    setArtist('COG Worship'); setCategories([]); setStatus('Published');
   };
 
   // ── OPEN EDIT MODAL ──────────────────────────────
@@ -187,7 +178,7 @@ export default function AdminSongEditor() {
     setEditArtist(song.artist || 'COG Worship');
     setEditLyrics(song.lyrics || '');
     // Split semicolon-separated categories back into array
-    const cats = (song.category || 'Stuthi Songs')
+    const cats = (song.category || 'Other')
       .split(';').map(c => c.trim()).filter(Boolean);
     setEditCategories(cats);
     setEditYoutubeId(song.youtubeId || '');
@@ -223,37 +214,33 @@ export default function AdminSongEditor() {
   const [adminSelectedSong, setAdminSelectedSong] = useState<WorshipSong | null>(null);
 
   const handleDeleteSong = (id: string, title: string) => {
-    Alert.alert(
-      'Delete Song',
-      `Are you sure you want to delete "${title}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await SalesforceService.deleteWorshipSong(id);
-              fetchPostedSongs();
-              Alert.alert('Deleted', 'Song deleted successfully.');
-            } catch (e: any) {
-              Alert.alert('Error', e.message || 'Failed to delete song.');
-            }
-          }
-        }
-      ]
-    );
+    setSongToDelete({ id, title });
+  };
+
+  const confirmDeleteSong = async () => {
+    if (!songToDelete) return;
+    try {
+      await SalesforceService.deleteWorshipSong(songToDelete.id);
+      fetchPostedSongs();
+      setDeletedSongTitle(songToDelete.title);
+      setSongToDelete(null);
+      setShowDeleteSuccess(true);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to delete song.');
+    }
   };
 
   const handleToggleTheme = async (song: WorshipSong) => {
     try {
-      const currentCats = (song.category || 'Stuthi Songs')
-        .split(';').map(c => c.trim()).filter(Boolean);
+      const currentCats = (song.category || 'Other')
+        .split(';')
+        .map(c => c.trim())
+        .filter(Boolean);
       let newCats: string[];
       if (currentCats.includes('Theme Songs')) {
-        // Remove Theme Songs; keep remaining categories (fallback to Stuthi Songs)
+        // Remove Theme Songs; keep remaining categories (fallback to Other)
         newCats = currentCats.filter(c => c !== 'Theme Songs');
-        if (newCats.length === 0) newCats = ['Stuthi Songs'];
+        if (newCats.length === 0) newCats = ['Other'];
       } else {
         // Add Theme Songs to existing categories
         newCats = [...currentCats, 'Theme Songs'];
@@ -263,26 +250,25 @@ export default function AdminSongEditor() {
       
       // Optimistically update the state to prevent full screen refresh
       setPostedSongs(prev => prev.map(s => s.id === song.id ? { ...s, category: newCategoryStr } : s));
-      setMemberSongs(prev => prev.map(s => s.id === song.id ? { ...s, category: newCategoryStr } : s));
 
       await SalesforceService.updateWorshipSong(song.id, { category: newCategoryStr });
     } catch (e: any) {
       Alert.alert('Error', 'Failed to toggle theme status.');
       // Revert/refresh on error
       fetchPostedSongs();
-      fetchMemberSongs();
     }
   };
 
-  const renderSongItem = ({ item, index }: { item: WorshipSong; index: number }) => {
+  const renderSongItem = ({ item, index }: { item: WorshipSong & { displayNumber?: number }; index: number }) => {
     const isTheme = (item.category || '').split(';').map(c => c.trim()).includes('Theme Songs');
+    const displayNum = item.displayNumber ?? index + 1;
     return (
       <View style={styles.songItem}>
         <View style={styles.songIconBox}>
-          <Music size={16} color="#1a2d5a" />
+          <Music size={16} color="#3b82f6" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.songItemTitle} numberOfLines={1}>{index + 1}. {item.title}</Text>
+          <Text style={styles.songItemTitle} numberOfLines={1}>{displayNum}. {item.title}</Text>
           <Text style={styles.songItemSub} numberOfLines={1}>
             {item.category || 'Other'}
           </Text>
@@ -302,148 +288,12 @@ export default function AdminSongEditor() {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => openEdit(item)} style={{ padding: 4 }}>
-            <Pencil size={15} color="#1a2d5a" />
+            <Pencil size={15} color="#3b82f6" />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => handleDeleteSong(item.id, item.title)} style={{ padding: 4 }}>
             <Trash2 size={16} color="#ef4444" />
           </TouchableOpacity>
         </View>
-      </View>
-    );
-  };
-
-  // ── MEMBER VIEW UI ────────────────────────────────
-  const renderMemberView = () => {
-    const browseSongs = memberSongs.filter(s => {
-      const cats = (s.category || 'Other').split(';').map(c => c.trim()).filter(Boolean);
-      if (cats.length === 1 && cats[0] === 'Theme Songs') return false;
-      const q = memberSearch.toLowerCase().trim();
-      return !q || s.title.toLowerCase().includes(q) || (s.titleTe && s.titleTe.toLowerCase().includes(q));
-    });
-    const themeSongs = memberSongs.filter(s => {
-      const cats = (s.category || 'Other').split(';').map(c => c.trim()).filter(Boolean);
-      if (!cats.includes('Theme Songs')) return false;
-      const q = memberSearch.toLowerCase().trim();
-      return !q || s.title.toLowerCase().includes(q) || (s.titleTe && s.titleTe.toLowerCase().includes(q));
-    });
-    const displaySongs = memberTab === 'browse' ? browseSongs : themeSongs;
-
-    return (
-      <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
-        {/* Member View Header */}
-        <View style={{ backgroundColor: '#1a2d5a', paddingVertical: 10, paddingHorizontal: 16 }}>
-          <Text style={{ color: '#aac4e8', fontSize: 10, fontWeight: '700', textAlign: 'center' }}>
-            👁 ADMIN PREVIEW: Member Songs View
-          </Text>
-        </View>
-
-        {/* Tabs */}
-        <View style={{ flexDirection: 'row', backgroundColor: '#e2e8f0', margin: 16, borderRadius: 25, padding: 4, gap: 4 }}>
-          <TouchableOpacity
-            style={[{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 21, gap: 6 },
-              memberTab === 'browse' && { backgroundColor: '#1a2d5a' }]}
-            onPress={() => setMemberTab('browse')}>
-            <Music size={13} color={memberTab === 'browse' ? '#fff' : '#64748b'} />
-            <Text style={{ fontSize: 12, fontWeight: '700', color: memberTab === 'browse' ? '#fff' : '#64748b' }}>Browse Songs</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 21, gap: 6 },
-              memberTab === 'theme' && { backgroundColor: '#1a2d5a' }]}
-            onPress={() => setMemberTab('theme')}>
-            <Music size={13} color={memberTab === 'theme' ? '#fff' : '#64748b'} />
-            <Text style={{ fontSize: 12, fontWeight: '700', color: memberTab === 'theme' ? '#fff' : '#64748b' }}>Theme Songs</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Search */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8,
-          borderRadius: 14, paddingHorizontal: 14, height: 44, backgroundColor: '#fff',
-          elevation: 2, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, borderWidth: 1, borderColor: '#e2e8f0' }}>
-          <Music size={16} color="#64748b" />
-          <TextInput
-            placeholder={memberTab === 'browse' ? 'Search songs...' : 'Search theme songs...'}
-            placeholderTextColor="#94a3b8"
-            style={{ flex: 1, fontSize: 13, fontWeight: '600', marginLeft: 8, color: '#0f172a' }}
-            value={memberSearch}
-            onChangeText={setMemberSearch}
-          />
-        </View>
-
-        {/* Song List */}
-        <FlatList
-          data={displaySongs}
-          keyExtractor={item => item.id}
-          showsVerticalScrollIndicator={false}
-          refreshing={false}
-          onRefresh={fetchMemberSongs}
-          contentContainerStyle={{ paddingBottom: 40 }}
-          ListHeaderComponent={() => (
-            <Text style={{ fontSize: 10, fontWeight: '800', color: '#9CA3AF', letterSpacing: 0.8,
-              marginHorizontal: 16, marginBottom: 10, marginTop: 4 }}>
-              {memberTab === 'browse' ? 'ALL SONGS' : 'THEME SONGS'} · {displaySongs.length} Songs
-            </Text>
-          )}
-          renderItem={({ item, index }) => (
-            <TouchableOpacity
-              style={{ borderRadius: 14, borderWidth: 0.5, borderColor: '#e5e7eb', marginHorizontal: 16,
-                marginBottom: 9, flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: '#fff',
-                elevation: 2, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 3 }}
-              onPress={() => setAdminSelectedSong(item)}>
-              <View style={{ width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center',
-                marginRight: 12, backgroundColor: '#f3f4f6' }}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: '#1a2d5a' }}>{index + 1}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#111827' }} numberOfLines={1}>{item.title}</Text>
-                <Text style={{ fontSize: 11, marginTop: 2, fontWeight: '500', color: '#6B7280' }} numberOfLines={1}>
-                  {item.titleTe ? `${item.titleTe} · ` : ''}{item.artist}
-                </Text>
-              </View>
-              <Music size={14} color="#94a3b8" />
-            </TouchableOpacity>
-          )}
-          ListEmptyComponent={() => (
-            <View style={{ padding: 40, alignItems: 'center' }}>
-              <Music size={44} color="#cbd5e1" />
-              <Text style={{ fontSize: 15, fontWeight: '800', color: '#1a2d5a', marginTop: 12 }}>No Songs</Text>
-              <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
-                {memberTab === 'theme' ? 'Mark songs as "Is Theme Song" to show them here.' : 'No songs found.'}
-              </Text>
-            </View>
-          )}
-        />
-
-        {/* Song Lyrics Preview Modal */}
-        {adminSelectedSong && (
-          <Modal visible animationType="slide" transparent onRequestClose={() => setAdminSelectedSong(null)}>
-            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-              <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 25, borderTopRightRadius: 25, height: '85%', padding: 20 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-                  borderBottomWidth: 0.5, borderColor: '#cbd5e1', paddingBottom: 14, marginBottom: 14 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 17, fontWeight: '900', color: '#0f172a' }} numberOfLines={2}>{adminSelectedSong.title}</Text>
-                    <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 3, fontWeight: '700' }}>{adminSelectedSong.titleTe || ''}</Text>
-                    <Text style={{ fontSize: 10, color: '#c0392b', fontWeight: '800', marginTop: 4 }}>{adminSelectedSong.category || 'Other'}</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}
-                    onPress={() => setAdminSelectedSong(null)}>
-                    <X size={20} color="#475569" />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView showsVerticalScrollIndicator={false}>
-                  <Text style={{ fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, color: '#1a2d5a' }}>LYRICS & SCRIPTS · సాహిత్యం</Text>
-                  <View style={{ borderRadius: 14, padding: 16, borderWidth: 0.5, borderColor: '#e2e8f0', backgroundColor: '#f8fafc' }}>
-                    <Text style={{ fontSize: 13, lineHeight: 23, fontWeight: '500', fontStyle: 'italic', color: '#334155' }}>
-                      {adminSelectedSong.lyrics || 'Lyrics are being updated by the administrator.'}
-                    </Text>
-                  </View>
-                  <View style={{ height: 60 }} />
-                </ScrollView>
-              </View>
-            </View>
-          </Modal>
-        )}
       </View>
     );
   };
@@ -490,8 +340,8 @@ export default function AdminSongEditor() {
                 <TouchableOpacity
                   key={cat}
                   style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5,
-                    borderColor: isSelected ? (isThemeCat ? '#f59e0b' : '#1a2d5a') : '#e2e8f0',
-                    backgroundColor: isSelected ? (isThemeCat ? '#fef3c7' : '#1a2d5a') : '#f8fafc' }]}
+                    borderColor: isSelected ? (isThemeCat ? '#f59e0b' : (isDark ? '#3b82f6' : '#1a2d5a')) : (isDark ? '#334155' : '#e2e8f0'),
+                    backgroundColor: isSelected ? (isThemeCat ? (isDark ? '#78350f' : '#fef3c7') : (isDark ? '#3b82f6' : '#1a2d5a')) : (isDark ? '#1e293b' : '#f8fafc') }]}
                   onPress={() => {
                     setCategories(prev =>
                       prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
@@ -499,7 +349,7 @@ export default function AdminSongEditor() {
                   }}
                 >
                   <Text style={{ fontSize: 11, fontWeight: '700',
-                    color: isSelected ? (isThemeCat ? '#d97706' : '#fff') : '#64748b' }}>{cat}</Text>
+                    color: isSelected ? (isThemeCat ? (isDark ? '#fcd34d' : '#d97706') : '#fff') : (isDark ? '#94a3b8' : '#64748b') }}>{cat}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -556,15 +406,37 @@ export default function AdminSongEditor() {
         </View>
       ) : (
         <FlatList
-          data={postedSongs.filter(s => s.title.toLowerCase().includes(listSearchQuery.toLowerCase()) || (s.titleTe && s.titleTe.toLowerCase().includes(listSearchQuery.toLowerCase())))}
+          data={(() => {
+            const categoryFiltered = postedSongs.filter(s => {
+              const cats = (s.category || 'Other').split(';').map(c => c.trim()).filter(Boolean);
+              const matchesCat = selectedCategory === 'All' || cats.includes(selectedCategory);
+              
+              if (screenTab === 'theme') {
+                return matchesCat && cats.includes('Theme Songs');
+              }
+              if (cats.length === 1 && cats[0] === 'Theme Songs') return false;
+              return matchesCat;
+            });
+            
+            return categoryFiltered
+              .map((s, idx) => ({ ...s, displayNumber: idx + 1 }))
+              .filter(s => {
+                const q = listSearchQuery.toLowerCase().trim();
+                if (!q) return true;
+                if (q === s.displayNumber.toString()) return true;
+                return s.title.toLowerCase().includes(q) || 
+                       (s.titleTe && s.titleTe.toLowerCase().includes(q)) ||
+                       (s.artist && s.artist.toLowerCase().includes(q));
+              });
+          })()}
           keyExtractor={(item) => item.id}
           renderItem={renderSongItem}
           contentContainerStyle={{ padding: 16, paddingBottom: 60 }}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={() => (
+          ListHeaderComponent={(
             <>
               <View style={styles.listHeaderRow}>
-                <Text style={styles.listHeaderTitle}>All Worship Songs</Text>
+                <Text style={styles.listHeaderTitle}>{screenTab === 'theme' ? 'Theme Songs' : 'All Worship Songs'}</Text>
                 <View style={styles.countBadge}>
                   <Text style={styles.countTxt}>{postedSongs.length} Total</Text>
                 </View>
@@ -599,21 +471,22 @@ export default function AdminSongEditor() {
       <StatusBar barStyle="light-content" />
 
       {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Music size={20} color="#FCD34D" />
-          <Text style={styles.headerTitle}>Song Manager</Text>
-        </View>
-      </View>
+      <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.headerOuter}>
+        <LinearGradient colors={['#1a2d5a', '#23314d']} style={styles.headerInner}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between', position: 'relative', paddingLeft: 40 }}>
+            <TouchableOpacity onPress={openDrawer} style={{ position: 'absolute', left: 0, padding: 4, zIndex: 10 }}>
+              <Menu size={26} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Song Manager</Text>
+            <TouchableOpacity onPress={() => setShowPostModal(true)} style={{ backgroundColor: '#f59e0b', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, flexDirection: 'row', alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 3 }}>
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800' }}>+ New Song</Text>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </LinearGradient>
 
       {/* Screen Tabs */}
       <View style={styles.screenTabBar}>
-        <TouchableOpacity
-          style={[styles.screenTab, screenTab === 'post' && styles.screenTabActive]}
-          onPress={() => setScreenTab('post')}>
-          <Save size={14} color={screenTab === 'post' ? '#fff' : '#64748b'} />
-          <Text style={[styles.screenTabTxt, screenTab === 'post' && styles.screenTabTxtActive]}>Post Song</Text>
-        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.screenTab, screenTab === 'list' && styles.screenTabActive]}
           onPress={() => setScreenTab('list')}>
@@ -621,15 +494,46 @@ export default function AdminSongEditor() {
           <Text style={[styles.screenTabTxt, screenTab === 'list' && styles.screenTabTxtActive]}>All Songs</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.screenTab, screenTab === 'member' && styles.screenTabActive]}
-          onPress={() => setScreenTab('member')}>
-          <Eye size={14} color={screenTab === 'member' ? '#fff' : '#64748b'} />
-          <Text style={[styles.screenTabTxt, screenTab === 'member' && styles.screenTabTxtActive]}>Member View</Text>
+          style={[styles.screenTab, screenTab === 'theme' && styles.screenTabActive]}
+          onPress={() => setScreenTab('theme')}>
+          <Star size={14} color={screenTab === 'theme' ? '#fff' : '#64748b'} />
+          <Text style={[styles.screenTabTxt, screenTab === 'theme' && styles.screenTabTxtActive]}>Theme Songs</Text>
         </TouchableOpacity>
       </View>
 
+      {/* Category Chips */}
+      <View style={{ height: 44, marginBottom: 10 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipScroll}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 8, alignItems: 'center' }}>
+          {['All', ...CATEGORIES].map(cat => (
+            <TouchableOpacity
+              key={cat}
+              style={[styles.chip, selectedCategory === cat && styles.chipActive]}
+              onPress={() => setSelectedCategory(cat)}>
+              <Text style={[styles.chipTxt, selectedCategory === cat && styles.chipTxtActive]}>{cat}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
       {/* Content */}
-      {screenTab === 'post' ? renderPostForm() : screenTab === 'list' ? renderPostedList() : renderMemberView()}
+      {renderPostedList()}
+
+      {/* Post Song Modal */}
+      <Modal visible={showPostModal} animationType="slide" onRequestClose={() => setShowPostModal(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#0f172a' : '#f1f5f9' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderColor: isDark ? '#334155' : '#e2e8f0', backgroundColor: isDark ? '#1e293b' : '#fff' }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: isDark ? '#fff' : '#1a2d5a' }}>Create New Song</Text>
+            <TouchableOpacity onPress={() => setShowPostModal(false)} style={{ padding: 4, backgroundColor: isDark ? '#334155' : '#f1f5f9', borderRadius: 16 }}>
+              <X size={20} color={isDark ? '#94a3b8' : '#64748b'} />
+            </TouchableOpacity>
+          </View>
+          {renderPostForm()}
+        </SafeAreaView>
+      </Modal>
 
       {/* ── Category Picker Modal (kept but unused now – categories use inline chips) ── */}
 
@@ -737,6 +641,55 @@ export default function AdminSongEditor() {
         </Modal>
       )}
 
+      {/* ── Delete Confirmation Modal ── */}
+      {songToDelete && (
+        <Modal transparent visible animationType="fade">
+          <View style={styles.successBg}>
+            <View style={styles.successCard}>
+              <View style={[styles.successIconOuter, { backgroundColor: '#fee2e2' }]}>
+                <View style={[styles.successIconInner, { backgroundColor: '#ef4444', shadowColor: '#ef4444' }]}>
+                  <Trash2 size={36} color="#fff" />
+                </View>
+              </View>
+              <Text style={styles.successTitle}>Delete Song?</Text>
+              <Text style={styles.successDesc}>
+                Are you sure you want to delete <Text style={{ fontWeight: '800', color: '#ef4444' }}>"{songToDelete.title}"</Text>? This action cannot be undone.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 10, width: '100%' }}>
+                <TouchableOpacity style={[styles.successActionBtn, { flex: 1, backgroundColor: '#f1f5f9' }]} onPress={() => setSongToDelete(null)}>
+                  <Text style={[styles.successActionTxt, { color: '#475569' }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.successActionBtn, { flex: 1, backgroundColor: '#ef4444' }]} onPress={confirmDeleteSong}>
+                  <Text style={styles.successActionTxt}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* ── Delete Success Modal ── */}
+      {showDeleteSuccess && (
+        <Modal transparent visible animationType="fade">
+          <View style={styles.successBg}>
+            <View style={styles.successCard}>
+              <View style={[styles.successIconOuter, { backgroundColor: '#fee2e2' }]}>
+                <View style={[styles.successIconInner, { backgroundColor: '#ef4444', shadowColor: '#ef4444' }]}>
+                  <Trash2 size={36} color="#fff" />
+                </View>
+              </View>
+              <Text style={styles.successTitle}>Song Deleted</Text>
+              <Text style={styles.successDesc}>
+                "{deletedSongTitle}" has been successfully removed from your songbook.
+              </Text>
+              <TouchableOpacity style={[styles.successActionBtn, { backgroundColor: '#ef4444' }]} onPress={() => setShowDeleteSuccess(false)}>
+                <Text style={styles.successActionTxt}>Got It</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       {/* ── Success Modal ── */}
       {showSuccess && (
         <Modal transparent visible animationType="fade">
@@ -749,10 +702,10 @@ export default function AdminSongEditor() {
               </View>
               <Text style={styles.successTitle}>Publication Successful!</Text>
               <Text style={styles.successDesc}>
-                "{titleEn}" has been published under <Text style={{ fontWeight: '800', color: '#1a2d5a' }}>{categories[0] || 'Other'}</Text>!
+                "{titleEn}" has been published under <Text style={{ fontWeight: '800', color: isDark ? '#38bdf8' : '#1a2d5a' }}>{categories.join(', ') || 'Other'}</Text>!
               </Text>
-              <TouchableOpacity style={styles.successActionBtn} onPress={() => { setShowSuccess(false); resetForm(); setActiveTab(0); }}>
-                <Text style={styles.successActionTxt}>Back to Dashboard</Text>
+              <TouchableOpacity style={styles.successActionBtn} onPress={() => { setShowSuccess(false); resetForm(); setShowPostModal(false); fetchPostedSongs(); }}>
+                <Text style={styles.successActionTxt}>Close & View Songs</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.successSecBtn} onPress={() => { setShowSuccess(false); resetForm(); }}>
                 <Text style={styles.successSecTxt}>Post Another Song</Text>
@@ -765,98 +718,101 @@ export default function AdminSongEditor() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9' },
-  header: {
-    backgroundColor: '#1a2d5a',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomWidth: 3,
-    borderBottomColor: '#c0392b'
-  },
+function getStyles(colors: any, isDark: boolean) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  headerOuter: { borderBottomLeftRadius: 30, borderBottomRightRadius: 30, marginBottom: 10, marginHorizontal: 0, marginTop: -20, paddingBottom: 4 },
+  headerInner: { padding: 15, paddingTop: Platform.OS === 'ios' ? 60 : 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
 
   // Screen Tab Bar
   screenTabBar: {
     flexDirection: 'row',
-    backgroundColor: '#e2e8f0',
+    backgroundColor: isDark ? '#1e293b' : '#f8fafc',
     margin: 16,
     borderRadius: 25,
     padding: 4,
-    gap: 4
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.border
   },
   screenTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 21, gap: 6 },
-  screenTabActive: { backgroundColor: '#1a2d5a' },
-  screenTabTxt: { fontSize: 13, fontWeight: '700', color: '#64748b' },
+  screenTabActive: { backgroundColor: isDark ? '#3b82f6' : '#1a2d5a' },
+  screenTabTxt: { fontSize: 13, fontWeight: '700', color: isDark ? '#94a3b8' : '#64748b' },
   screenTabTxtActive: { color: '#fff' },
 
+  chipScroll: { flexGrow: 0 },
+  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: isDark ? '#1e293b' : '#f1f5f9', borderWidth: 1, borderColor: isDark ? '#334155' : '#e2e8f0', height: 36, justifyContent: 'center' },
+  chipActive: { backgroundColor: isDark ? '#3b82f6' : '#1a2d5a', borderColor: isDark ? '#3b82f6' : '#1a2d5a' },
+  chipTxt: { fontSize: 13, fontWeight: '600', color: isDark ? '#94a3b8' : '#64748b' },
+  chipTxtActive: { color: '#fff', fontWeight: '800' },
+
   scroll: { padding: 16 },
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5 },
-  sectionTitle: { fontSize: 12, fontWeight: '800', color: '#1a2d5a', letterSpacing: 1, marginBottom: 20 },
+  card: { backgroundColor: colors.card, borderRadius: 16, padding: 20, marginBottom: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, borderWidth: 1, borderColor: colors.border },
+  sectionTitle: { fontSize: 12, fontWeight: '800', color: isDark ? '#bfdbfe' : '#1a2d5a', letterSpacing: 1, marginBottom: 20 },
 
   inputGroup: { marginBottom: 16 },
   row: { flexDirection: 'row', alignItems: 'flex-start' },
-  label: { fontSize: 10, fontWeight: '800', color: '#64748b', marginBottom: 8, letterSpacing: 0.5 },
+  label: { fontSize: 10, fontWeight: '800', color: colors.text, marginBottom: 8, letterSpacing: 0.5 },
   textInput: {
-    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0',
-    borderRadius: 8, paddingHorizontal: 14, height: 48, fontSize: 13, color: '#1e293b', fontWeight: '600'
+    backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderWidth: 1, borderColor: colors.border,
+    borderRadius: 8, paddingHorizontal: 14, height: 48, fontSize: 13, color: colors.text, fontWeight: '600'
   },
-  pickerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 12, height: 48 },
-  pickerTxt: { fontSize: 13, color: '#1e293b', fontWeight: '700', flex: 1 },
+  pickerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 12, height: 48 },
+  pickerTxt: { fontSize: 13, color: colors.text, fontWeight: '700', flex: 1 },
 
   statusSelectRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  statusLabel: { fontSize: 13, color: '#334155', fontWeight: '700' },
+  statusLabel: { fontSize: 13, color: colors.text, fontWeight: '700' },
   statusBtnGroup: { flexDirection: 'row', gap: 8 },
-  statusBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#f1f5f9' },
-  statusBtnActive: { backgroundColor: '#1a2d5a' },
-  statusBtnActiveDraft: { backgroundColor: '#64748b' },
-  statusBtnTxt: { fontSize: 12, color: '#475569', fontWeight: '700' },
+  statusBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, backgroundColor: isDark ? '#1e293b' : '#f1f5f9' },
+  statusBtnActive: { backgroundColor: isDark ? '#3b82f6' : '#1a2d5a' },
+  statusBtnActiveDraft: { backgroundColor: isDark ? '#4b5563' : '#64748b' },
+  statusBtnTxt: { fontSize: 12, color: isDark ? '#cbd5e1' : '#475569', fontWeight: '700' },
   statusBtnTxtActive: { color: '#fff' },
 
-  infoBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#ecfdf5', padding: 15, borderRadius: 12, borderWidth: 0.5, borderColor: '#a7f3d0', marginBottom: 20 },
-  infoText: { flex: 1, fontSize: 11, color: '#065f46', lineHeight: 18, fontWeight: '500' },
+  infoBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: isDark ? '#064e3b' : '#ecfdf5', padding: 15, borderRadius: 12, borderWidth: 0.5, borderColor: isDark ? '#059669' : '#a7f3d0', marginBottom: 20 },
+  infoText: { flex: 1, fontSize: 11, color: isDark ? '#a7f3d0' : '#065f46', lineHeight: 18, fontWeight: '500' },
 
-  saveBtn: { backgroundColor: '#c0392b', height: 54, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, elevation: 4, shadowColor: '#c0392b', shadowOpacity: 0.3, shadowRadius: 5 },
+  saveBtn: { alignSelf: 'center', width: '75%', backgroundColor: isDark ? '#10b981' : '#059669', height: 54, borderRadius: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, elevation: 4, shadowColor: isDark ? '#10b981' : '#059669', shadowOpacity: 0.3, shadowRadius: 5 },
   saveBtnTxt: { color: '#fff', fontSize: 14, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   // List
   listHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  listHeaderTitle: { fontSize: 15, fontWeight: '800', color: '#1a2d5a' },
-  countBadge: { backgroundColor: '#ecfdf5', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
-  countTxt: { fontSize: 11, fontWeight: '800', color: '#059669' },
-  songItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10, elevation: 2, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 3 },
-  songIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#f0f4ff', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  songItemTitle: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
-  songItemSub: { fontSize: 11, color: '#64748b', marginTop: 2, fontWeight: '500' },
-  editBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#f0f4ff', justifyContent: 'center', alignItems: 'center' },
+  listHeaderTitle: { fontSize: 15, fontWeight: '800', color: isDark ? '#fff' : '#1a2d5a' },
+  countBadge: { backgroundColor: isDark ? '#064e3b' : '#ecfdf5', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
+  countTxt: { fontSize: 11, fontWeight: '800', color: isDark ? '#a7f3d0' : '#059669' },
+  songItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, padding: 14, marginBottom: 10, elevation: 2, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 3, borderWidth: 1, borderColor: colors.border },
+  songIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: isDark ? '#1e293b' : '#f0f4ff', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  songItemTitle: { fontSize: 13, fontWeight: '700', color: colors.text },
+  songItemSub: { fontSize: 11, color: isDark ? '#94a3b8' : '#64748b', marginTop: 2, fontWeight: '500' },
+  editBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: isDark ? '#1e293b' : '#f0f4ff', justifyContent: 'center', alignItems: 'center' },
 
   // Picker Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  pickerModalBox: { backgroundColor: '#fff', borderRadius: 16, width: '100%', maxWidth: 320, maxHeight: '65%', paddingVertical: 15, elevation: 10 },
-  pickerModalTitle: { fontSize: 13, fontWeight: '800', color: '#64748b', paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', marginBottom: 5, letterSpacing: 0.5 },
-  pickerModalItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
-  pickerModalTxt: { fontSize: 15, color: '#1e293b', fontWeight: '600' },
+  pickerModalBox: { backgroundColor: colors.card, borderRadius: 16, width: '100%', maxWidth: 320, maxHeight: '65%', paddingVertical: 15, elevation: 10 },
+  pickerModalTitle: { fontSize: 13, fontWeight: '800', color: isDark ? '#94a3b8' : '#64748b', paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 5, letterSpacing: 0.5 },
+  pickerModalItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
+  pickerModalTxt: { fontSize: 15, color: colors.text, fontWeight: '600' },
 
   // Edit Modal
   editModalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  editModalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, height: height * 0.88 },
-  editModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  editModalTitle: { fontSize: 17, fontWeight: '900', color: '#1e293b' },
-  editCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
+  editModalCard: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: height * 0.88 },
+  editModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
+  editModalTitle: { fontSize: 17, fontWeight: '900', color: colors.text },
+  editCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: isDark ? '#1e293b' : '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
 
   // Success Modal
   successBg: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.75)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  successCard: { backgroundColor: '#fff', borderRadius: 24, padding: 24, width: '100%', maxWidth: 400, alignItems: 'center', elevation: 10 },
-  successIconOuter: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#ecfdf5', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  successCard: { backgroundColor: colors.card, borderRadius: 24, padding: 24, width: '100%', maxWidth: 400, alignItems: 'center', elevation: 10 },
+  successIconOuter: { width: 80, height: 80, borderRadius: 40, backgroundColor: isDark ? '#064e3b' : '#ecfdf5', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   successIconInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#10b981', justifyContent: 'center', alignItems: 'center' },
-  successTitle: { fontSize: 20, fontWeight: '900', color: '#1e293b', marginBottom: 8, textAlign: 'center' },
-  successDesc: { fontSize: 13, color: '#475569', textAlign: 'center', lineHeight: 20, marginBottom: 20 },
-  summaryBox: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, width: '100%', borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 20 },
-  summaryLbl: { fontSize: 9, fontWeight: '800', color: '#94a3b8', letterSpacing: 0.5, marginBottom: 6 },
-  receiptText: { fontSize: 11, color: '#64748b', marginTop: 2 },
-  successActionBtn: { backgroundColor: '#1a2d5a', height: 48, borderRadius: 12, width: '100%', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  successTitle: { fontSize: 20, fontWeight: '900', color: colors.text, marginBottom: 8, textAlign: 'center' },
+  successDesc: { fontSize: 13, color: isDark ? '#cbd5e1' : '#475569', textAlign: 'center', lineHeight: 20, marginBottom: 20 },
+  summaryBox: { backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderRadius: 12, padding: 14, width: '100%', borderWidth: 1, borderColor: colors.border, marginBottom: 20 },
+  summaryLbl: { fontSize: 9, fontWeight: '800', color: isDark ? '#94a3b8' : '#94a3b8', letterSpacing: 0.5, marginBottom: 6 },
+  receiptText: { fontSize: 11, color: isDark ? '#cbd5e1' : '#64748b', marginTop: 2 },
+  successActionBtn: { backgroundColor: isDark ? '#3b82f6' : '#1a2d5a', height: 48, borderRadius: 12, width: '100%', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
   successActionTxt: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  successSecBtn: { height: 48, borderRadius: 12, width: '100%', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' },
-  successSecTxt: { color: '#475569', fontSize: 13, fontWeight: '800' },
+  successSecBtn: { height: 48, borderRadius: 12, width: '100%', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  successSecTxt: { color: colors.text, fontSize: 13, fontWeight: '800' },
 });
+}

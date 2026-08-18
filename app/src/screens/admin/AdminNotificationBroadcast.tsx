@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -29,8 +29,12 @@ import {
   CheckCircle2,
   Gift,
   Heart,
-  AlertTriangle
+  AlertTriangle,
+  Menu
 } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { AdminTabContext } from '../../context/AdminTabContext';
+import { useTheme } from '../../context/ThemeContext';
 import Theme from '../../theme/Theme';
 import SalesforceService from '../../services/SalesforceService';
 import {
@@ -49,10 +53,13 @@ const { width } = Dimensions.get('window');
 const LOCATIONS = ['Main Sanctuary', 'Zoom Conference Room', 'Pastor\'s Office', 'Board Room', 'Fellowship Hall'];
 
 export default function AdminNotificationBroadcast() {
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors, isDark);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const isSubmittingLock = React.useRef(false);
+  const { openDrawer } = useContext(AdminTabContext);
 
   // --- State for Daily Promise ---
   const [dailyPromise, setDailyPromise] = useState({
@@ -465,16 +472,17 @@ export default function AdminNotificationBroadcast() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       
-      {/* ── Fixed Header ── */}
-      <View style={styles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Bell size={20} color="#FCD34D" />
-          <View>
+      {/* ── Curved Gradient Header ── */}
+      <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.headerOuter}>
+        <LinearGradient colors={['#1a2d5a', '#23314d']} style={styles.headerInner}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'center', position: 'relative' }}>
+            <TouchableOpacity onPress={openDrawer} style={{ position: 'absolute', left: 0, padding: 4, zIndex: 10 }}>
+              <Menu size={26} color="#fff" />
+            </TouchableOpacity>
             <Text style={styles.headerTitle}>Notifications Console</Text>
-            <Text style={styles.headerSub}>Manage alerts & automated broadcasts</Text>
           </View>
-        </View>
-      </View>
+        </LinearGradient>
+      </LinearGradient>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         
@@ -527,9 +535,9 @@ export default function AdminNotificationBroadcast() {
         </View>
 
         {/* ── 2. Automated Birthdays & Anniversaries ── */}
-        <View style={[styles.sectionHeader, { borderLeftColor: '#d97706' }]}>
-          <Gift size={14} color="#d97706" />
-          <Text style={[styles.sectionTitle, { color: '#d97706' }]}>Automated Celebration Greetings</Text>
+        <View style={[styles.sectionHeader, { borderLeftColor: isDark ? '#fbbf24' : '#d97706' }]}>
+          <Gift size={14} color={isDark ? '#fbbf24' : '#d97706'} />
+          <Text style={[styles.sectionTitle, { color: isDark ? '#fbbf24' : '#d97706' }]}>Automated Celebration Greetings</Text>
         </View>
 
         <View style={styles.card}>
@@ -589,12 +597,12 @@ export default function AdminNotificationBroadcast() {
         </View>
 
         {/* ── 3. Emergency Meeting Alerts ── */}
-        <View style={[styles.sectionHeader, { borderLeftColor: '#ef4444' }]}>
-          <AlertTriangle size={14} color="#b91c1c" />
-          <Text style={[styles.sectionTitle, { color: '#b91c1c' }]}>🚨 Emergency Meeting Broadcast</Text>
+        <View style={[styles.sectionHeader, { borderLeftColor: isDark ? '#f87171' : '#ef4444' }]}>
+          <AlertTriangle size={14} color={isDark ? '#fca5a5' : '#b91c1c'} />
+          <Text style={[styles.sectionTitle, { color: isDark ? '#fca5a5' : '#b91c1c' }]}>🚨 Emergency Meeting Broadcast</Text>
         </View>
 
-        <View style={[styles.card, { borderColor: '#fca5a5', borderWidth: 0.5 }]}>
+        <View style={[styles.card, { borderColor: isDark ? '#7f1d1d' : '#fca5a5', borderWidth: 0.5 }]}>
           <View style={styles.inputGroup}>
             <Text style={styles.fLabelSmall}>Meeting Title</Text>
             <TextInput 
@@ -702,9 +710,9 @@ export default function AdminNotificationBroadcast() {
         </View>
 
         {/* ── 4. Manual Custom Broadcast ── */}
-        <View style={[styles.sectionHeader, { borderLeftColor: '#f97316' }]}>
-          <Megaphone size={14} color="#c2410c" />
-          <Text style={[styles.sectionTitle, { color: '#c2410c' }]}>General Custom Broadcast</Text>
+        <View style={[styles.sectionHeader, { borderLeftColor: isDark ? '#fdba74' : '#f97316' }]}>
+          <Megaphone size={14} color={isDark ? '#fdba74' : '#c2410c'} />
+          <Text style={[styles.sectionTitle, { color: isDark ? '#fdba74' : '#c2410c' }]}>General Custom Broadcast</Text>
         </View>
 
         <View style={styles.card}>
@@ -762,18 +770,11 @@ export default function AdminNotificationBroadcast() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9' },
-  header: { 
-    backgroundColor: '#1a2d5a', 
-    paddingTop: Platform.OS === 'ios' ? 60 : 40, 
-    paddingBottom: 20, 
-    paddingHorizontal: 20,
-    borderBottomWidth: 3,
-    borderBottomColor: '#c0392b'
-  },
+function getStyles(colors: any, isDark: boolean) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  headerOuter: { borderBottomLeftRadius: 30, borderBottomRightRadius: 30, marginBottom: 10, marginHorizontal: 0, marginTop: -20, paddingBottom: 4 },
+  headerInner: { padding: 15, paddingTop: Platform.OS === 'ios' ? 60 : 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
-  headerSub: { fontSize: 12, color: '#aac4e8', marginTop: 2 },
 
   scroll: { padding: 15 },
 
@@ -781,19 +782,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     gap: 8, 
-    backgroundColor: '#fff', 
+    backgroundColor: colors.card, 
     padding: 12, 
     borderTopLeftRadius: 12, 
     borderTopRightRadius: 12,
     borderLeftWidth: 4,
-    borderLeftColor: '#1e40af',
+    borderLeftColor: isDark ? '#3b82f6' : '#1e40af',
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9'
+    borderBottomColor: colors.border
   },
-  sectionTitle: { fontSize: 11, fontWeight: '800', color: '#1e40af', textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionTitle: { fontSize: 11, fontWeight: '800', color: isDark ? '#60a5fa' : '#1e40af', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   card: { 
-    backgroundColor: '#fff', 
+    backgroundColor: colors.card, 
     padding: 18, 
     borderBottomLeftRadius: 12, 
     borderBottomRightRadius: 12,
@@ -801,66 +802,68 @@ const styles = StyleSheet.create({
     elevation: 2,
     shadowColor: '#000',
     shadowOpacity: 0.05,
-    shadowRadius: 5
+    shadowRadius: 5,
+    borderWidth: 1,
+    borderColor: colors.border
   },
 
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  fLabel: { fontSize: 13, fontWeight: '700', color: '#334155' },
-  fLabelSmall: { fontSize: 10, fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: 6, marginTop: 10, letterSpacing: 0.5 },
+  fLabel: { fontSize: 13, fontWeight: '700', color: colors.text },
+  fLabelSmall: { fontSize: 10, fontWeight: '800', color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase', marginBottom: 6, marginTop: 10, letterSpacing: 0.5 },
 
   inputGroup: { marginBottom: 10 },
   inputBox: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    backgroundColor: '#f8fafc', 
+    backgroundColor: isDark ? '#1e293b' : '#f8fafc', 
     borderWidth: 1, 
-    borderColor: '#e2e8f0', 
+    borderColor: colors.border, 
     borderRadius: 8, 
     paddingHorizontal: 12, 
     height: 44 
   },
   inputBoxAlt: {
-    backgroundColor: '#f8fafc', 
+    backgroundColor: isDark ? '#1e293b' : '#f8fafc', 
     borderWidth: 1, 
-    borderColor: '#e2e8f0', 
+    borderColor: colors.border, 
     borderRadius: 8, 
     paddingHorizontal: 12, 
     height: 44,
     fontSize: 13,
-    color: '#1e293b',
+    color: colors.text,
     fontWeight: '600'
   },
-  textInput: { flex: 1, fontSize: 13, fontWeight: '700', color: '#1e293b' },
+  textInput: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.text },
   
   pickerBtn: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between', 
-    backgroundColor: '#f8fafc', 
+    backgroundColor: isDark ? '#1e293b' : '#f8fafc', 
     borderWidth: 1, 
-    borderColor: '#e2e8f0', 
+    borderColor: colors.border, 
     borderRadius: 8, 
     paddingHorizontal: 10, 
     height: 44 
   },
-  pickerTxt: { fontSize: 12, color: '#1e293b', fontWeight: '700' },
+  pickerTxt: { fontSize: 12, color: colors.text, fontWeight: '700' },
   dropdown: { 
     position: 'absolute',
     top: 60,
     right: 0,
     left: 0,
-    backgroundColor: '#fff', 
+    backgroundColor: colors.card, 
     borderWidth: 1, 
-    borderColor: '#e2e8f0', 
+    borderColor: colors.border, 
     borderRadius: 8, 
     zIndex: 1000,
     elevation: 5,
     overflow: 'hidden'
   },
-  dropItem: { padding: 12, borderBottomWidth: 0.5, borderBottomColor: '#f1f5f9' },
-  dropTxt: { fontSize: 12, color: '#334155', fontWeight: '600' },
+  dropItem: { padding: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border },
+  dropTxt: { fontSize: 12, color: colors.text, fontWeight: '600' },
 
-  divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 15 },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: 15 },
   
   simulateBtn: { 
     flexDirection: 'row', 
@@ -868,12 +871,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     gap: 8, 
     borderWidth: 1, 
-    borderColor: '#d97706', 
+    borderColor: isDark ? '#f59e0b' : '#d97706', 
     borderRadius: 8, 
     paddingVertical: 10, 
     marginTop: 10 
   },
-  simulateBtnTxt: { fontSize: 11, fontWeight: '800', color: '#b45309' },
+  simulateBtnTxt: { fontSize: 11, fontWeight: '800', color: isDark ? '#fbbf24' : '#b45309' },
 
   emergencyBtn: {
     backgroundColor: '#c0392b',
@@ -890,9 +893,11 @@ const styles = StyleSheet.create({
 
   actionRow: { marginTop: 15 },
   sendBtn: { 
+    alignSelf: 'center',
+    width: '75%',
     height: 46, 
-    backgroundColor: '#1a2d5a', 
-    borderRadius: 8, 
+    backgroundColor: isDark ? '#3b82f6' : '#1a2d5a', 
+    borderRadius: 30, 
     flexDirection: 'row',
     alignItems: 'center', 
     justifyContent: 'center',
@@ -905,33 +910,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     gap: 8, 
-    backgroundColor: '#f0fdf4', 
+    backgroundColor: isDark ? '#064e3b' : '#f0fdf4', 
     padding: 10, 
     borderRadius: 8, 
     marginTop: 15,
     borderWidth: 0.5,
-    borderColor: '#bcf0da'
+    borderColor: isDark ? '#059669' : '#bcf0da'
   },
-  statusTxt: { flex: 1, fontSize: 10, color: '#065f46', lineHeight: 15 },
+  statusTxt: { flex: 1, fontSize: 10, color: isDark ? '#a7f3d0' : '#065f46', lineHeight: 15 },
 
   footer: { 
     position: 'absolute', 
     bottom: 0, 
     left: 0, 
     right: 0, 
-    backgroundColor: '#fff', 
+    backgroundColor: colors.card, 
     padding: 16, 
     borderTopWidth: 1, 
-    borderTopColor: '#e2e8f0' 
+    borderTopColor: colors.border 
   },
   saveBtn: { 
-    backgroundColor: '#1a2d5a', 
+    alignSelf: 'center',
+    width: '75%',
+    backgroundColor: isDark ? '#10b981' : '#059669', 
     height: 50, 
-    borderRadius: 12, 
+    borderRadius: 30, 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'center', 
-    gap: 10 
+    gap: 10,
+    elevation: 4,
+    shadowColor: isDark ? '#10b981' : '#059669',
+    shadowOpacity: 0.3,
+    shadowRadius: 5
   },
   saveBtnTxt: { color: '#fff', fontSize: 14, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 }
 });
+}

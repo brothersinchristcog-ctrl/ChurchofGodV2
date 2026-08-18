@@ -9,13 +9,14 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
-  Modal
+  Modal,
+  Platform
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ChevronLeft, Calendar, Award, CheckCircle, Circle, BookOpen, Clock, Heart } from 'lucide-react-native';
+import { ChevronLeft, ArrowLeft, Calendar, Award, CheckCircle, Circle, BookOpen, Clock, Heart } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import SalesforceService from '../services/SalesforceService';
 
 const { width } = Dimensions.get('window');
@@ -222,26 +223,47 @@ export default function BiblePlansScreen({ navigation }: any) {
     : 0;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
+    <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       
-      {/* Premium Navy Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <ChevronLeft color="#fff" size={28} />
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.headerTitle}>Bible Reading Plans</Text>
-            <Text style={styles.headerSubtitle}>బైబిల్ పఠన ప్రణాళికలు</Text>
+      {/* Premium Header */}
+      <View style={styles.headerWrapper}>
+        <View style={styles.headerShadowWrapper}>
+          <View style={styles.gradientBorderContainer}>
+            <Svg height="100%" width="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
+              <Defs>
+                <LinearGradient id="borderGrad" x1="0" y1="0" x2="1" y2="0">
+                  <Stop offset="0" stopColor="#3b82f6" />
+                  <Stop offset="0.5" stopColor="#0ea5e9" />
+                  <Stop offset="1" stopColor="#8b5cf6" />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#borderGrad)" />
+            </Svg>
+
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+                  <ArrowLeft color="#fff" size={24} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.headerCenter}>
+                <Text style={styles.headerTitle}>Bible Reading Plans</Text>
+                <Text style={styles.headerSubtitle}>బైబిల్ పఠన ప్రణాళికలు</Text>
+              </View>
+
+              <View style={styles.headerRight}>
+                <TouchableOpacity 
+                  style={styles.langToggle} 
+                  onPress={() => setLang(lang === 'English' ? 'Telugu' : 'English')}
+                >
+                  <Text style={styles.langToggleTxt}>{lang === 'English' ? 'తెలుగు' : 'English'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
-        <TouchableOpacity 
-          style={styles.langToggle} 
-          onPress={() => setLang(lang === 'English' ? 'Telugu' : 'English')}
-        >
-          <Text style={styles.langToggleTxt}>{lang === 'English' ? 'తెలుగు' : 'English'}</Text>
-        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -413,26 +435,57 @@ export default function BiblePlansScreen({ navigation }: any) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  headerWrapper: {
+    width: '100%',
+    position: 'relative'
+  },
+  headerShadowWrapper: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 15,
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    backgroundColor: '#1a2d5a', 
+  },
+  gradientBorderContainer: {
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    overflow: 'hidden',
+  },
   header: {
     backgroundColor: '#1a2d5a',
     paddingHorizontal: 16,
-    paddingVertical: 15,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingBottom: 25,
+    marginBottom: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 33,
+    borderBottomRightRadius: 33,
+    overflow: 'hidden'
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center' },
-  backBtn: { marginRight: 12 },
-  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '800' },
-  headerSubtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '600' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', width: 80 },
+  backBtn: { marginRight: 12, padding: 4 },
+  headerCenter: { 
+    position: 'absolute',
+    left: 0, 
+    right: 0,
+    bottom: 15,
+    alignItems: 'center',
+    zIndex: -1 
+  },
+  headerRight: { width: 80, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '800', textAlign: 'center' },
+  headerSubtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '600', textAlign: 'center' },
   
   langToggle: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',

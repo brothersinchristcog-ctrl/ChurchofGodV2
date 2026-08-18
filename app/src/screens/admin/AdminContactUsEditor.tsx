@@ -11,10 +11,13 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Phone, Mail, MapPin, Save, ChevronLeft, Plus, Trash2, RefreshCw, Edit2, Eye, Link } from 'lucide-react-native';
+import { Phone, Mail, MapPin, Save, Menu, Plus, Trash2, RefreshCw, Edit2, Eye, Link } from 'lucide-react-native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import firestore from '@react-native-firebase/firestore';
+import { LinearGradient } from 'expo-linear-gradient';
 import { AdminTabContext } from '../../context/AdminTabContext';
+import { useTheme } from '../../context/ThemeContext';
+import Theme from '../../theme/Theme';
 
 interface ContactData {
   address: string;
@@ -60,7 +63,15 @@ const FbIcon = () => (
 );
 
 export default function AdminContactUsEditor() {
-  const { goBack } = useContext(AdminTabContext);
+  const { isDark } = useTheme();
+  const theme = {
+    background: isDark ? '#0b141a' : '#f0f2f7',
+    surface: isDark ? '#111b21' : '#ffffff',
+    border: isDark ? '#222e35' : '#e5e7eb',
+    text: isDark ? '#e9edef' : '#111827',
+    textSecondary: isDark ? '#8696a0' : '#6b7280',
+  };
+  const { openDrawer } = useContext(AdminTabContext);
 
   const [data, setData] = useState<ContactData>(DEFAULT_CONTACT);
   const [draft, setDraft] = useState<ContactData>(DEFAULT_CONTACT);
@@ -138,37 +149,33 @@ export default function AdminContactUsEditor() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
 
         {/* ── Header ── */}
-        <View style={styles.header}>
-          {/* Back button */}
-          <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-            <ChevronLeft size={20} color="#fff" />
-          </TouchableOpacity>
-
-          {/* Title */}
-          <View style={styles.headerCenter}>
-            <Phone size={18} color="#FCD34D" />
-            <Text style={styles.headerTitle}>Contact Us</Text>
-          </View>
-
-          {/* Right: Refresh + single Edit/View toggle */}
-          <View style={styles.headerRight}>
-            <TouchableOpacity onPress={fetchData} style={styles.iconBtn}>
-              <RefreshCw size={16} color="#aac4e8" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.editToggleBtn}
-              onPress={isEditing ? handleCancel : handleEdit}
-            >
-              {isEditing
-                ? <><Eye size={14} color="#aac4e8" /><Text style={[styles.editToggleTxt, { color: '#aac4e8' }]}>View</Text></>
-                : <><Edit2 size={14} color="#FCD34D" /><Text style={styles.editToggleTxt}>Edit</Text></>
-              }
-            </TouchableOpacity>
-          </View>
-        </View>
+        <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.headerOuter}>
+          <LinearGradient colors={['#1a2d5a', '#23314d']} style={styles.headerInner}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+              <TouchableOpacity onPress={openDrawer} style={{ padding: 4 }}>
+                <Menu size={24} color="#fff" />
+              </TouchableOpacity>
+              
+              <View style={{ alignItems: 'center' }}>
+                <Text style={styles.headerTitle}>Contact Us</Text>
+                <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginTop: 2 }}>Church Companion</Text>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.editToggleBtn}
+                onPress={isEditing ? handleCancel : handleEdit}
+              >
+                {isEditing
+                  ? <><Eye size={14} color="#aac4e8" /><Text style={[styles.editToggleTxt, { color: '#aac4e8' }]}>View</Text></>
+                  : <><Edit2 size={14} color="#FCD34D" /><Text style={styles.editToggleTxt}>Edit</Text></>
+                }
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </LinearGradient>
 
         <ScrollView
           style={styles.scroll}
@@ -179,67 +186,67 @@ export default function AdminContactUsEditor() {
           {/* ─── VIEW MODE ─── */}
           {!isEditing ? (
             <>
-              <View style={styles.modeBanner}>
-                <Eye size={13} color="#1a2d5a" />
-                <Text style={styles.modeBannerTxt}>Preview — tap Edit to make changes</Text>
+              <View style={[styles.modeBanner, { backgroundColor: isDark ? "rgba(56, 189, 248, 0.1)" : "#e0f2fe" }]}>
+                <Eye size={13} color={isDark ? "#38bdf8" : "#1a2d5a"} />
+                <Text style={[styles.modeBannerTxt, { color: isDark ? "#38bdf8" : "#1a2d5a" }]}>Preview — tap Edit to make changes</Text>
               </View>
 
               {/* Address */}
-              <View style={styles.viewCard}>
+              <View style={[styles.viewCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
                 <View style={styles.viewCardHeader}>
-                  <MapPin size={15} color="#1a2d5a" />
-                  <Text style={styles.viewCardTitle}>Church Address</Text>
+                  <MapPin size={15} color={isDark ? "#38bdf8" : "#1a2d5a"} />
+                  <Text style={[styles.viewCardTitle, { color: theme.text }]}>Church Address</Text>
                 </View>
-                <Text style={styles.viewCardBody}>{data.address}</Text>
+                <Text style={[styles.viewCardBody, { color: theme.textSecondary }]}>{data.address}</Text>
               </View>
 
               {/* Phones */}
-              <View style={styles.viewCard}>
+              <View style={[styles.viewCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
                 <View style={styles.viewCardHeader}>
                   <Phone size={15} color="#16a34a" />
-                  <Text style={styles.viewCardTitle}>Phone Numbers</Text>
+                  <Text style={[styles.viewCardTitle, { color: theme.text }]}>Phone Numbers</Text>
                   <View style={styles.countBadge}><Text style={styles.countBadgeTxt}>{data.phoneNumbers.length}</Text></View>
                 </View>
                 {data.phoneNumbers.map((ph, idx) => (
-                  <View key={idx} style={styles.viewRow}>
+                  <View key={idx} style={[styles.viewRow, { borderBottomColor: theme.border }]}>
                     <View style={[styles.viewRowIcon, { backgroundColor: '#dcfce7' }]}>
                       <Phone size={13} color="#16a34a" />
                     </View>
                     <View>
-                      <Text style={styles.viewRowLabel}>Call</Text>
-                      <Text style={styles.viewRowValue}>{ph}</Text>
+                      <Text style={[styles.viewRowLabel, { color: theme.textSecondary }]}>Call</Text>
+                      <Text style={[styles.viewRowValue, { color: theme.text }]}>{ph}</Text>
                     </View>
                   </View>
                 ))}
               </View>
 
               {/* Emails */}
-              <View style={styles.viewCard}>
+              <View style={[styles.viewCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
                 <View style={styles.viewCardHeader}>
                   <Mail size={15} color="#d97706" />
-                  <Text style={styles.viewCardTitle}>Email Addresses</Text>
+                  <Text style={[styles.viewCardTitle, { color: theme.text }]}>Email Addresses</Text>
                   <View style={[styles.countBadge, { backgroundColor: '#fef3c7' }]}>
                     <Text style={[styles.countBadgeTxt, { color: '#d97706' }]}>{data.emails.length}</Text>
                   </View>
                 </View>
                 {data.emails.map((em, idx) => (
-                  <View key={idx} style={styles.viewRow}>
+                  <View key={idx} style={[styles.viewRow, { borderBottomColor: theme.border }]}>
                     <View style={[styles.viewRowIcon, { backgroundColor: '#fef3c7' }]}>
                       <Mail size={13} color="#d97706" />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.viewRowLabel}>Email</Text>
-                      <Text style={styles.viewRowValue} numberOfLines={1}>{em}</Text>
+                      <Text style={[styles.viewRowLabel, { color: theme.textSecondary }]}>Email</Text>
+                      <Text style={[styles.viewRowValue, { color: theme.text }]} numberOfLines={1}>{em}</Text>
                     </View>
                   </View>
                 ))}
               </View>
 
               {/* Social Links */}
-              <View style={styles.viewCard}>
+              <View style={[styles.viewCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
                 <View style={styles.viewCardHeader}>
                   <Link size={15} color="#7c3aed" />
-                  <Text style={styles.viewCardTitle}>Social Links</Text>
+                  <Text style={[styles.viewCardTitle, { color: theme.text }]}>Social Links</Text>
                 </View>
                 <View style={styles.socialPreviewRow}>
                   <View style={[styles.socialPreviewChip, { backgroundColor: '#ef4444' }]}>
@@ -263,71 +270,71 @@ export default function AdminContactUsEditor() {
               </View>
 
               {/* Address */}
-              <View style={styles.fieldCard}>
-                <View style={styles.fieldLabelRow}><MapPin size={14} color="#1a2d5a" /><Text style={styles.fieldLabel}>Church Address</Text></View>
-                <TextInput style={[styles.input, styles.textArea]} value={draft.address} onChangeText={(t) => setDraft((p) => ({ ...p, address: t }))} placeholder="Enter church address…" placeholderTextColor="#94a3b8" multiline numberOfLines={3} textAlignVertical="top" />
+              <View style={[styles.fieldCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
+                <View style={styles.fieldLabelRow}><MapPin size={14} color={isDark ? "#38bdf8" : "#1a2d5a"} /><Text style={[styles.fieldLabel, { color: theme.text }]}>Church Address</Text></View>
+                <TextInput style={[styles.input, styles.textArea, { backgroundColor: isDark ? "#1e293b" : "#f8fafc", color: theme.text, borderColor: theme.border }]} value={draft.address} onChangeText={(t) => setDraft((p) => ({ ...p, address: t }))} placeholder="Enter church address…" placeholderTextColor="#94a3b8" multiline numberOfLines={3} textAlignVertical="top" />
               </View>
 
               {/* Phone Numbers */}
-              <View style={styles.fieldCard}>
-                <View style={styles.fieldLabelRow}><Phone size={14} color="#16a34a" /><Text style={styles.fieldLabel}>Phone Numbers</Text></View>
-                <Text style={styles.fieldHint}>Members tap these to call directly.</Text>
+              <View style={[styles.fieldCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
+                <View style={styles.fieldLabelRow}><Phone size={14} color="#16a34a" /><Text style={[styles.fieldLabel, { color: theme.text }]}>Phone Numbers</Text></View>
+                <Text style={[styles.fieldHint, { color: theme.textSecondary }]}>Members tap these to call directly.</Text>
                 {draft.phoneNumbers.map((phone, idx) => (
                   <View key={idx} style={styles.listRow}>
-                    <TextInput style={[styles.input, styles.listInput]} value={phone} onChangeText={(t) => updatePhone(idx, t)} placeholder="+91 99999 00000" placeholderTextColor="#94a3b8" keyboardType="phone-pad" />
+                    <TextInput style={[styles.input, styles.listInput, { backgroundColor: isDark ? "#1e293b" : "#f8fafc", color: theme.text, borderColor: theme.border }]} value={phone} onChangeText={(t) => updatePhone(idx, t)} placeholder="+91 99999 00000" placeholderTextColor="#94a3b8" keyboardType="phone-pad" />
                     <TouchableOpacity style={styles.removeBtn} onPress={() => removePhone(idx)} disabled={draft.phoneNumbers.length === 1}>
                       <Trash2 size={15} color={draft.phoneNumbers.length === 1 ? '#cbd5e1' : '#ef4444'} />
                     </TouchableOpacity>
                   </View>
                 ))}
                 <TouchableOpacity style={styles.addBtn} onPress={addPhone}>
-                  <Plus size={14} color="#1a2d5a" /><Text style={styles.addTxt}>Add Phone Number</Text>
+                  <Plus size={14} color={isDark ? "#38bdf8" : "#1a2d5a"} /><Text style={styles.addTxt}>Add Phone Number</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Emails */}
-              <View style={styles.fieldCard}>
-                <View style={styles.fieldLabelRow}><Mail size={14} color="#d97706" /><Text style={styles.fieldLabel}>Email Addresses</Text></View>
-                <Text style={styles.fieldHint}>Members tap these to compose email.</Text>
+              <View style={[styles.fieldCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
+                <View style={styles.fieldLabelRow}><Mail size={14} color="#d97706" /><Text style={[styles.fieldLabel, { color: theme.text }]}>Email Addresses</Text></View>
+                <Text style={[styles.fieldHint, { color: theme.textSecondary }]}>Members tap these to compose email.</Text>
                 {draft.emails.map((email, idx) => (
                   <View key={idx} style={styles.listRow}>
-                    <TextInput style={[styles.input, styles.listInput]} value={email} onChangeText={(t) => updateEmail(idx, t)} placeholder="info@church.org" placeholderTextColor="#94a3b8" keyboardType="email-address" autoCapitalize="none" />
+                    <TextInput style={[styles.input, styles.listInput, { backgroundColor: isDark ? "#1e293b" : "#f8fafc", color: theme.text, borderColor: theme.border }]} value={email} onChangeText={(t) => updateEmail(idx, t)} placeholder="info@church.org" placeholderTextColor="#94a3b8" keyboardType="email-address" autoCapitalize="none" />
                     <TouchableOpacity style={styles.removeBtn} onPress={() => removeEmail(idx)} disabled={draft.emails.length === 1}>
                       <Trash2 size={15} color={draft.emails.length === 1 ? '#cbd5e1' : '#ef4444'} />
                     </TouchableOpacity>
                   </View>
                 ))}
                 <TouchableOpacity style={styles.addBtn} onPress={addEmail}>
-                  <Plus size={14} color="#1a2d5a" /><Text style={styles.addTxt}>Add Email Address</Text>
+                  <Plus size={14} color={isDark ? "#38bdf8" : "#1a2d5a"} /><Text style={styles.addTxt}>Add Email Address</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Social Links */}
-              <View style={styles.fieldCard}>
-                <View style={styles.fieldLabelRow}><Link size={14} color="#7c3aed" /><Text style={styles.fieldLabel}>Social Media Links</Text></View>
+              <View style={[styles.fieldCard, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: isDark ? 1 : 0 }]}>
+                <View style={styles.fieldLabelRow}><Link size={14} color="#7c3aed" /><Text style={[styles.fieldLabel, { color: theme.text }]}>Social Media Links</Text></View>
                 <View style={styles.socialEditRow}>
                   <View style={[styles.socialIconBadge, { backgroundColor: '#ef4444' }]}><YtIcon /></View>
-                  <TextInput style={[styles.input, styles.socialInput]} value={draft.socialLinks.youtube} onChangeText={(t) => setDraft((p) => ({ ...p, socialLinks: { ...p.socialLinks, youtube: t } }))} placeholder="YouTube URL" placeholderTextColor="#94a3b8" autoCapitalize="none" keyboardType="url" />
+                  <TextInput style={[styles.input, styles.socialInput, { backgroundColor: isDark ? "#1e293b" : "#f8fafc", color: theme.text, borderColor: theme.border }]} value={draft.socialLinks.youtube} onChangeText={(t) => setDraft((p) => ({ ...p, socialLinks: { ...p.socialLinks, youtube: t } }))} placeholder="YouTube URL" placeholderTextColor="#94a3b8" autoCapitalize="none" keyboardType="url" />
                 </View>
                 <View style={styles.socialEditRow}>
                   <View style={[styles.socialIconBadge, { backgroundColor: '#e1306c' }]}><IgIcon /></View>
-                  <TextInput style={[styles.input, styles.socialInput]} value={draft.socialLinks.instagram} onChangeText={(t) => setDraft((p) => ({ ...p, socialLinks: { ...p.socialLinks, instagram: t } }))} placeholder="Instagram URL" placeholderTextColor="#94a3b8" autoCapitalize="none" keyboardType="url" />
+                  <TextInput style={[styles.input, styles.socialInput, { backgroundColor: isDark ? "#1e293b" : "#f8fafc", color: theme.text, borderColor: theme.border }]} value={draft.socialLinks.instagram} onChangeText={(t) => setDraft((p) => ({ ...p, socialLinks: { ...p.socialLinks, instagram: t } }))} placeholder="Instagram URL" placeholderTextColor="#94a3b8" autoCapitalize="none" keyboardType="url" />
                 </View>
                 <View style={styles.socialEditRow}>
                   <View style={[styles.socialIconBadge, { backgroundColor: '#1877f2' }]}><FbIcon /></View>
-                  <TextInput style={[styles.input, styles.socialInput]} value={draft.socialLinks.facebook} onChangeText={(t) => setDraft((p) => ({ ...p, socialLinks: { ...p.socialLinks, facebook: t } }))} placeholder="Facebook URL" placeholderTextColor="#94a3b8" autoCapitalize="none" keyboardType="url" />
+                  <TextInput style={[styles.input, styles.socialInput, { backgroundColor: isDark ? "#1e293b" : "#f8fafc", color: theme.text, borderColor: theme.border }]} value={draft.socialLinks.facebook} onChangeText={(t) => setDraft((p) => ({ ...p, socialLinks: { ...p.socialLinks, facebook: t } }))} placeholder="Facebook URL" placeholderTextColor="#94a3b8" autoCapitalize="none" keyboardType="url" />
                 </View>
               </View>
 
               {/* Save / Cancel */}
               <View style={styles.actionRow}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-                  <Text style={styles.cancelTxt}>Cancel</Text>
+                <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: isDark ? "#334155" : "#e2e8f0" }]} onPress={handleCancel}>
+                  <Text style={[styles.cancelTxt, { color: theme.text }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.saveBtn, saving && styles.btnDisabled]} onPress={handleSave} disabled={saving}>
                   {saving
-                    ? <ActivityIndicator color="#1a2d5a" size="small" />
-                    : <><Save size={16} color="#1a2d5a" /><Text style={styles.saveTxt}>Save Changes</Text></>
+                    ? <ActivityIndicator color={isDark ? "#38bdf8" : "#1a2d5a"} size="small" />
+                    : <><Save size={16} color={isDark ? "#38bdf8" : "#1a2d5a"} /><Text style={styles.saveTxt}>Save Changes</Text></>
                   }
                 </TouchableOpacity>
               </View>
@@ -345,12 +352,9 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, backgroundColor: '#1a2d5a', justifyContent: 'center', alignItems: 'center', gap: 12 },
   loadingText: { color: '#aac4e8', fontSize: 14 },
 
-  header: { backgroundColor: '#1a2d5a', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 13, gap: 8 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center' },
-  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center' },
-  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '800' },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconBtn: { padding: 6 },
+  headerOuter: { borderBottomLeftRadius: 30, borderBottomRightRadius: 30, marginBottom: 15, paddingBottom: 4 },
+  headerInner: { padding: 15, paddingTop: Platform.OS === 'ios' ? 40 : 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
   editToggleBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   editToggleTxt: { color: '#FCD34D', fontSize: 13, fontWeight: '700' },
 

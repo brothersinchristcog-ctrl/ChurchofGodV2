@@ -2,16 +2,11 @@
   "expo": {
     "name": "Church of God",
     "slug": "app",
-    "version": "1.0.0",
+    "scheme": "com.brothersinchrist.churchofgod",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.brothersinchrist.churchofgod",
@@ -31,25 +26,28 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
       ],
-      "edgeToEdgeEnabled": true,
-      "versionCode": 4
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+      ],
+      "softwareKeyboardLayoutMode": "pan",
+      "versionCode": 7
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/logo.png"
     },
     "plugins": [
-      "@react-native-firebase/app",
-      "@react-native-firebase/auth",
-      "@react-native-firebase/messaging",
       "@react-native-community/datetimepicker",
       [
-        "expo-build-properties",
+        "expo-media-library",
         {
-          "android": {
-            "enableProguardInReleaseBuilds": true
-          }
+          "saveOnly": true
         }
-      ]
+      ],
+      "expo-font",
+      "./plugins/removeMediaPermissions",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

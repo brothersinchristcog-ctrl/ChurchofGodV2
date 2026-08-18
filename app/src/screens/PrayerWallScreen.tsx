@@ -17,7 +17,9 @@ import {
   InteractionManager
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { 
+  ArrowLeft,
   ChevronLeft,
   CheckCircle, 
   MessageCircle, 
@@ -419,31 +421,46 @@ export default function PrayerWallScreen({ navigation }: any) {
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
+      <StatusBar barStyle="light-content" backgroundColor={isDark ? "#0a2350" : "#1a2d5a"} />
       
-      {/* ── Page Header ── */}
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 10, paddingBottom: 16 }]}>
-        <TouchableOpacity 
-          style={styles.backBtn} 
-          onPress={() => {
-            if (navigation.canGoBack()) {
-              navigation.goBack();
-            } else {
-              navigation.navigate('Home');
-            }
-          }}
-        >
-          <ChevronLeft size={24} color="#fff" />
-          <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity>
-        
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Prayer Wall</Text>
-          <Text style={styles.headerSub}>{prayers.length} requests · Share your prayer</Text>
+      {/* 🔥 Page Header 🔥 */}
+      <LinearGradient
+        colors={isDark ? ['#60a5fa', '#3b82f6', '#60a5fa'] : ['#1e40af', '#3b82f6']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{
+          borderBottomLeftRadius: 30,
+          borderBottomRightRadius: 30,
+          paddingBottom: 4,
+          elevation: 8,
+          shadowColor: '#030a1e',
+          shadowOpacity: 0.75,
+          shadowRadius: 15,
+          shadowOffset: { width: 0, height: 10 },
+        }}
+      >
+        <View style={[styles.header, { backgroundColor: isDark ? '#0a2350' : '#1a2d5a', paddingTop: Math.max(insets.top, 20) + 10, paddingBottom: 16, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }]}>
+          <TouchableOpacity 
+            style={styles.backBtn} 
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate('Tabs', { screen: 'Home' });
+              }
+            }}
+          >
+            <ArrowLeft size={24} color="#fff" />
+          </TouchableOpacity>
+          
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Prayer Wall</Text>
+            <Text style={styles.headerSub}>{prayers.length} requests · Share your prayer</Text>
+          </View>
+  
+          <View style={{ width: 60 }} />
         </View>
-
-        <View style={{ width: 60 }} />
-      </View>
+      </LinearGradient>
 
       <FlatList
         data={prayers}

@@ -18,6 +18,7 @@ import { ChevronLeft, MapPin, Clock, Church, BookOpen } from 'lucide-react-nativ
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import firestore from '@react-native-firebase/firestore';
 import { WebView } from 'react-native-webview';
+import { useTheme } from '../context/ThemeContext';
 import Animated, { 
   useSharedValue, 
   useAnimatedProps, 
@@ -157,14 +158,14 @@ const AnimatedSegmentPath = ({ seg, j, progress }: any) => {
   );
 };
 
-const AnimatedCircleNode = ({ item, i, progress }: any) => {
+const AnimatedCircleNode = ({ item, i, progress, isDark }: any) => {
   const startStep = 2 * i;
   const endStep = 2 * i + 1;
 
   const staticCircleProps = useAnimatedProps(() => {
     const isColored = progress.value >= endStep;
     return {
-      stroke: isColored ? item.color : DEFAULT_COLOR,
+      stroke: isColored ? item.color : (isDark ? '#334155' : DEFAULT_COLOR),
       strokeWidth: isColored ? 2 : 1.5,
     };
   });
@@ -189,7 +190,7 @@ const AnimatedCircleNode = ({ item, i, progress }: any) => {
         cx={item.cx} 
         cy={item.cy} 
         r={CIRCLE_RADIUS} 
-        fill="#ffffff" 
+        fill={isDark ? '#1e293b' : "#ffffff"} 
         animatedProps={staticCircleProps}
       />
       <AnimatedCircle 
@@ -208,7 +209,7 @@ const AnimatedCircleNode = ({ item, i, progress }: any) => {
   );
 };
 
-const AnimatedIconWrapper = ({ progress, endStep, color, Icon }: any) => {
+const AnimatedIconWrapper = ({ progress, endStep, color, Icon, isDark }: any) => {
   const activeStyle = useAnimatedStyle(() => ({
     opacity: progress.value >= endStep ? 1 : 0,
     position: 'absolute',
@@ -222,7 +223,7 @@ const AnimatedIconWrapper = ({ progress, endStep, color, Icon }: any) => {
   return (
     <View style={{ width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}>
       <Animated.View style={inactiveStyle}>
-        <Icon size={28} color={DEFAULT_ICON_COLOR} />
+        <Icon size={28} color={isDark ? '#94a3b8' : DEFAULT_ICON_COLOR} />
       </Animated.View>
       <Animated.View style={activeStyle}>
         <Icon size={28} color={color} />
@@ -233,6 +234,7 @@ const AnimatedIconWrapper = ({ progress, endStep, color, Icon }: any) => {
 
 export default function ContactUsScreen() {
   const navigation = useNavigation();
+  const { isDark } = useTheme();
   const [data, setData] = useState<ContactData>(DEFAULT);
   const [loading, setLoading] = useState(true);
 
@@ -307,19 +309,19 @@ export default function ContactUsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? '#0f172a' : '#fbf9f8' }]} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(251, 249, 248, 0.8)' }]}>
         <View style={styles.headerLeft}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <ChevronLeft size={28} color="#11335b" />
+            <ChevronLeft size={28} color={isDark ? '#fff' : '#11335b'} />
           </TouchableOpacity>
         </View>
       </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#11335b" />
+          <ActivityIndicator size="large" color={isDark ? '#FCD34D' : '#11335b'} />
         </View>
       ) : (
         <ScrollView
@@ -339,25 +341,25 @@ export default function ContactUsScreen() {
           <View style={styles.heroSection}>
             <Image 
                source={require('../../assets/logo.png')} 
-               style={styles.heroLogo} 
+               style={[styles.heroLogo, { borderColor: isDark ? '#FCD34D' : 'rgba(195, 198, 207, 0.3)', borderWidth: isDark ? 2 : 0 }]} 
                resizeMode="cover"
             />
-            <Text style={styles.heroTitle}>Get in Touch</Text>
-            <Text style={styles.heroSubtitle}>
+            <Text style={[styles.heroTitle, { color: isDark ? '#fff' : '#11335b' }]}>Get in Touch</Text>
+            <Text style={[styles.heroSubtitle, { color: isDark ? '#cbd5e1' : '#43474e' }]}>
               We are here to support you on your spiritual journey. Reach out with questions, prayer requests, or just to say hello.
             </Text>
           </View>
 
           <View style={styles.bentoContainer} onLayout={(e) => setBentoY(e.nativeEvent.layout.y)}>
             {/* Visit Us Card */}
-            <View style={styles.bentoCard}>
+            <View style={[styles.bentoCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : 'rgba(195, 198, 207, 0.2)' }]}>
               <View style={styles.bentoCardHeader}>
-                <MapPin size={24} color="#735c00" />
-                <Text style={styles.bentoCardTitle}>Visit Us</Text>
+                <MapPin size={24} color={isDark ? '#FCD34D' : '#735c00'} />
+                <Text style={[styles.bentoCardTitle, { color: isDark ? '#fff' : '#11335b' }]}>Visit Us</Text>
               </View>
-              <Text style={styles.addressText}>{data.address}</Text>
+              <Text style={[styles.addressText, { color: isDark ? '#cbd5e1' : '#43474e' }]}>{data.address}</Text>
               
-              <View style={[styles.mapContainer, { overflow: 'hidden' }]}>
+              <View style={[styles.mapContainer, { overflow: 'hidden', borderColor: isDark ? '#334155' : 'rgba(195, 198, 207, 0.3)' }]}>
                 <WebView 
                   source={{ html: `
                     <!DOCTYPE html>
@@ -365,7 +367,7 @@ export default function ContactUsScreen() {
                       <head>
                         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
                         <style>
-                          body { margin: 0; padding: 0; overflow: hidden; }
+                          body { margin: 0; padding: 0; overflow: hidden; background-color: ${isDark ? '#1e293b' : '#ffffff'}; }
                           iframe { width: 100vw; height: 100vh; border: none; }
                         </style>
                       </head>
@@ -380,7 +382,7 @@ export default function ContactUsScreen() {
                       </body>
                     </html>
                   `}}
-                  style={{ width: '100%', height: '100%' }}
+                  style={{ width: '100%', height: '100%', backgroundColor: isDark ? '#1e293b' : 'transparent' }}
                   scrollEnabled={false}
                   pointerEvents="none"
                 />
@@ -389,70 +391,70 @@ export default function ContactUsScreen() {
                   activeOpacity={0.5} 
                   onPress={() => openUrl(`https://maps.google.com/?q=${encodeURIComponent(data.address)}`)}
                 >
-                  <View style={styles.mapOverlay} />
+                  <View style={[styles.mapOverlay, { backgroundColor: isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(17, 51, 91, 0.05)' }]} />
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Service Times Card */}
-            <View style={styles.bentoCard}>
+            <View style={[styles.bentoCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : 'rgba(195, 198, 207, 0.2)' }]}>
               <View style={styles.bentoCardHeader}>
-                <Clock size={24} color="#735c00" />
-                <Text style={styles.bentoCardTitle}>Service Times</Text>
+                <Clock size={24} color={isDark ? '#FCD34D' : '#735c00'} />
+                <Text style={[styles.bentoCardTitle, { color: isDark ? '#fff' : '#11335b' }]}>Service Times</Text>
               </View>
               
               <View style={styles.serviceList}>
                 {/* Sunday Worship */}
                 <View style={styles.serviceItem}>
-                  <View style={styles.serviceIconCircle}>
-                    <Church size={20} color="#11335b" />
+                  <View style={[styles.serviceIconCircle, { backgroundColor: isDark ? 'rgba(252, 211, 77, 0.1)' : '#f5f3f3' }]}>
+                    <Church size={20} color={isDark ? '#FCD34D' : '#11335b'} />
                   </View>
                   <View style={styles.serviceContent}>
-                    <Text style={styles.serviceName}>Sunday Worship</Text>
-                    <Text style={styles.serviceDetail}>10:30 AM — 1:30 PM</Text>
+                    <Text style={[styles.serviceName, { color: isDark ? '#fff' : '#11335b' }]}>Sunday Worship</Text>
+                    <Text style={[styles.serviceDetail, { color: isDark ? '#94a3b8' : '#74777f' }]}>10:30 AM — 1:30 PM</Text>
                   </View>
                 </View>
                 
                 {/* Wednesday Bible Study */}
                 <View style={styles.serviceItem}>
-                  <View style={styles.serviceIconCircle}>
-                    <BookOpen size={20} color="#11335b" />
+                  <View style={[styles.serviceIconCircle, { backgroundColor: isDark ? 'rgba(252, 211, 77, 0.1)' : '#f5f3f3' }]}>
+                    <BookOpen size={20} color={isDark ? '#FCD34D' : '#11335b'} />
                   </View>
                   <View style={styles.serviceContent}>
-                    <Text style={styles.serviceName}>Wednesday Bible Study</Text>
-                    <Text style={styles.serviceDetail}>6:00 PM — 8:00 PM</Text>
+                    <Text style={[styles.serviceName, { color: isDark ? '#fff' : '#11335b' }]}>Wednesday Bible Study</Text>
+                    <Text style={[styles.serviceDetail, { color: isDark ? '#94a3b8' : '#74777f' }]}>6:00 PM — 8:00 PM</Text>
                   </View>
                 </View>
 
                 {/* Women's Fasting Prayer */}
                 <View style={styles.serviceItem}>
-                  <View style={styles.serviceIconCircle}>
-                    <Clock size={20} color="#11335b" />
+                  <View style={[styles.serviceIconCircle, { backgroundColor: isDark ? 'rgba(252, 211, 77, 0.1)' : '#f5f3f3' }]}>
+                    <Clock size={20} color={isDark ? '#FCD34D' : '#11335b'} />
                   </View>
                   <View style={styles.serviceContent}>
-                    <Text style={styles.serviceName}>Women's Fasting Prayer</Text>
-                    <Text style={styles.serviceDetail}>Friday: 11:00 AM — 3:00 PM</Text>
+                    <Text style={[styles.serviceName, { color: isDark ? '#fff' : '#11335b' }]}>Women's Fasting Prayer</Text>
+                    <Text style={[styles.serviceDetail, { color: isDark ? '#94a3b8' : '#74777f' }]}>Friday: 11:00 AM — 3:00 PM</Text>
                   </View>
                 </View>
 
                 {/* Second Saturday */}
                 <View style={[styles.serviceItem, { marginBottom: 0 }]}>
-                  <View style={styles.serviceIconCircle}>
-                    <Church size={20} color="#11335b" />
+                  <View style={[styles.serviceIconCircle, { backgroundColor: isDark ? 'rgba(252, 211, 77, 0.1)' : '#f5f3f3' }]}>
+                    <Church size={20} color={isDark ? '#FCD34D' : '#11335b'} />
                   </View>
                   <View style={styles.serviceContent}>
-                    <Text style={styles.serviceName}>Special Meeting</Text>
-                    <Text style={styles.serviceDetail}>Every Month 2nd Saturday: 10:00 AM — 4:00 PM</Text>
+                    <Text style={[styles.serviceName, { color: isDark ? '#fff' : '#11335b' }]}>Special Meeting</Text>
+                    <Text style={[styles.serviceDetail, { color: isDark ? '#94a3b8' : '#74777f' }]}>Every Month 2nd Saturday: 10:00 AM — 4:00 PM</Text>
                   </View>
                 </View>
               </View>
             </View>
 
             {/* Connect With Us Card */}
-            <View style={styles.bentoCard} onLayout={(e) => setCardY(e.nativeEvent.layout.y)}>
+            <View style={[styles.bentoCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : 'rgba(195, 198, 207, 0.2)' }]} onLayout={(e) => setCardY(e.nativeEvent.layout.y)}>
               <View style={styles.bentoCardHeader}>
-                <NetworkIcon size={24} color="#735c00" />
-                <Text style={styles.bentoCardTitle}>Connect With Us</Text>
+                <NetworkIcon size={24} color={isDark ? '#FCD34D' : '#735c00'} />
+                <Text style={[styles.bentoCardTitle, { color: isDark ? '#fff' : '#11335b' }]}>Connect With Us</Text>
               </View>
               <View style={styles.wavyContainer}>
                 {/* Background Wave & Circles */}
@@ -461,7 +463,7 @@ export default function ContactUsScreen() {
                     {/* Static background path */}
                     <Path 
                       d="M 32 40 C 64 40, 64 120, 96 120 C 128 120, 128 40, 160 40 C 192 40, 192 120, 224 120 C 256 120, 256 40, 288 40" 
-                      stroke={DEFAULT_COLOR} 
+                      stroke={isDark ? '#334155' : DEFAULT_COLOR} 
                       strokeWidth={1.5} 
                       fill="none" 
                     />
@@ -473,7 +475,7 @@ export default function ContactUsScreen() {
 
                     {/* Colored Circles */}
                     {SOCIAL_ITEMS.map((item, i) => (
-                      <AnimatedCircleNode key={`circle-${i}`} item={item} i={i} progress={progress} />
+                      <AnimatedCircleNode key={`circle-${i}`} item={item} i={i} progress={progress} isDark={isDark} />
                     ))}
                   </Svg>
                 </View>
@@ -496,9 +498,9 @@ export default function ContactUsScreen() {
                       onPress={() => openUrl(itemUrl)}
                     >
                       <View style={styles.wavyIconBox}>
-                        <AnimatedIconWrapper progress={progress} endStep={endStep} color={item.color} Icon={item.Icon} />
+                        <AnimatedIconWrapper progress={progress} endStep={endStep} color={item.color} Icon={item.Icon} isDark={isDark} />
                       </View>
-                      <Text style={styles.wavyText}>{item.label}</Text>
+                      <Text style={[styles.wavyText, { color: isDark ? '#fff' : '#1b1c1c' }]}>{item.label}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -507,12 +509,12 @@ export default function ContactUsScreen() {
           </View>
 
           {/* Scripture Quote Footer */}
-          <View style={styles.footerSection}>
-            <Text style={styles.quoteIcon}>"</Text>
-            <Text style={styles.scriptureQuote}>
+          <View style={[styles.footerSection, { borderTopColor: isDark ? '#334155' : 'rgba(195, 198, 207, 0.1)' }]}>
+            <Text style={[styles.quoteIcon, { color: isDark ? 'rgba(252, 211, 77, 0.2)' : 'rgba(17, 51, 91, 0.4)' }]}>"</Text>
+            <Text style={[styles.scriptureQuote, { color: isDark ? '#cbd5e1' : '#43474e' }]}>
               Call to me and I will answer you and tell you great and unsearchable things you do not know.
             </Text>
-            <Text style={styles.scriptureRef}>— JEREMIAH 33:3</Text>
+            <Text style={[styles.scriptureRef, { color: isDark ? '#FCD34D' : '#735c00' }]}>— JEREMIAH 33:3</Text>
           </View>
           
           <View style={{ height: 100 }} />

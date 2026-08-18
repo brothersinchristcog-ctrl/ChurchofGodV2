@@ -38,6 +38,14 @@
           }
         },
         {
+          "client_id": "610167013138-vpkdpuua9avm8app3cl0skul434l5hvt.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.brothersinchrist.churchofgod",
+            "certificate_hash": "be13a8f831e66e48b5f3b758a5537efb2f1d15f1"
+          }
+        },
+        {
           "client_id": "610167013138-44leu198o42ms4q6eh9o8giemj15hltn.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -51,7 +59,7 @@
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "610167013138-44leu198o42ms4q6eh9o8giemj15hltn.apps.googleusercontent.com",
+              "client_id": "610167013138-3htaevm87qjonr9mpeg7a6cmdqmbofc0.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

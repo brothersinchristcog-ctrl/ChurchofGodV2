@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   Users, 
   ChevronLeft,
+  ArrowLeft,
   ChevronDown,
   Phone,
   Mail,
@@ -25,11 +26,13 @@ import {
   UserCheck,
   Plus,
   X,
+  Pencil,
   Calendar as CalendarIcon
 } from 'lucide-react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import SalesforceService from '../services/SalesforceService';
 
 const { width } = Dimensions.get('window');
@@ -50,21 +53,24 @@ export default function MembersScreen({ navigation }: any) {
   const [relatedContacts, setRelatedContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingContact, setEditingContact] = useState<any | null>(null);
   const [submitting, setSubmitting] = useState(false);
   
-  const [newMember, setNewMember] = useState({
+  const [memberForm, setMemberForm] = useState({
     firstName: '',
     lastName: '',
     relation: 'Husband', // picklist
     gender: 'Male',
     birthdate: '',
     anniversaryDate: '',
+    baptismDate: '',
     email: '',
     phone: ''
   });
   const [showSuccess, setShowSuccess] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('Family member added successfully.');
   const [showRelationPicker, setShowRelationPicker] = useState(false);
-  const [datePickerType, setDatePickerType] = useState<'birthdate' | 'anniversary' | null>(null);
+  const [datePickerType, setDatePickerType] = useState<'birthdate' | 'anniversary' | 'baptism' | null>(null);
 
   const fetchFamily = async () => {
     if (!member || !member.accountId) {
@@ -103,26 +109,69 @@ export default function MembersScreen({ navigation }: any) {
     fetchFamily();
   }, [member]);
 
-  const handleAddMember = async () => {
-    if (!newMember.firstName || !newMember.lastName) {
+  const formatDateToDDMMYYYY = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '';
+    // If date is YYYY-MM-DD
+    const parts = dateStr.split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return dateStr;
+  };
+
+  const openAddModal = () => {
+    setEditingContact(null);
+    setMemberForm({
+      firstName: '', lastName: '', relation: 'Husband', gender: 'Male', birthdate: '', anniversaryDate: '', baptismDate: '', email: '', phone: ''
+    });
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (c: any) => {
+    setEditingContact(c);
+    setMemberForm({
+      firstName: c.FirstName || '',
+      lastName: c.LastName || '',
+      relation: c.Title || 'Husband',
+      gender: c.Gender__c || 'Male',
+      birthdate: formatDateToDDMMYYYY(c.Birthdate),
+      anniversaryDate: formatDateToDDMMYYYY(c.Anniversary_Date__c),
+      baptismDate: formatDateToDDMMYYYY(c.Date_of_Baptism__c),
+      email: c.Email || '',
+      phone: c.Phone || c.MobilePhone || ''
+    });
+    setShowAddModal(true);
+  };
+
+  const handleSaveMember = async () => {
+    if (!memberForm.firstName || !memberForm.lastName) {
       Alert.alert('Validation', 'First name and Last name are required.');
       return;
-    }
-    if (newMember.relation === 'Spouse' && !newMember.anniversaryDate) {
-      // It's good to have it, but maybe not strictly required.
     }
     
     setSubmitting(true);
     try {
-      await SalesforceService.addFamilyMember(member!.accountId!, newMember);
+      if (editingContact) {
+        await SalesforceService.updateFamilyMember(editingContact.Id, memberForm);
+        setSuccessMsg('Member details updated successfully.');
+      } else {
+        await SalesforceService.addFamilyMember(member!.accountId!, memberForm);
+        setSuccessMsg('Family member added successfully.');
+      }
       setShowSuccess(true);
       setShowAddModal(false);
-      setNewMember({
-        firstName: '', lastName: '', relation: 'Husband', gender: 'Male', birthdate: '', anniversaryDate: '', email: '', phone: ''
+      setEditingContact(null);
+      setMemberForm({
+        firstName: '', lastName: '', relation: 'Husband', gender: 'Male', birthdate: '', anniversaryDate: '', baptismDate: '', email: '', phone: ''
       });
+      // Clear cache and fetch fresh
+      await AsyncStorage.removeItem('cog_admin_celebs_cache_v2').catch(() => {});
+      if (member?.accountId) {
+        await AsyncStorage.removeItem(`cache_members_${member.accountId}`).catch(() => {});
+      }
       fetchFamily();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to add family member.');
+      Alert.alert('Error', err.message || 'Failed to save member details.');
     } finally {
       setSubmitting(false);
     }
@@ -151,25 +200,40 @@ export default function MembersScreen({ navigation }: any) {
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* ── Page Header (Navy) ── */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <ChevronLeft size={24} color="#FCD34D" />
-            <Text style={styles.backBtnTxt}>Back</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Premium Header */}
+      <View style={styles.headerWrapper}>
+        <View style={styles.headerShadowWrapper}>
+          <View style={styles.gradientBorderContainer}>
+            <Svg height="100%" width="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
+              <Defs>
+                <LinearGradient id="borderGrad" x1="0" y1="0" x2="1" y2="0">
+                  <Stop offset="0" stopColor="#3b82f6" />
+                  <Stop offset="0.5" stopColor="#0ea5e9" />
+                  <Stop offset="1" stopColor="#8b5cf6" />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#borderGrad)" />
+            </Svg>
 
-        <View style={styles.headerContent}>
-          <View style={styles.iconCircle}>
-            <Users size={32} color="#FCD34D" />
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+                  <ArrowLeft color="#fff" size={24} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.headerCenter}>
+                <Text style={styles.headerTitle}>Household Directory</Text>
+                <Text style={styles.headerSubTe}>కుటుంబ సభ్యుల వివరాలు</Text>
+              </View>
+
+              <View style={styles.headerRight}>
+              </View>
+            </View>
           </View>
-          <Text style={styles.headerTitle}>Household Directory</Text>
-          <Text style={styles.headerSubTe}>కుటుంబ సభ్యుల వివరాలు</Text>
         </View>
-
       </View>
 
       {/* ── Main Body ── */}
@@ -239,8 +303,18 @@ export default function MembersScreen({ navigation }: any) {
                         )}
                       </View>
 
-                      <View style={styles.roleBadge}>
-                        <Text style={styles.roleBadgeTxt}>{c.User_Type__c || 'Member'}</Text>
+                      <View style={styles.roleRow}>
+                        <View style={styles.roleBadge}>
+                          <Text style={styles.roleBadgeTxt}>{c.Title || c.User_Type__c || 'Member'}</Text>
+                        </View>
+                        
+                        <TouchableOpacity 
+                          style={styles.editCardBtn} 
+                          onPress={() => openEditModal(c)}
+                        >
+                          <Pencil size={13} color="#3b82f6" />
+                          <Text style={styles.editCardBtnTxt}>Edit</Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
                   </View>
@@ -282,6 +356,48 @@ export default function MembersScreen({ navigation }: any) {
                       </TouchableOpacity>
                     )}
 
+                    {c.Birthdate && (
+                      <View style={styles.detailRow}>
+                        <View style={styles.iconBgCal}>
+                          <Calendar size={14} color="#b45309" />
+                        </View>
+                        <View>
+                          <Text style={styles.detailLabel}>Birthdate</Text>
+                          <Text style={[styles.detailValue, { color: isDark ? '#cbd5e1' : '#334155' }]}>
+                            {formatDateToDDMMYYYY(c.Birthdate)}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {c.Anniversary_Date__c && (
+                      <View style={styles.detailRow}>
+                        <View style={styles.iconBgCal}>
+                          <Calendar size={14} color="#b45309" />
+                        </View>
+                        <View>
+                          <Text style={styles.detailLabel}>Wedding Anniversary Date</Text>
+                          <Text style={[styles.detailValue, { color: isDark ? '#cbd5e1' : '#334155' }]}>
+                            {formatDateToDDMMYYYY(c.Anniversary_Date__c)}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {c.Date_of_Baptism__c && (
+                      <View style={styles.detailRow}>
+                        <View style={styles.iconBgCal}>
+                          <Calendar size={14} color="#b45309" />
+                        </View>
+                        <View>
+                          <Text style={styles.detailLabel}>Baptism Date</Text>
+                          <Text style={[styles.detailValue, { color: isDark ? '#cbd5e1' : '#334155' }]}>
+                            {formatDateToDDMMYYYY(c.Date_of_Baptism__c)}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
                     {c.CreatedDate && (
                       <View style={styles.detailRow}>
                         <View style={styles.iconBgCal}>
@@ -310,7 +426,7 @@ export default function MembersScreen({ navigation }: any) {
       {member && member.accountId && !loading && (
         <TouchableOpacity 
           style={styles.addBtnFloating} 
-          onPress={() => setShowAddModal(true)}
+          onPress={openAddModal}
         >
           <Plus size={28} color="#1a2d5a" />
         </TouchableOpacity>
@@ -324,7 +440,7 @@ export default function MembersScreen({ navigation }: any) {
               <UserCheck size={36} color="#15803D" />
             </View>
             <Text style={[styles.successTitle, { color: isDark ? '#fff' : '#1a2d5a' }]}>Success!</Text>
-            <Text style={styles.successSub}>Family member added successfully.</Text>
+            <Text style={styles.successSub}>{successMsg}</Text>
             <TouchableOpacity 
               style={styles.successBtn} 
               onPress={() => setShowSuccess(false)}
@@ -335,13 +451,15 @@ export default function MembersScreen({ navigation }: any) {
         </View>
       )}
 
-      {/* ── Add Family Member Modal ── */}
+      {/* ── Add / Edit Family Member Modal ── */}
       {showAddModal && (
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e293b' : '#fff' }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a2d5a' }]}>Add Family Member</Text>
-              <TouchableOpacity onPress={() => setShowAddModal(false)}>
+              <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1a2d5a' }]}>
+                {editingContact ? 'Edit Member Details' : 'Add Family Member'}
+              </Text>
+              <TouchableOpacity onPress={() => { setShowAddModal(false); setEditingContact(null); }}>
                 <X size={24} color={isDark ? '#cbd5e1' : '#64748b'} />
               </TouchableOpacity>
             </View>
@@ -353,8 +471,8 @@ export default function MembersScreen({ navigation }: any) {
                   style={[styles.input, { color: isDark ? '#fff' : '#000', borderColor: isDark ? '#334155' : '#e2e8f0', backgroundColor: isDark ? '#0f172a' : '#fff' }]}
                   placeholder="e.g. John"
                   placeholderTextColor="#94a3b8"
-                  value={newMember.firstName}
-                  onChangeText={(t) => setNewMember({...newMember, firstName: t})}
+                  value={memberForm.firstName}
+                  onChangeText={(t) => setMemberForm({...memberForm, firstName: t})}
                 />
               </View>
 
@@ -364,8 +482,8 @@ export default function MembersScreen({ navigation }: any) {
                   style={[styles.input, { color: isDark ? '#fff' : '#000', borderColor: isDark ? '#334155' : '#e2e8f0', backgroundColor: isDark ? '#0f172a' : '#fff' }]}
                   placeholder="e.g. Doe"
                   placeholderTextColor="#94a3b8"
-                  value={newMember.lastName}
-                  onChangeText={(t) => setNewMember({...newMember, lastName: t})}
+                  value={memberForm.lastName}
+                  onChangeText={(t) => setMemberForm({...memberForm, lastName: t})}
                 />
               </View>
 
@@ -376,8 +494,8 @@ export default function MembersScreen({ navigation }: any) {
                   placeholder="e.g. 9988776655"
                   placeholderTextColor="#94a3b8"
                   keyboardType="phone-pad"
-                  value={newMember.phone}
-                  onChangeText={(t) => setNewMember({...newMember, phone: t})}
+                  value={memberForm.phone}
+                  onChangeText={(t) => setMemberForm({...memberForm, phone: t})}
                 />
               </View>
 
@@ -389,8 +507,8 @@ export default function MembersScreen({ navigation }: any) {
                   placeholderTextColor="#94a3b8"
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  value={newMember.email}
-                  onChangeText={(t) => setNewMember({...newMember, email: t})}
+                  value={memberForm.email}
+                  onChangeText={(t) => setMemberForm({...memberForm, email: t})}
                 />
               </View>
 
@@ -401,7 +519,7 @@ export default function MembersScreen({ navigation }: any) {
                   onPress={() => setShowRelationPicker(true)}
                 >
                   <Text style={{ color: isDark ? '#fff' : '#1a2d5a', fontSize: 16, fontWeight: '600' }}>
-                    {newMember.relation || 'Select Relation'}
+                    {memberForm.relation || 'Select Relation'}
                   </Text>
                   <ChevronDown size={18} color="#94a3b8" />
                 </TouchableOpacity>
@@ -413,10 +531,10 @@ export default function MembersScreen({ navigation }: any) {
                   {['Male', 'Female'].map(gen => (
                     <TouchableOpacity 
                       key={gen}
-                      style={[styles.pill, newMember.gender === gen && styles.pillActive]}
-                      onPress={() => setNewMember({...newMember, gender: gen})}
+                      style={[styles.pill, memberForm.gender === gen && styles.pillActive]}
+                      onPress={() => setMemberForm({...memberForm, gender: gen})}
                     >
-                      <Text style={[styles.pillText, newMember.gender === gen && styles.pillTextActive]}>{gen}</Text>
+                      <Text style={[styles.pillText, memberForm.gender === gen && styles.pillTextActive]}>{gen}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -428,37 +546,50 @@ export default function MembersScreen({ navigation }: any) {
                   style={[styles.input, styles.dateInput, { borderColor: isDark ? '#334155' : '#e2e8f0', backgroundColor: isDark ? '#0f172a' : '#fff' }]}
                   onPress={() => setDatePickerType('birthdate')}
                 >
-                  <Text style={{ color: newMember.birthdate ? (isDark ? '#fff' : '#000') : '#94a3b8' }}>
-                    {newMember.birthdate || 'Select Birthdate'}
+                  <Text style={{ color: memberForm.birthdate ? (isDark ? '#fff' : '#000') : '#94a3b8' }}>
+                    {memberForm.birthdate || 'Select Birthdate'}
                   </Text>
                   <CalendarIcon size={18} color="#94a3b8" />
                 </TouchableOpacity>
               </View>
 
-              {SPOUSE_RELATIONS.includes(newMember.relation) && (
+              {SPOUSE_RELATIONS.includes(memberForm.relation) && (
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Anniversary Date</Text>
+                  <Text style={styles.inputLabel}>Wedding Anniversary Date</Text>
                   <TouchableOpacity 
                     style={[styles.input, styles.dateInput, { borderColor: isDark ? '#334155' : '#e2e8f0', backgroundColor: isDark ? '#0f172a' : '#fff' }]}
                     onPress={() => setDatePickerType('anniversary')}
                   >
-                    <Text style={{ color: newMember.anniversaryDate ? (isDark ? '#fff' : '#000') : '#94a3b8' }}>
-                      {newMember.anniversaryDate || 'Select Anniversary'}
+                    <Text style={{ color: memberForm.anniversaryDate ? (isDark ? '#fff' : '#000') : '#94a3b8' }}>
+                      {memberForm.anniversaryDate || 'Select Wedding Anniversary Date'}
                     </Text>
                     <CalendarIcon size={18} color="#94a3b8" />
                   </TouchableOpacity>
                 </View>
               )}
 
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Baptism Date</Text>
+                <TouchableOpacity 
+                  style={[styles.input, styles.dateInput, { borderColor: isDark ? '#334155' : '#e2e8f0', backgroundColor: isDark ? '#0f172a' : '#fff' }]}
+                  onPress={() => setDatePickerType('baptism')}
+                >
+                  <Text style={{ color: memberForm.baptismDate ? (isDark ? '#fff' : '#000') : '#94a3b8' }}>
+                    {memberForm.baptismDate || 'Select Baptism Date'}
+                  </Text>
+                  <CalendarIcon size={18} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
+
               <TouchableOpacity 
                 style={styles.submitBtn} 
-                onPress={handleAddMember}
+                onPress={handleSaveMember}
                 disabled={submitting}
               >
                 {submitting ? (
                   <ActivityIndicator color="#1a2d5a" />
                 ) : (
-                  <Text style={styles.submitBtnTxt}>Add Member</Text>
+                  <Text style={styles.submitBtnTxt}>{editingContact ? 'Save Changes' : 'Add Member'}</Text>
                 )}
               </TouchableOpacity>
             </ScrollView>
@@ -491,22 +622,22 @@ export default function MembersScreen({ navigation }: any) {
                   key={option}
                   style={[
                     styles.pickerOption,
-                    newMember.relation === option && styles.pickerOptionActive,
+                    memberForm.relation === option && styles.pickerOptionActive,
                     { borderColor: isDark ? '#334155' : '#f1f5f9' }
                   ]}
                   onPress={() => {
-                    setNewMember({ ...newMember, relation: option });
+                    setMemberForm({ ...memberForm, relation: option });
                     setShowRelationPicker(false);
                   }}
                 >
                   <Text style={[
                     styles.pickerOptionTxt,
-                    newMember.relation === option && styles.pickerOptionTxtActive,
-                    { color: isDark && newMember.relation !== option ? '#cbd5e1' : undefined }
+                    memberForm.relation === option && styles.pickerOptionTxtActive,
+                    { color: isDark && memberForm.relation !== option ? '#cbd5e1' : undefined }
                   ]}>
                     {option}
                   </Text>
-                  {newMember.relation === option && (
+                  {memberForm.relation === option && (
                     <View style={styles.pickerCheck}>
                       <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>✓</Text>
                     </View>
@@ -525,11 +656,13 @@ export default function MembersScreen({ navigation }: any) {
           const year = date.getFullYear();
           const month = String(date.getMonth() + 1).padStart(2, '0');
           const day = String(date.getDate()).padStart(2, '0');
-          const formatted = `${year}-${month}-${day}`;
+          const formatted = `${day}-${month}-${year}`;
           if (datePickerType === 'birthdate') {
-            setNewMember({ ...newMember, birthdate: formatted });
-          } else {
-            setNewMember({ ...newMember, anniversaryDate: formatted });
+            setMemberForm({ ...memberForm, birthdate: formatted });
+          } else if (datePickerType === 'anniversary') {
+            setMemberForm({ ...memberForm, anniversaryDate: formatted });
+          } else if (datePickerType === 'baptism') {
+            setMemberForm({ ...memberForm, baptismDate: formatted });
           }
           setDatePickerType(null);
         }}
@@ -541,21 +674,51 @@ export default function MembersScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { 
-    backgroundColor: '#1a2d5a', 
-    paddingTop: Platform.OS === 'ios' ? 50 : 20, 
-    paddingBottom: 30,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+  headerWrapper: {
+    width: '100%',
+    position: 'relative'
   },
-  headerTop: { flexDirection: 'row', paddingHorizontal: 20, alignItems: 'center' },
-  backBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  backBtnTxt: { color: '#FCD34D', fontSize: 16, fontWeight: '700', marginLeft: 4 },
-  
-  headerContent: { alignItems: 'center', marginTop: 10 },
-  iconCircle: { width: 70, height: 70, borderRadius: 35, backgroundColor: 'rgba(252,211,77,0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  headerSubTe: { fontSize: 14, color: '#FCD34D', fontWeight: '500', marginTop: 2 },
+  headerShadowWrapper: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 15,
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    backgroundColor: '#1a2d5a', 
+  },
+  gradientBorderContainer: {
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    overflow: 'hidden',
+  },
+  header: {
+    backgroundColor: '#1a2d5a',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingBottom: 25,
+    marginBottom: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomLeftRadius: 33,
+    borderBottomRightRadius: 33,
+    overflow: 'hidden'
+  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', width: 80 },
+  backBtn: { padding: 4, marginRight: 12 },
+  headerCenter: { 
+    position: 'absolute',
+    left: 0, 
+    right: 0,
+    bottom: 15,
+    alignItems: 'center',
+    zIndex: -1 
+  },
+  headerRight: { width: 80, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '800', textAlign: 'center' },
+  headerSubTe: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '600', textAlign: 'center', marginTop: 2 },
 
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   loadingText: { fontSize: 14, fontWeight: '600', marginTop: 12 },
@@ -599,15 +762,30 @@ const styles = StyleSheet.create({
     marginLeft: 8 
   },
   selfBadgeTxt: { color: '#1a2d5a', fontSize: 10, fontWeight: '800' },
+  roleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6
+  },
   roleBadge: { 
     alignSelf: 'flex-start', 
     backgroundColor: '#eff6ff', 
     paddingHorizontal: 8, 
     paddingVertical: 3, 
     borderRadius: 6, 
-    marginTop: 6 
   },
   roleBadgeTxt: { color: '#1e40af', fontSize: 11, fontWeight: '700' },
+  editCardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4
+  },
+  editCardBtnTxt: { color: '#2563eb', fontSize: 12, fontWeight: '700' },
   
   cardDivider: { height: 1, marginVertical: 14 },
   

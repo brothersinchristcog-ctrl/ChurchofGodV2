@@ -3,10 +3,10 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { Home, Heart, BookOpen, HandCoins, User } from 'lucide-react-native';
-import { ActivityIndicator, View, Text, StyleSheet, Alert, Platform, TouchableOpacity, Pressable, AppState, Image, Modal } from 'react-native';
+import { ActivityIndicator, View, Text, StyleSheet, Alert, Platform, TouchableOpacity, Pressable, AppState, Image, Modal, TouchableWithoutFeedback } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Lock, Phone, Bell } from 'lucide-react-native';
+import { Lock, Phone, Bell, MessageCircle, X } from 'lucide-react-native';
 import PillNavBar from './PillNavBar';
 
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -15,12 +15,16 @@ import Theme from '../theme/Theme';
 import AdminNavigator from './AdminNavigator'; 
 import NotificationService from '../services/NotificationService';
 import SecurityService from '../services/SecurityService';
+import CelebrationPopup from '../components/CelebrationPopup';
 
 
 // Auth & Onboarding
 import AuthNavigator from './AuthNavigator';
 import SplashScreen from '../screens/auth/SplashScreen';
 import OnboardingScreen from '../screens/auth/OnboardingScreen';
+
+// App Updates
+import UpdateChecker from '../components/UpdateChecker';
 
 // Member Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -44,6 +48,12 @@ import MembersScreen from '../screens/MembersScreen';
 import SermonVideoScreen from '../screens/SermonVideoScreen';
 import AboutUsScreen from '../screens/AboutUsScreen';
 import ContactUsScreen from '../screens/ContactUsScreen';
+import MemberGalleryDashboard from '../screens/MemberGalleryDashboard';
+import MemberGalleryAlbumDetail from '../screens/MemberGalleryAlbumDetail';
+import MemberBibleClasses from '../screens/member/bible_classes/MemberBibleClasses';
+import MemberBibleClassView from '../screens/member/bible_classes/MemberBibleClassView';
+import DailyCelebrationChatScreen from '../screens/DailyCelebrationChatScreen';
+import CelebrationHistoryScreen from '../screens/CelebrationHistoryScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -126,13 +136,46 @@ function TabNavigator() {
 }
 
 function Navigation() {
-  const { user, member, loading, viewMode } = useAuth();
-  const navigation = useNavigation();
+  const { user, member, loading, viewMode, setViewMode } = useAuth();
+  const navigation = useNavigation<any>();
   const [onboardingComplete, setOnboardingComplete] = React.useState<boolean | null>(null);
   const [showSplash, setShowSplash] = useState(true);
   const [isLocked, setIsLocked] = useState(false); // Default to false, check on mount
   const [pushNotification, setPushNotification] = useState<any>(null);
+  const [adminWhatsappReplies, setAdminWhatsappReplies] = useState<any[]>([]);
   const appState = React.useRef(AppState.currentState);
+
+  const userTypeStr = member?.userType?.toLowerCase() || '';
+  const isActualAdmin = userTypeStr === 'admin' || 
+                        userTypeStr === 'pastor' || 
+                        userTypeStr === 'system administrator' || 
+                        userTypeStr.includes('admin') || 
+                        userTypeStr.includes('pastor');
+
+  // WhatsApp Global Listener
+  useEffect(() => {
+    if (!isActualAdmin) return;
+    const unsubscribe = firestore().collection('broadcasts')
+      .orderBy('createdAt', 'desc')
+      .limit(5)
+      .onSnapshot((snapshot) => {
+        if (snapshot) {
+          const replies = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter((data: any) => data.type === 'whatsapp_reply');
+          setAdminWhatsappReplies(replies);
+        }
+      });
+    return () => unsubscribe();
+  }, [isActualAdmin]);
+
+  const dismissAdminReply = async (id: string) => {
+    try {
+      await firestore().collection('broadcasts').doc(id).delete();
+    } catch (e) {
+      console.error('Error dismissing reply:', e);
+    }
+  };
 
   // 1. Initial Security Check & App State Listener
   useEffect(() => {
@@ -183,18 +226,51 @@ function Navigation() {
   useEffect(() => {
     // 1. When app is in background and user clicks notification
     const unsubscribeOnOpen = NotificationService.messaging().onNotificationOpenedApp(remoteMessage => {
-      NotificationService.handleNotificationNavigation(remoteMessage, navigation);
+      const type = remoteMessage?.data?.type;
+      if (type === 'expense_approval') {
+        if (isActualAdmin && viewMode !== 'admin') setViewMode('admin');
+      } else {
+        if (viewMode === 'admin') setViewMode('member');
+      }
+      setTimeout(() => {
+        NotificationService.handleNotificationNavigation(remoteMessage, navigation);
+      }, 300);
     });
 
     // 2. When app is closed and user clicks notification
     NotificationService.messaging().getInitialNotification().then(remoteMessage => {
       if (remoteMessage) {
-        NotificationService.handleNotificationNavigation(remoteMessage, navigation);
+        const type = remoteMessage?.data?.type;
+        if (type === 'expense_approval') {
+          if (isActualAdmin && viewMode !== 'admin') setViewMode('admin');
+        } else {
+          if (viewMode === 'admin') setViewMode('member');
+        }
+        setTimeout(() => {
+          NotificationService.handleNotificationNavigation(remoteMessage, navigation);
+        }, 300);
       }
     });
 
     // 3. When app is in foreground and notification arrives
     const unsubscribeForeground = NotificationService.setupForegroundListener(navigation, (remoteMessage) => {
+      // SECURITY: Ignore push notifications targeted to a different phone number
+      const targetPhone = remoteMessage?.data?.targetPhone;
+      if (targetPhone && typeof targetPhone === 'string' && targetPhone.trim().length > 0) {
+        const uPhone = user?.phoneNumber || '';
+        const mPhone = member?.phone || '';
+        const targetClean = targetPhone.replace(/\D/g, '');
+        
+        const match1 = uPhone && uPhone.replace(/\D/g, '').endsWith(targetClean);
+        const match2 = mPhone && mPhone.replace(/\D/g, '').endsWith(targetClean);
+        const match3 = targetClean.endsWith(uPhone.replace(/\D/g, '')) && uPhone.length > 5;
+        const match4 = targetClean.endsWith(mPhone.replace(/\D/g, '')) && mPhone.length > 5;
+        
+        if (!match1 && !match2 && !match3 && !match4) {
+          console.log('Skipping foreground notification targeted to different phone');
+          return; // Skip if not targeted to current user
+        }
+      }
       setPushNotification(remoteMessage);
     });
 
@@ -202,7 +278,7 @@ function Navigation() {
       unsubscribeOnOpen();
       unsubscribeForeground();
     };
-  }, [navigation]);
+  }, [navigation, viewMode, setViewMode]);
 
   useEffect(() => {
     if (user && !loading) {
@@ -225,10 +301,13 @@ function Navigation() {
                 const SalesforceService = require('../services/SalesforceService').default;
                 const result = await SalesforceService.checkContactExists(phoneClean);
                 if (result && result.exists) {
+                  const rawRole = (result.member?.userType || 'Member').toLowerCase();
+                  const role = ['admin', 'pastor'].includes(rawRole) ? rawRole : 'member';
+
                   await firestore().collection('users').doc(user.uid).set({
                     name: result.member?.name || '',
                     phone: phoneClean,
-                    role: 'Member',
+                    role: role,
                     onboardingComplete: true
                   }, { merge: true });
                   console.log('🩹 [Self-Healing] Firestore user profile successfully repaired!');
@@ -314,13 +393,6 @@ function Navigation() {
     );
   }
 
-  const userTypeStr = member?.userType?.toLowerCase() || '';
-  const isActualAdmin = userTypeStr === 'admin' || 
-                        userTypeStr === 'pastor' || 
-                        userTypeStr === 'system administrator' || 
-                        userTypeStr.includes('admin') || 
-                        userTypeStr.includes('pastor');
-                        
   const isAdmin = isActualAdmin && viewMode === 'admin';
 
   // Not logged in
@@ -369,52 +441,83 @@ function Navigation() {
       <Stack.Screen name="SermonVideo" component={SermonVideoScreen} />
       <Stack.Screen name="AboutUs" component={AboutUsScreen} />
       <Stack.Screen name="ContactUs" component={ContactUsScreen} />
+      <Stack.Screen name="MemberGalleryDashboard" component={MemberGalleryDashboard} />
+      <Stack.Screen name="MemberGalleryAlbumDetail" component={MemberGalleryAlbumDetail} />
+      <Stack.Screen name="BibleClasses" component={MemberBibleClasses} />
+      <Stack.Screen name="BibleClassView" component={MemberBibleClassView} />
+      <Stack.Screen name="DailyCelebrationChat" component={DailyCelebrationChatScreen} />
+      <Stack.Screen name="CelebrationHistory" component={CelebrationHistoryScreen} />
     </Stack.Navigator>
   );
 
-  // For non-admin users — just show member stack
-  if (!isActualAdmin) {
-    return memberStack;
-  }
-
-  // For admin users — pre-render BOTH views, toggle instantly with opacity
   return (
     <View style={{ flex: 1 }}>
-      {/* Admin View — always mounted, shown/hidden */}
-      <View style={{ flex: 1, display: isAdmin ? 'flex' : 'none' }}>
+      {isAdmin ? (
         <AdminNavigator />
-      </View>
-      {/* Member View — always mounted, shown/hidden */}
-      <View style={{ flex: 1, display: isAdmin ? 'none' : 'flex' }}>
-        {memberStack}
-      </View>
+      ) : (
+        memberStack
+      )}
 
       {/* Custom Foreground Push Notification Modal */}
       <Modal visible={!!pushNotification} transparent animationType="slide">
-        <View style={styles.pushOverlay}>
-          <View style={styles.pushCard}>
-            <View style={styles.pushHeader}>
-              <View style={styles.pushIconWrapper}>
-                <Bell size={20} color="#1a2d5a" />
+        <TouchableWithoutFeedback onPress={() => setPushNotification(null)}>
+          <View style={styles.pushOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.pushCard}>
+                <View style={styles.pushHeader}>
+                  <View style={styles.pushIconWrapper}>
+                    <Bell size={20} color="#ffffff" />
+                  </View>
+                  <Text style={styles.pushTitle} numberOfLines={1}>{pushNotification?.notification?.title || 'New Update'}</Text>
+                </View>
+                <Text style={styles.pushBody}>{pushNotification?.notification?.body}</Text>
+                
+                <View style={styles.pushActions}>
+                  <TouchableOpacity style={styles.pushBtnCancel} onPress={() => setPushNotification(null)}>
+                    <Text style={styles.pushBtnCancelTxt}>DISMISS</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.pushBtnOpen} onPress={() => {
+                    const type = pushNotification?.data?.type;
+                    if (isAdmin && type !== 'expense_approval') setViewMode('member');
+                    setTimeout(() => {
+                      NotificationService.handleNotificationNavigation(pushNotification, navigation);
+                    }, 300);
+                    setPushNotification(null);
+                  }}>
+                    <Text style={styles.pushBtnOpenTxt}>VIEW</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <Text style={styles.pushTitle} numberOfLines={1}>{pushNotification?.notification?.title || 'New Update'}</Text>
-            </View>
-            <Text style={styles.pushBody}>{pushNotification?.notification?.body}</Text>
-            
-            <View style={styles.pushActions}>
-              <TouchableOpacity style={styles.pushBtnCancel} onPress={() => setPushNotification(null)}>
-                <Text style={styles.pushBtnCancelTxt}>LATER</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.pushBtnOpen} onPress={() => {
-                NotificationService.handleNotificationNavigation(pushNotification, navigation);
-                setPushNotification(null);
-              }}>
-                <Text style={styles.pushBtnOpenTxt}>OPEN NOW</Text>
-              </TouchableOpacity>
-            </View>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
+
+      {/* ── Global Admin WhatsApp Notification Popups ── */}
+      {isActualAdmin && adminWhatsappReplies.length > 0 && (
+        <View style={{ position: 'absolute', top: Platform.OS === 'ios' ? 50 : 30, left: 16, right: 16, zIndex: 99999 }}>
+          {adminWhatsappReplies.map(reply => (
+            <View key={reply.id} style={{ backgroundColor: '#ffffff', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#10b981', elevation: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <MessageCircle size={18} color="#10b981" />
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: '#111827' }}>
+                    {reply.title.replace('💬 ', '')}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => dismissAdminReply(reply.id)} style={{ padding: 6, backgroundColor: '#f1f5f9', borderRadius: 20 }}>
+                  <X size={16} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+              <Text style={{ fontSize: 14, color: '#4B5563', lineHeight: 22 }}>{reply.content}</Text>
+              {reply.date && <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 10, fontWeight: '600' }}>{reply.date}</Text>}
+            </View>
+          ))}
+        </View>
+      )}
+      
+      <CelebrationPopup member={member} />
+
     </View>
   );
 }
@@ -423,7 +526,9 @@ export default function RootNavigator() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Navigation />
+        <UpdateChecker>
+          <Navigation />
+        </UpdateChecker>
       </AuthProvider>
     </ThemeProvider>
   );
@@ -459,73 +564,84 @@ const styles = StyleSheet.create({
   },
   pushOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
     zIndex: 9999
   },
   pushCard: {
-    backgroundColor: '#fff',
-    width: '85%',
-    borderRadius: 24,
-    padding: 24,
-    elevation: 20,
+    backgroundColor: '#0f172a',
+    width: '92%',
+    borderRadius: 8,
+    padding: 18,
+    elevation: 24,
     shadowColor: '#000',
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.5,
     shadowRadius: 15,
-    shadowOffset: { width: 0, height: 10 }
+    shadowOffset: { width: 0, height: 8 },
+    flexDirection: 'column',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)'
   },
   pushHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16
+    marginBottom: 12
   },
   pushIconWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f1f5f9',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12
+    marginRight: 14
   },
   pushTitle: {
     flex: 1,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
-    color: '#0f172a'
+    color: '#ffffff'
   },
   pushBody: {
-    fontSize: 15,
-    color: '#475569',
+    fontSize: 14,
+    color: '#cbd5e1',
     lineHeight: 22,
-    marginBottom: 24
+    marginBottom: 16
   },
   pushActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 16
+    gap: 12
   },
   pushBtnCancel: {
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 8
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.05)'
   },
   pushBtnCancelTxt: {
-    color: '#64748b',
+    color: '#e2e8f0',
     fontWeight: '700',
-    fontSize: 14
+    fontSize: 13,
+    letterSpacing: 0.5
   },
   pushBtnOpen: {
     paddingVertical: 10,
     paddingHorizontal: 20,
     backgroundColor: '#1a2d5a',
-    borderRadius: 8
+    borderRadius: 24,
+    elevation: 2,
+    shadowColor: '#1a2d5a',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 }
   },
   pushBtnOpenTxt: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 14
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 13,
+    letterSpacing: 0.5
   }
 });
 

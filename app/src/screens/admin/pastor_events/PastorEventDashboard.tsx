@@ -10,12 +10,14 @@ import {
   SafeAreaView,
   RefreshControl,
   StatusBar,
-  TextInput
+  TextInput,
+  Platform
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { colors, spacing, radius, typography, shadow } from '../../../theme/Theme';
+import { spacing, radius, typography, shadow } from '../../../theme/Theme';
+import { useTheme } from '../../../context/ThemeContext';
 import { PastorEvent } from '../../../types/event';
 import SalesforceService from '../../../services/SalesforceService';
 import EventTypeBadge from '../../../components/EventTypeBadge';
@@ -25,9 +27,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRoute } from '@react-navigation/native';
 import { openInMaps } from '../../../utils/maps';
 import LiveJourneyTracker from '../../../components/LiveJourneyTracker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { AdminTabContext } from '../../../context/AdminTabContext';
 
 export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
   const route = useRoute<any>();
+  const { openDrawer } = React.useContext(AdminTabContext);
+  const { colors, isDark } = useTheme();
+  const styles = getStyles(colors, isDark);
   const [events, setEvents] = useState<PastorEvent[]>([]);
   const [activeTab, setActiveTab] = useState<'today' | 'upcoming' | 'past'>('today');
   const [loading, setLoading] = useState(true);
@@ -215,6 +222,40 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
         const newEnrichedEvents = [...filteredEvents];
         for (let i = 0; i < newEnrichedEvents.length; i++) {
           const evt = newEnrichedEvents[i];
+          if (!evt.lat || !evt.lng) {
+            const geocodeQuery = evt.city ? `${evt.address?.trim() || ''}, ${evt.city?.trim() || ''}` : (evt.address?.trim() || evt.venue?.trim() || '');
+            let geocodeSuccess = false;
+            
+            const GOOGLE_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY || '';
+            if (GOOGLE_KEY) {
+              try {
+                const geoResp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(geocodeQuery)}&key=${GOOGLE_KEY}`);
+                const geoData = await geoResp.json();
+                if (geoData.status === 'OK' && geoData.results.length > 0) {
+                  evt.lat = geoData.results[0].geometry.location.lat;
+                  evt.lng = geoData.results[0].geometry.location.lng;
+                  geocodeSuccess = true;
+                }
+              } catch (e: any) {
+              }
+            }
+            
+            // Fallback to free OpenStreetMap Nominatim API if Google Maps fails (e.g., due to billing issues)
+            if (!geocodeSuccess) {
+              try {
+                const fallbackQuery = evt.city ? `${evt.venue?.trim() || ''}, ${evt.city?.trim() || ''}` : geocodeQuery;
+                const osmResp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fallbackQuery)}`);
+                const osmData = await osmResp.json();
+                if (osmData && osmData.length > 0) {
+                  evt.lat = parseFloat(osmData[0].lat);
+                  evt.lng = parseFloat(osmData[0].lon);
+                  geocodeSuccess = true;
+                }
+              } catch (e: any) {
+              }
+            }
+          }
+
           if (evt.lat && evt.lng) {
             if (evt.date !== currentDayStr) {
               currentDayStr = evt.date;
@@ -245,6 +286,22 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
                   return res;
                 }
               } catch (e) {}
+              
+              // Fallback to OSRM (Open Source Routing Machine) if Google Maps fails
+              try {
+                const [origLat, origLng] = orig.split(',');
+                const [destLat, destLng] = dest.split(',');
+                const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${origLng},${origLat};${destLng},${destLat}?overview=false`;
+                const osrmResp = await fetch(osrmUrl);
+                const osrmData = await osrmResp.json();
+                if (osrmData.code === 'Ok' && osrmData.routes.length > 0) {
+                  const r = osrmData.routes[0];
+                  const res = { distance: r.distance, duration: r.duration };
+                  AsyncStorage.setItem(cacheKey, JSON.stringify(res)).catch(()=>{});
+                  return res;
+                }
+              } catch (e) {}
+              
               return { distance: 0, duration: 0 };
             };
             
@@ -262,7 +319,7 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
               homeDurationValue = homeRouteResult.duration;
             }
 
-            if (distanceValue > 0) {
+            if (distanceValue >= 0) {
               const travelData: any = {
                 ...evt.travel,
                 distKm: distanceValue / 1000,
@@ -273,7 +330,7 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
                 originName: currentOriginName
               };
               
-              if (!isFirstValidEvent && homeDistanceValue > 0) {
+              if (!isFirstValidEvent && homeDistanceValue >= 0) {
                 travelData.homeDistKm = homeDistanceValue / 1000;
                 travelData.homeCar = Math.round(homeDurationValue / 60);
                 travelData.homeLat = homeLat;
@@ -384,21 +441,21 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
 
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Ionicons name="hourglass-outline" size={14} color={colors.primary} />
-            <Text style={[styles.timeText, { marginLeft: 6, color: colors.textSecondary }]}>
+            <Text style={[styles.timeText, { marginLeft: 6, color: '#64748b' }]}>
               Meeting length: {item.durationMins >= 60 ? `${Math.round(item.durationMins / 60 * 10) / 10} hours` : `${item.durationMins} mins`}
             </Text>
           </View>
         </View>
 
         {/* Venue & Location Section */}
-        <View style={{ marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
-          <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primaryDark, textTransform: 'uppercase', marginBottom: 4 }}>Venue & Location</Text>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary, marginBottom: 2 }}>{item.venue || 'No venue provided'}</Text>
+        <View style={{ marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' }}>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: '#111827', textTransform: 'uppercase', marginBottom: 4 }}>Venue & Location</Text>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827', marginBottom: 2 }}>{item.venue || 'No venue provided'}</Text>
           {item.city && (
             <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary, marginBottom: 2 }}>{item.city}</Text>
           )}
           {item.address && item.address !== item.venue && (
-            <Text style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 8 }}>{item.address}</Text>
+            <Text style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>{item.address}</Text>
           )}
           <TouchableOpacity 
             style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: colors.primary, paddingVertical: 8, paddingHorizontal: 12, borderRadius: radius.sm, alignSelf: 'flex-start', marginTop: 4, marginBottom: 12 }}
@@ -409,28 +466,28 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
           </TouchableOpacity>
           
           {/* Travel Distance Info - Live Tracker */}
-          {item.travel && item.travel.distKm > 0 && item.lat && item.lng && (
+          {!!item.lat && !!item.lng && (
             <View style={{ marginTop: 12 }}>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primaryDark, textTransform: 'uppercase', marginBottom: 8 }}>Live Journey Tracker</Text>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#111827', textTransform: 'uppercase', marginBottom: 8 }}>Live Journey Tracker</Text>
               <LiveJourneyTracker
                 eventId={item.id || Math.random().toString()}
                 home={{ 
-                  lat: item.travel.originLat || 15.8281, 
-                  lng: item.travel.originLng || 78.0373, 
-                  name: item.travel.originName || (item.travel.isHomeToEvent ? 'Home' : 'Previous Location') 
+                  lat: item.travel?.originLat || 15.8281, 
+                  lng: item.travel?.originLng || 78.0373, 
+                  name: item.travel?.originName || (item.travel?.isHomeToEvent ? 'Home' : 'Previous Location') 
                 }}
                 destination={{ lat: item.lat, lng: item.lng }}
                 destinationName={item.city || (item.address || item.venue || 'Event').split(',')[0].trim()}
-                initialDistanceKm={item.travel.distKm}
-                initialDurationMins={item.travel.car}
+                initialDistanceKm={item.travel?.distKm || 0}
+                initialDurationMins={item.travel?.car || 0}
                 isDisabled={item.section !== 'today'}
-                altHome={(!item.travel.isHomeToEvent && item.travel.homeLat && item.travel.homeLng) ? {
+                altHome={(!item.travel?.isHomeToEvent && item.travel?.homeLat && item.travel?.homeLng) ? {
                   lat: item.travel.homeLat,
                   lng: item.travel.homeLng,
                   name: item.travel.homeName || 'Home'
                 } : undefined}
-                altInitialDistanceKm={item.travel.homeDistKm}
-                altInitialDurationMins={item.travel.homeCar || 0}
+                altInitialDistanceKm={item.travel?.homeDistKm || 0}
+                altInitialDurationMins={item.travel?.homeCar || 0}
               />
             </View>
           )}
@@ -441,39 +498,40 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.bgSecondary} />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       
       <ScrollView 
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
       >
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.welcomeText}>Pastor's Itinerary</Text>
-          <Text style={styles.subtitleText}>Manage schedule & travel routing</Text>
-        </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity 
-            style={[styles.actionIconButton, { backgroundColor: '#FFF', borderWidth: 1, borderColor: colors.primary }]}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.actionIconButton, { backgroundColor: '#FFF', borderWidth: 1, borderColor: colors.primary, marginLeft: spacing.sm }]}
-            onPress={() => navigation.navigate('AIAssistant')}
-          >
-            <MaterialCommunityIcons name="robot-outline" size={22} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.actionIconButton, { backgroundColor: '#FFF', borderWidth: 1, borderColor: colors.primary, marginLeft: spacing.sm }]}
-            onPress={() => navigation.navigate('CreateEvent', { allEvents: events })}
-          >
-            <Ionicons name="add" size={22} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* ── Curved Gradient Header ── */}
+      <LinearGradient colors={['#1a2d5a', '#3b82f6']} style={styles.headerOuter}>
+        <LinearGradient colors={['#1a2d5a', '#23314d']} style={styles.headerInner}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+            
+            <TouchableOpacity onPress={openDrawer} style={{ padding: 4 }}>
+              <Ionicons name="menu" size={26} color="#fff" />
+            </TouchableOpacity>
+
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={styles.headerTitle}>Pastor's Itinerary</Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <TouchableOpacity onPress={() => setShowDatePicker(true)} style={{ padding: 4 }}>
+                <Ionicons name="calendar-outline" size={22} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate('AIAssistant')} style={{ padding: 4 }}>
+                <MaterialCommunityIcons name="robot-outline" size={22} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate('CreateEvent', { allEvents: events })} style={{ padding: 4 }}>
+                <Ionicons name="add" size={26} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+          </View>
+        </LinearGradient>
+      </LinearGradient>
 
       {showDatePicker && (
         <DateTimePicker
@@ -495,25 +553,39 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
 
       {/* Tabs */}
       <View style={styles.tabsContainer}>
-        {(['today', 'upcoming', 'past'] as const).map(tab => (
-          <TouchableOpacity
-            key={tab}
-            style={[
-              styles.tab, 
-              activeTab === tab && !selectedDateFilter && styles.activeTab,
-              selectedDateFilter && styles.disabledTab
-            ]}
-            onPress={() => {
-              setSelectedDateFilter(null);
-              setActiveTab(tab);
-            }}
-            disabled={loading}
-          >
-            <Text style={[styles.tabText, activeTab === tab && !selectedDateFilter && styles.activeTabText]}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {(['today', 'upcoming', 'past'] as const).map((tab, index) => {
+          let activeColor = colors.primary;
+          if (tab === 'today') activeColor = '#059669';
+          else if (tab === 'upcoming') activeColor = colors.primary;
+          else if (tab === 'past') activeColor = '#d97706';
+
+          const isActive = activeTab === tab && !selectedDateFilter;
+
+          return (
+            <React.Fragment key={tab}>
+              <TouchableOpacity
+                style={[
+                  styles.tab, 
+                  isActive && { backgroundColor: activeColor },
+                  selectedDateFilter && styles.disabledTab
+                ]}
+                onPress={() => {
+                  setSelectedDateFilter(null);
+                  setActiveTab(tab);
+                }}
+                disabled={loading}
+              >
+                <Text style={[styles.tabText, isActive && { color: '#fff', fontWeight: 'bold' }]}>
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </Text>
+              </TouchableOpacity>
+              
+              {index < 2 && (
+                <Text style={{ color: colors.border, fontWeight: 'bold', marginHorizontal: 2 }}>|</Text>
+              )}
+            </React.Fragment>
+          );
+        })}
       </View>
 
       {/* Date Filter Indicator Banner */}
@@ -536,18 +608,18 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
       )}
 
       {/* Starting Location Bar */}
-      <View style={{ backgroundColor: '#fff', padding: spacing.md, marginHorizontal: spacing.md, marginBottom: spacing.sm, borderRadius: radius.md, elevation: 1 }}>
+      <View style={{ backgroundColor: colors.card, padding: spacing.md, marginHorizontal: spacing.md, marginBottom: spacing.sm, borderRadius: radius.md, elevation: 1 }}>
         <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 4 }}>
           STARTING FROM
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TextInput
-            style={{ flex: 1, backgroundColor: colors.bgSecondary, padding: 8, borderRadius: radius.sm, fontSize: 14, color: colors.textPrimary }}
+            style={{ flex: 1, backgroundColor: colors.background, padding: 8, borderRadius: radius.sm, fontSize: 14, color: colors.text }}
             value={currentLocName}
             onChangeText={setCurrentLocName}
             onSubmitEditing={(e) => handleAddressSubmit(e.nativeEvent.text)}
             placeholder="Type starting address..."
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor={colors.textSecondary}
           />
           <TouchableOpacity 
             style={{ marginLeft: spacing.sm, backgroundColor: colors.primary, paddingHorizontal: spacing.md, paddingVertical: 10, borderRadius: radius.sm }}
@@ -561,7 +633,7 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
             )}
           </TouchableOpacity>
         </View>
-        <Text style={{ fontSize: 10, color: colors.textTertiary, marginTop: 4 }}>
+        <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 4 }}>
           {isGeocoding ? 'Calculating new distances...' : 'Type address and press Update'}
         </Text>
       </View>
@@ -591,7 +663,7 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
         </View>
       ) : enrichedEvents.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="calendar-outline" size={64} color={colors.textTertiary} />
+          <Ionicons name="calendar-outline" size={64} color={colors.textSecondary} />
           <Text style={styles.emptyText}>No events found for {activeTab}</Text>
         </View>
       ) : (
@@ -604,7 +676,7 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
       {/* Floating Buttons */}
       <View style={styles.floatingButtonsContainer}>
         <TouchableOpacity
-          style={[styles.floatingButton, { backgroundColor: colors.success }]}
+          style={[styles.floatingButton, { backgroundColor: '#059669' }]}
           activeOpacity={0.8}
           onPress={() => navigation.navigate('RoutePlanner', { events: filteredEvents })}
         >
@@ -625,22 +697,17 @@ export const PastorEventDashboard = ({ navigation }: { navigation: any }) => {
   );
 };
 
-const styles = StyleSheet.create({
+function getStyles(colors: any, isDark: boolean) { return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bgSecondary
+    backgroundColor: colors.background
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm
-  },
+  headerOuter: { borderBottomLeftRadius: 30, borderBottomRightRadius: 30, marginBottom: 10, marginHorizontal: 0, marginTop: -20, paddingBottom: 4 },
+  headerInner: { padding: 15, paddingTop: Platform.OS === 'ios' ? 60 : 40, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
   welcomeText: {
     ...typography.h1,
-    color: colors.primaryDark
+    color: colors.text
   },
   subtitleText: {
     ...typography.caption,
@@ -648,39 +715,40 @@ const styles = StyleSheet.create({
   },
   refreshButton: {
     padding: spacing.sm,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.border,
     borderRadius: radius.full
   },
   tabsContainer: {
     flexDirection: 'row',
     marginHorizontal: spacing.lg,
-    backgroundColor: colors.bgTertiary,
-    borderRadius: radius.md,
-    padding: 2,
-    marginVertical: spacing.sm
+    backgroundColor: colors.card,
+    borderRadius: 30,
+    marginVertical: spacing.sm,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    overflow: 'hidden'
   },
   tab: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 10,
     alignItems: 'center',
-    borderRadius: radius.sm
+    justifyContent: 'center',
   },
   activeTab: {
-    backgroundColor: colors.bgPrimary,
-    ...shadow.card
+    // handled dynamically in JSX now
   },
   tabText: {
     fontSize: 13,
     color: colors.textSecondary,
-    fontWeight: '500'
+    fontWeight: '600'
   },
   activeTabText: {
-    color: colors.primary,
-    fontWeight: '600'
+    // handled dynamically in JSX now
   },
   statsStrip: {
     flexDirection: 'row',
-    backgroundColor: colors.bgPrimary,
+    backgroundColor: colors.card,
     marginHorizontal: spacing.lg,
     marginVertical: spacing.xs,
     paddingVertical: spacing.md,
@@ -698,11 +766,11 @@ const styles = StyleSheet.create({
   statVal: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.textPrimary
+    color: colors.text
   },
   statLbl: {
     fontSize: 10,
-    color: colors.textTertiary,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     marginTop: 2
   },
@@ -716,12 +784,12 @@ const styles = StyleSheet.create({
     paddingBottom: 100
   },
   card: {
-    backgroundColor: colors.bgPrimary,
+    backgroundColor: '#FFF',
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#e2e8f0',
     ...shadow.card
   },
   cardHeader: {
@@ -737,7 +805,7 @@ const styles = StyleSheet.create({
   },
   titleText: {
     ...typography.h3,
-    color: colors.textPrimary,
+    color: '#111827',
     marginBottom: spacing.sm
   },
   venueRow: {
@@ -758,7 +826,7 @@ const styles = StyleSheet.create({
   },
   addressText: {
     fontSize: 12,
-    color: colors.textTertiary
+    color: colors.textSecondary
   },
   travelContainer: {
     borderTopWidth: 1,
@@ -821,8 +889,8 @@ const styles = StyleSheet.create({
   },
   floatingButtonText: {
     color: '#FFF',
-    fontSize: 14,
-    fontWeight: '600'
+    fontSize: 12,
+    fontWeight: '700'
   },
   headerActions: {
     flexDirection: 'row',
@@ -830,7 +898,7 @@ const styles = StyleSheet.create({
   },
   actionIconButton: {
     padding: spacing.sm,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.border,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
@@ -844,7 +912,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     marginHorizontal: spacing.lg,
     paddingVertical: 10,
     paddingHorizontal: spacing.md,
@@ -875,5 +943,6 @@ const styles = StyleSheet.create({
     color: colors.primary
   }
 });
+}
 
 export default PastorEventDashboard;

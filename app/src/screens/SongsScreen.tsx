@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ChevronLeft,
+  ArrowLeft,
   Search,
   Music,
   ChevronRight,
@@ -27,9 +28,13 @@ import {
   Bookmark,
   X,
   CheckCircle,
-  Info
+  Info,
+  Plus
 } from 'lucide-react-native';
+import { useAuth } from '../context/AuthContext';
+import AddSongModal from '../components/AddSongModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import SalesforceService, { WorshipSong } from '../services/SalesforceService';
 import { useTheme } from '../context/ThemeContext';
 
@@ -53,7 +58,16 @@ const CATEGORIES = [
 ];
 
 export default function SongsScreen({ navigation }: any) {
-  const { isDark } = useTheme();
+  const { isDark, colors } = useTheme();
+  const { member } = useAuth();
+
+  const userTypeStr = member?.userType?.toLowerCase() || '';
+  const isAdmin = userTypeStr === 'admin' || 
+                  userTypeStr === 'system administrator' || 
+                  userTypeStr.includes('admin') || 
+                  userTypeStr === 'pastor';
+
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // ── Tabs ──────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'browse' | 'songbook' | 'theme'>('browse');
@@ -153,34 +167,43 @@ export default function SongsScreen({ navigation }: any) {
     (song.category || 'Other').split(';').map(c => c.trim()).filter(Boolean);
 
   // ── Filtered songs ────────────────────────────────
-  const filteredBrowse = songs.filter(s => {
+  const categoryBrowseSongs = songs.filter(s => {
     const cats = getSongCategories(s);
-    // Songs that are ONLY a Theme Song stay in Theme tab; others (including those that are also Theme Song) show in Browse too
     if (cats.length === 1 && cats[0] === 'Theme Songs') return false;
+    return selectedCategory === 'All' || cats.includes(selectedCategory);
+  });
+
+  const filteredBrowse = categoryBrowseSongs.map((s, idx) => ({ ...s, displayNumber: idx + 1 })).filter(s => {
     const q = search.toLowerCase().trim();
-    const matchCategory = selectedCategory === 'All' || cats.includes(selectedCategory);
-    const matchSearch = !q ||
-      s.title.toLowerCase().includes(q) ||
+    if (!q) return true;
+    if (q === s.displayNumber.toString()) return true;
+    return s.title.toLowerCase().includes(q) ||
       (s.titleTe && s.titleTe.toLowerCase().includes(q)) ||
       (s.artist && s.artist.toLowerCase().includes(q));
-    return matchCategory && matchSearch;
   });
 
   const savedSongs = songs.filter(s => savedIds.includes(s.id));
-  const filteredSongbook = savedSongs.filter(s => {
+  const filteredSongbook = savedSongs.map((s, idx) => ({ ...s, displayNumber: idx + 1 })).filter(s => {
     const q = search.toLowerCase().trim();
-    return !q || s.title.toLowerCase().includes(q) || (s.titleTe && s.titleTe.toLowerCase().includes(q));
+    if (!q) return true;
+    if (q === s.displayNumber.toString()) return true;
+    return s.title.toLowerCase().includes(q) || (s.titleTe && s.titleTe.toLowerCase().includes(q));
   });
 
-  const filteredTheme = songs.filter(s => {
+  const categoryTheme = songs.filter(s => {
     const cats = getSongCategories(s);
-    if (!cats.includes('Theme Songs')) return false;
+    return cats.includes('Theme Songs');
+  });
+
+  const filteredTheme = categoryTheme.map((s, idx) => ({ ...s, displayNumber: idx + 1 })).filter(s => {
     const q = search.toLowerCase().trim();
-    return !q || s.title.toLowerCase().includes(q) || (s.titleTe && s.titleTe.toLowerCase().includes(q));
+    if (!q) return true;
+    if (q === s.displayNumber.toString()) return true;
+    return s.title.toLowerCase().includes(q) || (s.titleTe && s.titleTe.toLowerCase().includes(q));
   });
 
   // ── Song Card ─────────────────────────────────────
-  const renderSongCard = ({ item, index }: { item: WorshipSong; index: number }) => {
+  const renderSongCard = ({ item }: { item: WorshipSong & { displayNumber: number } }) => {
     const isSaved = savedIds.includes(item.id);
     return (
       <TouchableOpacity
@@ -190,7 +213,7 @@ export default function SongsScreen({ navigation }: any) {
         delayLongPress={400}
       >
         <View style={[styles.indexBox, { backgroundColor: isDark ? '#0f172a' : '#f3f4f6' }]}>
-          <Text style={styles.indexTxt}>{index + 1}</Text>
+          <Text style={[styles.indexTxt, { color: isDark ? '#fff' : '#1a2d5a' }]}>{item.displayNumber}</Text>
         </View>
         <View style={styles.info}>
           <Text style={[styles.title, { color: isDark ? '#fff' : '#111827' }]} numberOfLines={1}>{item.title}</Text>
@@ -205,39 +228,76 @@ export default function SongsScreen({ navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
       <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
 
-      {/* ── Header ── */}
-      <View style={styles.pageHeader}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <ChevronLeft size={24} color="#fff" />
-        </TouchableOpacity>
-        <View style={styles.titleCol}>
-          <Text style={styles.pageTitle}>Worship & Praise</Text>
-          <Text style={styles.pageSub}>స్తుతి మరియు ఆరాధన</Text>
+      {/* ── Premium Header ── */}
+      <View style={styles.headerWrapper}>
+        <View style={styles.headerShadowWrapper}>
+          <View style={styles.gradientBorderContainer}>
+            <Svg height="100%" width="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
+              <Defs>
+                <LinearGradient id="borderGrad" x1="0" y1="0" x2="1" y2="0">
+                  <Stop offset="0" stopColor="#3b82f6" />
+                  <Stop offset="0.5" stopColor="#0ea5e9" />
+                  <Stop offset="1" stopColor="#8b5cf6" />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#borderGrad)" />
+            </Svg>
+
+            <View style={styles.pageHeader}>
+              <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+                <ArrowLeft size={24} color="#fff" />
+              </TouchableOpacity>
+              <View style={styles.titleCol}>
+                <Text style={styles.pageTitle}>Worship & Praise</Text>
+                <Text style={styles.pageSub}>స్తుతి మరియు ఆరాధన</Text>
+              </View>
+              {isAdmin ? (
+                <TouchableOpacity 
+                  style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f59e0b', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 4 }}
+                  onPress={() => setShowAddModal(true)}
+                >
+                  <Plus size={24} color="#fff" />
+                </TouchableOpacity>
+              ) : (
+                <View style={{ width: 40 }} />
+              )}
+            </View>
+          </View>
         </View>
-        <View style={{ width: 40 }} />
       </View>
+
+      <AddSongModal 
+        visible={showAddModal} 
+        onClose={() => setShowAddModal(false)} 
+        onSuccess={() => {
+          fetchSongs();
+          showToast('Success', 'Song added successfully!', 'add');
+        }}
+        isDark={isDark}
+        colors={colors}
+      />
 
       {/* ── Main Tabs ── */}
       <View style={styles.tabBar}>
         <TouchableOpacity style={[styles.tab, activeTab === 'browse' && styles.tabActive]}
           onPress={() => { setActiveTab('browse'); setSearch(''); }}>
           <Music size={14} color={activeTab === 'browse' ? '#fff' : '#64748b'} />
-          <Text style={[styles.tabTxt, activeTab === 'browse' && styles.tabTxtActive]}>Browse Songs</Text>
+          <Text style={[styles.tabTxt, activeTab === 'browse' && styles.tabTxtActive]} numberOfLines={1} adjustsFontSizeToFit>Browse Songs</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.tab, activeTab === 'songbook' && styles.tabActive]}
           onPress={() => { setActiveTab('songbook'); setSearch(''); }}>
           <BookMarked size={14} color={activeTab === 'songbook' ? '#fff' : '#64748b'} />
-          <Text style={[styles.tabTxt, activeTab === 'songbook' && styles.tabTxtActive]}>
+          <Text style={[styles.tabTxt, activeTab === 'songbook' && styles.tabTxtActive]} numberOfLines={1} adjustsFontSizeToFit>
             My Songbook {savedIds.length > 0 ? `(${savedIds.length})` : ''}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.tab, activeTab === 'theme' && styles.tabActive]}
           onPress={() => { setActiveTab('theme'); setSearch(''); }}>
           <Music size={14} color={activeTab === 'theme' ? '#fff' : '#64748b'} />
-          <Text style={[styles.tabTxt, activeTab === 'theme' && styles.tabTxtActive]}>Theme Songs</Text>
+          <Text style={[styles.tabTxt, activeTab === 'theme' && styles.tabTxtActive]} numberOfLines={1} adjustsFontSizeToFit>Theme Songs</Text>
         </TouchableOpacity>
       </View>
 
@@ -390,7 +450,7 @@ export default function SongsScreen({ navigation }: any) {
               </View>
 
               <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-                <Text style={styles.modalSecHeader}>LYRICS & SCRIPTS · సాహిత్యం</Text>
+                <Text style={[styles.modalSecHeader, { color: isDark ? '#94a3b8' : '#1a2d5a' }]}>LYRICS & SCRIPTS · సాహిత్యం</Text>
                 <View style={[styles.lyricsBox, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
                   <Text style={[styles.lyricsText, { color: isDark ? '#e2e8f0' : '#334155' }]}>
                     {selectedSong.lyrics || 'Lyrics are being updated by the administrator. Please check back soon.'}
@@ -419,7 +479,7 @@ export default function SongsScreen({ navigation }: any) {
           </View>
         </Modal>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -433,20 +493,47 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingBox: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  pageHeader: {
-    backgroundColor: '#1a2d5a', paddingHorizontal: 16, paddingVertical: 15,
-    flexDirection: 'row', alignItems: 'center', borderBottomLeftRadius: 15, borderBottomRightRadius: 15
+  headerWrapper: {
+    width: '100%',
+    position: 'relative'
   },
-  backBtn: { padding: 4 },
+  headerShadowWrapper: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 15,
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    backgroundColor: '#1a2d5a', 
+  },
+  gradientBorderContainer: {
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    overflow: 'hidden',
+  },
+  pageHeader: {
+    backgroundColor: '#1a2d5a',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 15,
+    marginBottom: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomLeftRadius: 33,
+    borderBottomRightRadius: 33,
+    overflow: 'hidden'
+  },
+  backBtn: { padding: 4, width: 40, alignItems: 'flex-start' },
   titleCol: { flex: 1, alignItems: 'center' },
-  pageTitle: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  pageSub: { color: '#aac4e8', fontSize: 10, marginTop: 1, fontWeight: '500' },
+  pageTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  pageSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 1, fontWeight: '600' },
 
   // Tabs
-  tabBar: { flexDirection: 'row', backgroundColor: '#e2e8f0', marginHorizontal: 16, marginTop: 15, marginBottom: 0, borderRadius: 25, padding: 4, gap: 4 },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 21, gap: 6 },
+  tabBar: { flexDirection: 'row', backgroundColor: '#e2e8f0', marginHorizontal: 8, marginTop: 15, marginBottom: 0, borderRadius: 25, padding: 4, gap: 2 },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 21, gap: 4 },
   tabActive: { backgroundColor: '#1a2d5a' },
-  tabTxt: { fontSize: 12, fontWeight: '700', color: '#64748b' },
+  tabTxt: { fontSize: 12, fontWeight: '700', color: '#64748b', flexShrink: 1 },
   tabTxtActive: { color: '#fff' },
 
   // Category chips

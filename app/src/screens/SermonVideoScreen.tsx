@@ -15,8 +15,11 @@ import {
   InteractionManager
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../context/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { 
+  ArrowLeft,
   ChevronLeft, 
   Share2, 
   Play, 
@@ -51,6 +54,7 @@ const VideoItem = React.memo(({ video, setActiveVideo }: any) => (
 ));
 
 export default function SermonVideoScreen({ navigation, route }: any) {
+  const { isDark, colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [videos, setVideos] = useState<SalesforceVideo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,21 +147,36 @@ export default function SermonVideoScreen({ navigation, route }: any) {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
+    <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f0f2f7' }]}>
+      <StatusBar barStyle="light-content" backgroundColor={isDark ? "#0a2350" : "#1a2d5a"} />
       
-      {/* ── Page Header ── */}
-      <View style={[styles.pageHeader, { paddingTop: Math.max(insets.top, 20) + 10, paddingBottom: 16 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <ChevronLeft size={20} color="#aac4e8" />
-          <Text style={styles.backBtnTxt}>Back</Text>
-        </TouchableOpacity>
-        <View style={styles.titleCol}>
-          <Text style={styles.pageTitle}>Sermon Video</Text>
-          <Text style={styles.pageSub}>ప్రసంగం</Text>
+      {/* 🔥 Page Header 🔥 */}
+      <LinearGradient
+        colors={isDark ? ['#60a5fa', '#3b82f6', '#60a5fa'] : ['#1e40af', '#3b82f6']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{
+          borderBottomLeftRadius: 30,
+          borderBottomRightRadius: 30,
+          paddingBottom: 4,
+          elevation: 8,
+          shadowColor: '#030a1e',
+          shadowOpacity: 0.75,
+          shadowRadius: 15,
+          shadowOffset: { width: 0, height: 10 },
+        }}
+      >
+        <View style={[styles.pageHeader, { backgroundColor: isDark ? '#0a2350' : '#1a2d5a', paddingTop: Math.max(insets.top, 20) + 10, paddingBottom: 16, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <ArrowLeft size={24} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.titleCol}>
+            <Text style={styles.pageTitle}>Sermon Video</Text>
+            <Text style={styles.pageSub}>బోధనలు</Text>
+          </View>
+          <View style={{ width: 60 }} />
         </View>
-        <View style={{ width: 60 }} />
-      </View>
+      </LinearGradient>
 
       <FlatList
         showsVerticalScrollIndicator={false}

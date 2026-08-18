@@ -43,6 +43,9 @@ export interface SalesforceMember {
   joinDate?: string;
   mobileAppId?: string;
   description?: string;
+  birthdate?: string;
+  anniversaryDate?: string;
+  baptismDate?: string;
 }
 
 export interface SalesforceVideo {
@@ -108,6 +111,8 @@ class SalesforceService {
   private loginUrl = process.env.EXPO_PUBLIC_SALESFORCE_LOGIN_URL || 'https://kristhunandusahodarulusahavasam.my.salesforce.com';
   private instanceUrl = process.env.EXPO_PUBLIC_SALESFORCE_LOGIN_URL || 'https://kristhunandusahodarulusahavasam.my.salesforce.com';
 
+  private cachedToken: { token: string; expiresAt: number } | null = null;
+
   private privateKeyPem = `-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCsg48JgGqGZGfd
 vlZob6Gb1saVVwSw9+gyjfDaK/s0wrCS2p1J6yQiUcxMv1wmOPIG8nj0N+N3zcOR
@@ -138,6 +143,10 @@ spfkUchVp71l4aWpCW50lro=
 -----END PRIVATE KEY-----`;
 
   private async getAccessToken(): Promise<string> {
+    if (this.cachedToken && Date.now() < this.cachedToken.expiresAt) {
+      return this.cachedToken.token;
+    }
+
     try {
       const header = { alg: 'RS256', typ: 'JWT' };
       const now = Math.floor(Date.now() / 1000);
@@ -158,6 +167,13 @@ spfkUchVp71l4aWpCW50lro=
       const data = await response.json();
       if (!response.ok) throw new Error(data.error_description || 'JWT Auth Failed');
       if (data.instance_url) this.instanceUrl = data.instance_url;
+      
+      // Cache token for 4m 50s (token is valid for 5m)
+      this.cachedToken = {
+        token: data.access_token,
+        expiresAt: Date.now() + (290 * 1000)
+      };
+
       return data.access_token;
     } catch (error) { throw error; }
   }
@@ -166,7 +182,7 @@ spfkUchVp71l4aWpCW50lro=
     try {
       console.log(`🔗 [SalesforceService] Executing Query: ${soql}`);
       const token = await this.getAccessToken();
-      const resp = await fetch(`${this.instanceUrl}/services/data/v60.0/query/?q=${encodeURIComponent(soql)}`, { headers: { Authorization: `Bearer ${token}` } });
+      const resp = await fetch(`${this.instanceUrl}/services/data/v60.0/query/?q=${encodeURIComponent(soql)}&_t=${Date.now()}`, { headers: { Authorization: `Bearer ${token}`, 'Cache-Control': 'no-cache' } });
       const data = await resp.json();
       if (!resp.ok) {
         if (!silent) console.error('❌ [SalesforceService] Query Error:', data[0]?.message);
@@ -194,13 +210,56 @@ spfkUchVp71l4aWpCW50lro=
 
   async getAdminMembers(): Promise<any[]> {
     try {
-      const soql = `SELECT Id, AccountId, Name, FirstName, LastName, Email, Phone, MobilePhone, User_Type__c, CreatedDate, LastModifiedDate, Last_App_Opened__c, Account.Name, Account.Active__c, Account.Membership_Status__c, Mobile_App_ID__c FROM Contact ORDER BY Name ASC LIMIT 2000`;
+      const soql = `SELECT Id, AccountId, Name, FirstName, LastName, Email, Phone, MobilePhone, User_Type__c, CreatedDate, LastModifiedDate, Last_App_Opened__c, Account.Name, Account.Active__c, Account.Membership_Status__c, Mobile_App_ID__c, MailingCity, Birthdate, Anniversary_Date__c, Date_of_Baptism__c FROM Contact ORDER BY Name ASC LIMIT 2000`;
       const result = await this.query(soql, true);
       return result.records || [];
     } catch (error) {
       console.error('❌ [SalesforceService] getAdminMembers Error:', error);
       return [];
     }
+  }
+
+  async getApprovers(): Promise<SalesforceMember[]> {
+    try {
+      const soql = `SELECT Id, Name, Phone, MobilePhone, User_Type__c FROM Contact WHERE User_Type__c IN ('Admin', 'Pastor', 'System Administrator') LIMIT 50`;
+      const result = await this.query(soql, true);
+      return result.records.map((rec: any) => ({
+        id: rec.Id,
+        name: rec.Name,
+        phone: rec.MobilePhone || rec.Phone || null,
+        userType: rec.User_Type__c
+      }));
+    } catch (error) {
+      console.error('❌ [SalesforceService] getApprovers Error:', error);
+      return [];
+    }
+  }
+
+  async getContactUserTypePicklistValues(): Promise<{ label: string; value: string }[]> {
+    try {
+      const token = await this.getAccessToken();
+      const resp = await fetch(`${this.instanceUrl}/services/data/v60.0/sobjects/Contact/describe`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const userTypeField = data.fields?.find((f: any) => f.name === 'User_Type__c');
+        if (userTypeField && userTypeField.picklistValues) {
+          return userTypeField.picklistValues
+            .filter((p: any) => p.active)
+            .map((p: any) => ({ label: p.label, value: p.value }));
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ [SalesforceService] Failed to fetch User_Type__c describe picklist values:', e);
+    }
+    return [
+      { label: 'Member', value: 'Member' },
+      { label: 'Admin', value: 'Admin' },
+      { label: 'Pastor', value: 'Pastor' },
+      { label: 'Youth', value: 'Youth' },
+      { label: 'Non-Member', value: 'Non-Member' }
+    ];
   }
 
   async checkContactExists(phone: string, uid?: string): Promise<any> {
@@ -226,7 +285,7 @@ spfkUchVp71l4aWpCW50lro=
     
     try {
       // Query using the last 4 digits to bypass Salesforce formatting like (998) 877-6655 or +91 998 877 6655
-      const soql = `SELECT Id, AccountId, Name, FirstName, LastName, Email, Phone, MobilePhone, User_Type__c, CreatedDate, MailingCity, MailingState, MailingStreet, Description, Mobile_App_ID__c FROM Contact WHERE (Phone LIKE '%${fourDigit}%' OR MobilePhone LIKE '%${fourDigit}%') ${uid ? `OR Mobile_App_ID__c = '${uid}'` : ''} ORDER BY CreatedDate DESC LIMIT 50`;
+      const soql = `SELECT Id, AccountId, Name, FirstName, LastName, Email, Phone, MobilePhone, User_Type__c, CreatedDate, MailingCity, MailingState, MailingStreet, Description, Mobile_App_ID__c, Birthdate, Anniversary_Date__c, Date_of_Baptism__c FROM Contact WHERE (Phone LIKE '%${fourDigit}%' OR MobilePhone LIKE '%${fourDigit}%') ${uid ? `OR Mobile_App_ID__c = '${uid}'` : ''} ORDER BY CreatedDate DESC LIMIT 50`;
       const result = await this.query(soql, true);
 
       if (result.totalSize > 0) {
@@ -253,7 +312,10 @@ spfkUchVp71l4aWpCW50lro=
               mailingState: exactMatch.MailingState,
               mailingStreet: exactMatch.MailingStreet,
               joinDate: exactMatch.CreatedDate,
-              description: exactMatch.Description
+              description: exactMatch.Description,
+              birthdate: exactMatch.Birthdate,
+              anniversaryDate: exactMatch.Anniversary_Date__c,
+              baptismDate: exactMatch.Date_of_Baptism__c
             }
           };
         }
@@ -289,7 +351,7 @@ spfkUchVp71l4aWpCW50lro=
   async getRelatedContacts(accountId: string): Promise<any[]> {
     if (!accountId) return [];
     try {
-      const soql = `SELECT Id, Name, FirstName, LastName, Email, Phone, MobilePhone, User_Type__c, CreatedDate FROM Contact WHERE AccountId = '${accountId}' ORDER BY FirstName ASC`;
+      const soql = `SELECT Id, Name, FirstName, LastName, Title, Gender__c, Email, Phone, MobilePhone, User_Type__c, CreatedDate, Birthdate, Anniversary_Date__c, Date_of_Baptism__c FROM Contact WHERE AccountId = '${accountId}' ORDER BY FirstName ASC`;
       const result = await this.query(soql, true);
       return result.records || [];
     } catch (error) {
@@ -383,11 +445,11 @@ spfkUchVp71l4aWpCW50lro=
         FirstName: data.firstName,
         LastName: data.lastName,
         AccountId: accountId,
-        Phone: data.phone,
         MobilePhone: data.phone,
-        Email: data.email,
-        User_Type__c: 'Member',
-        Mobile_App_ID__c: data.uid
+        Email: data.email || null,
+        User_Type__c: data.userType || 'Member',
+        MailingCity: data.city || null,
+        Mobile_App_ID__c: data.uid || null
       };
 
       let resp = await fetch(`${this.instanceUrl}/services/data/v60.0/sobjects/Contact`, {
@@ -462,14 +524,25 @@ spfkUchVp71l4aWpCW50lro=
   async addFamilyMember(accountId: string, memberData: any): Promise<boolean> {
     try {
       const token = await this.getAccessToken();
+      
+      const formatToSfDate = (dStr: string | null | undefined) => {
+        if (!dStr) return null;
+        const parts = dStr.split('-');
+        if (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4) {
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return dStr;
+      };
+
       const body = {
         FirstName: memberData.firstName,
         LastName: memberData.lastName,
         AccountId: accountId,
         Title: memberData.relation,
         Gender__c: memberData.gender,
-        Birthdate: memberData.birthdate || null,
-        Anniversary_Date__c: memberData.anniversaryDate || null,
+        Birthdate: formatToSfDate(memberData.birthdate),
+        Anniversary_Date__c: formatToSfDate(memberData.anniversaryDate),
+        Date_of_Baptism__c: formatToSfDate(memberData.baptismDate),
         Email: memberData.email || null,
         MobilePhone: memberData.phone || null
       };
@@ -487,6 +560,49 @@ spfkUchVp71l4aWpCW50lro=
       return true;
     } catch (error) {
       console.error('❌ [SalesforceService] addFamilyMember Error:', error);
+      throw error;
+    }
+  }
+
+  async updateFamilyMember(contactId: string, memberData: any): Promise<boolean> {
+    try {
+      const token = await this.getAccessToken();
+
+      const formatToSfDate = (dStr: string | null | undefined) => {
+        if (!dStr) return null;
+        const parts = dStr.split('-');
+        if (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4) {
+          return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+        return dStr;
+      };
+
+      const body = {
+        FirstName: memberData.firstName,
+        LastName: memberData.lastName,
+        Title: memberData.relation || null,
+        Gender__c: memberData.gender || null,
+        Birthdate: formatToSfDate(memberData.birthdate),
+        Anniversary_Date__c: formatToSfDate(memberData.anniversaryDate),
+        Date_of_Baptism__c: formatToSfDate(memberData.baptismDate),
+        Email: memberData.email || null,
+        MobilePhone: memberData.phone || null,
+        Phone: memberData.phone || null,
+      };
+
+      const resp = await fetch(`${this.instanceUrl}/services/data/v60.0/sobjects/Contact/${contactId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err[0]?.message || 'Failed to update family member');
+      }
+      return true;
+    } catch (error) {
+      console.error('❌ [SalesforceService] updateFamilyMember Error:', error);
       throw error;
     }
   }
@@ -628,7 +744,8 @@ spfkUchVp71l4aWpCW50lro=
           Scripture_Reference__c: details.keySignature,
           Status__c: details.status || 'Published',
           Duration__c: '3:00',
-          YouTube_ID__c: details.youtubeId
+          YouTube_ID__c: details.youtubeId,
+          Category__c: details.category || 'Other'
         };
 
         const fallbackResp = await fetch(fallbackUrl, {
@@ -946,6 +1063,7 @@ spfkUchVp71l4aWpCW50lro=
         modes: mapField('Event_Mode__c'),
         audiences: mapField('Audience__c'),
         recurring: mapField('Recurring_Frequency__c'),
+        recurrenceDuration: mapField('Recurrence_Duration__c'),
         statuses: mapField('Status__c')
       };
     } catch (error) {
@@ -956,7 +1074,7 @@ spfkUchVp71l4aWpCW50lro=
 
   async getEvents(limit = 50): Promise<any[]> {
     try {
-      const soql = `SELECT Id, Name, Title_Telugu__c, Date__c, Time__c, End_Time__c, Description__c, Description_Telugu__c, Location__c, Location_Telugu__c, Address__c, Event_Type__c, Event_Mode__c, RSVP_Enabled__c, Show_RSVP_Count__c, Attendance_Cap__c, Audience__c, Status__c, Banner_Image_URL__c, Banner_Color__c, Recurring_Frequency__c, YouTube_ID__c FROM Schedule_Event__c ORDER BY Date__c DESC LIMIT ${limit}`;
+      const soql = `SELECT Id, Name, Title_Telugu__c, Date__c, Time__c, End_Time__c, Description__c, Description_Telugu__c, Location__c, Location_Telugu__c, Address__c, Event_Type__c, Event_Mode__c, RSVP_Enabled__c, Show_RSVP_Count__c, Attendance_Cap__c, Audience__c, Status__c, Banner_Image_URL__c, Banner_Color__c, Recurring_Frequency__c, Recurrence_Duration__c, YouTube_ID__c FROM Schedule_Event__c ORDER BY Date__c DESC LIMIT ${limit}`;
       const result = await this.query(soql);
       return result.records.map((rec: any) => ({
         id: rec.Id,
@@ -980,6 +1098,7 @@ spfkUchVp71l4aWpCW50lro=
         bannerUrl: rec.Banner_Image_URL__c,
         bannerColor: rec.Banner_Color__c,
         recurring: rec.Recurring_Frequency__c,
+        recurrenceDuration: rec.Recurrence_Duration__c,
         youtubeId: this.extractYoutubeId(rec.YouTube_ID__c)
       }));
     } catch (error) { return []; }
@@ -1012,10 +1131,13 @@ spfkUchVp71l4aWpCW50lro=
         Banner_Image_URL__c: details.bannerUrl,
         Banner_Color__c: details.bannerColor,
         Recurring_Frequency__c: details.recurring,
+        // Recurrence_Duration__c: details.recurrenceDuration, // Temporarily omitted to bypass stubborn picklist validation
         Notify_Members__c: details.notifyOnPublish,
         Reminder_1_Day__c: details.reminder1Day,
         Reminder_1_Hour__c: details.reminder1Hour
       };
+      
+      console.log('🚀 [SalesforceService] Sending Event Payload:', JSON.stringify(body, null, 2));
 
       const resp = await fetch(url, {
         method: isUpdate ? 'PATCH' : 'POST',
@@ -1999,6 +2121,12 @@ spfkUchVp71l4aWpCW50lro=
               : data?.message || JSON.stringify(data);
           }
         } catch (err) {}
+
+        if (response.status === 404 || sfMessage.toLowerCase().includes('entity is deleted')) {
+          console.log('✅ [deletePastorEvent] Event already deleted');
+          return true;
+        }
+
         console.error('❌ [SalesforceService] deletePastorEvent Error response:', sfMessage);
         throw new Error(sfMessage);
       }

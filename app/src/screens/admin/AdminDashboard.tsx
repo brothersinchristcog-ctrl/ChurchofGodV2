@@ -1,214 +1,551 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useContext } from 'react';
 import { 
   StyleSheet, 
   View, 
   Text, 
   ScrollView, 
   TouchableOpacity, 
-  ActivityIndicator,
   Dimensions,
+  ImageBackground,
   Image,
   StatusBar,
   Platform
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
-  Users, 
-  BookOpen, 
-  Calendar, 
-  Plus, 
-  TrendingUp, 
-  Bell, 
-  ChevronRight,
-  ShieldCheck,
-  Video,
-  FileText,
-  Activity,
-  Heart
+  BookOpen, Edit3, Calendar, Mic, PlusSquare, Music, 
+  Bell, MapPin, Heart, Users, MessageCircle, Gift, 
+  ImageIcon, Info, Phone, Smartphone, LogOut, Sun, Moon,
+  Video
 } from 'lucide-react-native';
 import { AdminTabContext } from '../../context/AdminTabContext';
-
-import SalesforceService from '../../services/SalesforceService';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
-export default function AdminDashboard() {
-  const { setActiveTab, setEditingData } = useContext(AdminTabContext);
-  const [stats, setStats] = useState({
-    members: '1,240',
-    promises: '28',
-    events: '3',
-    requests: '12'
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const statData = await SalesforceService.getDashboardStats();
-        setStats({
-          members: statData.members.toString(),
-          promises: statData.promises.toString(),
-          events: '3',
-          requests: '12'
-        });
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, []);
-
-  const QUICK_ACTIONS = [
-    { id: 1, label: 'Promises', icon: <BookOpen size={20} color="#1a2d5a" />, desc: 'Update Daily Verse' },
-    { id: 9, label: 'Events', icon: <Calendar size={20} color="#c0392b" />, desc: 'Manage Calendar' },
-    { id: 4, label: 'Sermons', icon: <Video size={20} color="#15803D" />, desc: 'Post Teachings' },
-    { id: 6, label: 'New Song', icon: <Plus size={20} color="#8B5CF6" />, desc: 'Post Song Lyrics' },
-    { id: 7, label: 'Broadcast', icon: <Bell size={20} color="#EA580C" />, desc: 'Send Push Alerts' },
-    { id: 11, label: 'Prayers', icon: <Heart size={20} color="#D97706" />, desc: 'Moderation' },
-    { id: 12, label: 'Members', icon: <Users size={20} color="#1a2d5a" />, desc: 'Directory' }
-  ];
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#fbbf24" />
-      </View>
-    );
+const DASHBOARD_SECTIONS = [
+  {
+    title: 'Promises & Schedule',
+    layout: 'featured-top',
+    items: [
+      { id: 3, label: 'Schedule', icon: Calendar, image: require('../../../assets/images/admin_dashboard/schedule.png'), featured: true },
+      { id: 1, label: 'Promises', icon: BookOpen, image: require('../../../assets/images/admin_dashboard/promises.png') },
+      { id: 2, label: 'New Promise', icon: Edit3, image: require('../../../assets/images/admin_dashboard/new_promise.png') },
+    ]
+  },
+  {
+    title: 'Sermons & Worship',
+    layout: 'featured-bottom',
+    items: [
+      { id: 4, label: 'Sermons', icon: Mic, image: require('../../../assets/images/admin_dashboard/sermons.png') },
+      { id: 5, label: 'New Sermon', icon: PlusSquare, image: require('../../../assets/images/admin_dashboard/new_sermon.png') },
+      { id: 6, label: 'Songs', icon: Music, image: require('../../../assets/images/admin_dashboard/songs.png'), featured: true }
+    ]
+  },
+  {
+    title: 'Events',
+    layout: 'featured-top',
+    items: [
+      { id: 8, label: 'Pastor Events', icon: Calendar, image: require('../../../assets/images/admin_dashboard/pastor_events.png'), featured: true },
+      { id: 9, label: 'Events', icon: Calendar, image: require('../../../assets/images/admin_dashboard/events.png') },
+      { id: 10, label: 'New Event', icon: PlusSquare, image: require('../../../assets/images/admin_dashboard/new_event.png') }
+    ]
+  },
+  {
+    title: 'Members & Notifications',
+    layout: 'featured-bottom',
+    items: [
+      { id: 11, label: 'Prayers', icon: Heart, image: require('../../../assets/images/admin_dashboard/prayers.png') },
+      { id: 7, label: 'Notifications', icon: Bell, image: require('../../../assets/images/admin_dashboard/notifications.png') },
+      { id: 12, label: 'Members', icon: Users, image: require('../../../assets/images/admin_dashboard/members.png'), featured: true }
+    ]
+  },
+  {
+    title: 'Community & Gallery',
+    layout: 'featured-bottom',
+    items: [
+      { id: 14, label: 'Celebrations', icon: Gift, image: require('../../../assets/images/admin_dashboard/celebrations.png') },
+      { id: 15, label: 'Gallery', icon: ImageIcon, image: require('../../../assets/images/admin_dashboard/gallery.png') },
+      { id: 13, label: 'WhatsApp', icon: MessageCircle, image: require('../../../assets/images/admin_dashboard/whatsapp.png'), featured: true }
+    ]
+  },
+  {
+    title: 'Church Ledger',
+    items: [
+      { id: 18, label: 'Expenses', icon: BookOpen, image: require('../../../assets/images/admin_dashboard/church_ledger.png') },
+      { id: 19, label: 'Donations', icon: Heart, image: require('../../../assets/images/admin_dashboard/donations.png') }
+    ]
+  },
+  {
+    title: 'Online Bible Classes',
+    items: [
+      { id: 20, label: 'Bible Classes', icon: Video, image: require('../../../assets/images/admin_dashboard/bible_classes.png') }
+    ]
+  },
+  {
+    title: 'Information',
+    items: [
+      { id: 16, label: 'About Us', icon: Info, image: require('../../../assets/images/admin_dashboard/about_us.png') },
+      { id: 17, label: 'Contact Us', icon: Phone, image: require('../../../assets/images/admin_dashboard/contact_us.png') }
+    ]
   }
+];
 
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
-      
-      {/* ── Admin Header ── */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        
-        {/* ── Dashboard Stats ── */}
-        <View style={styles.statsStripContainer}>
-          <View style={styles.statsStrip}>
-            <StatBox label="MEMBERS" val={stats.members} icon={<Users size={12} color="#1a2d5a" />} light />
-            <View style={styles.sep} />
-            <StatBox label="PROMISES" val={stats.promises} icon={<BookOpen size={12} color="#1a2d5a" />} light />
-            <View style={styles.sep} />
-            <StatBox label="REQUESTS" val={stats.requests} icon={<Bell size={12} color="#1a2d5a" />} light />
+export default function AdminDashboard() {
+  const { setActiveTab } = useContext(AdminTabContext);
+  const { setViewMode, signOut, member } = useAuth();
+  const { isDark, colors, toggleTheme } = useTheme();
+
+  const renderCard = (item: any, index: number, isTwoCols: boolean) => {
+    // Determine card width and gap
+    const gap = 16;
+    const padding = 16 * 2;
+    const cardWidth = isTwoCols 
+      ? (width - padding - gap) / 2 
+      : (width - padding - (gap * 2)) / 3;
+
+    // Dynamic height for bento box effect
+    const cardHeight = 110;
+
+    return (
+      <TouchableOpacity 
+        key={item.id}
+        style={[styles.card, { width: cardWidth, height: cardHeight }]}
+        activeOpacity={0.85}
+        onPress={() => setActiveTab(item.id)}
+      >
+        <View style={styles.cardImageBg}>
+          <Image 
+            source={item.image} 
+            style={[
+              StyleSheet.absoluteFillObject, 
+              {width: '100%', height: '100%'},
+              item.id === 17 ? { transform: [{ scale: 1.5 }] } : {}
+            ]}
+            resizeMode="cover"
+          />
+          {/* Gradient Overlay */}
+          <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
+            <Defs>
+              <LinearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor="#000" stopOpacity="0.05" />
+                <Stop offset="0.5" stopColor="#000" stopOpacity="0.4" />
+                <Stop offset="1" stopColor="#000" stopOpacity="0.9" />
+              </LinearGradient>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#grad)" />
+          </Svg>
+
+          {/* Content */}
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle} numberOfLines={1}>{item.label}</Text>
           </View>
         </View>
-        
-        {/* ── Status Banner ── */}
-        <View style={styles.statusBanner}>
-          <View style={styles.liveDot} />
-          <Text style={styles.statusTxt}>System Live: Daily Promise is synced for all members.</Text>
-        </View>
+      </TouchableOpacity>
+    );
+  };
 
-        {/* ── Management Grid ── */}
-        <Text style={styles.secLbl}>QUICK MANAGEMENT</Text>
-        <View style={styles.actionGrid}>
-          {QUICK_ACTIONS.map(action => (
-            <TouchableOpacity 
-              key={action.id} 
-              style={styles.actionCard}
-              onPress={() => setActiveTab(action.id)}
+  // Bento layout: first item is a tall full-width featured card, rest are in a row
+  const renderBentoSection = (section: any) => {
+    const featured = section.items.find((i: any) => i.featured) || section.items[0];
+    const rest = section.items.filter((i: any) => i.id !== featured.id);
+    const gap = 12;
+    const padding = 16 * 2;
+    const rowCardWidth = (width - padding - gap) / 2;
+    const isFeaturedBottom = section.layout === 'featured-bottom';
+
+    const renderCardInner = (item: any) => (
+      <View style={styles.cardImageBg}>
+        {item.id === 3 && (
+          <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
+            <Defs>
+              <LinearGradient id="scheduleBg" x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor="#fccbd2" />
+                <Stop offset="1" stopColor="#fbaebb" />
+              </LinearGradient>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#scheduleBg)" />
+          </Svg>
+        )}
+        <Image
+          source={item.image}
+          style={
+            item.id === 6 
+              ? [StyleSheet.absoluteFillObject, { width: '100%', height: '150%', top: -10 }]
+              : item.id === 8
+              ? [StyleSheet.absoluteFillObject, { width: '100%', height: '150%', top: '-30%' }]
+              : item.id === 9
+              ? [StyleSheet.absoluteFillObject, { width: '100%', height: '150%', top: '-20%' }]
+              : [StyleSheet.absoluteFillObject, { 
+                  width: '100%', height: '100%', 
+                  backgroundColor: item.id === 1 ? '#fbf0dc' : item.id === 2 ? '#022d56' : item.id === 12 ? '#bcbec0' : [4, 11].includes(item.id) ? '#ffffff' : item.id === 5 ? '#c3e3c5' : 'transparent',
+                  ...(item.id === 12 ? { transform: [{ scale: 1.25 }] } : {})
+                }]
+          }
+          resizeMode={[1, 2, 3, 4, 5, 11, 12].includes(item.id) ? "contain" : "cover"}
+        />
+        <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
+          <Defs>
+            <LinearGradient id={`grad${item.id}`} x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="#000" stopOpacity="0.0" />
+              <Stop offset="0.5" stopColor="#000" stopOpacity="0.0" />
+              <Stop offset="1" stopColor="#000" stopOpacity="0.3" />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill={`url(#grad${item.id})`} />
+        </Svg>
+        <View style={styles.cardContent}>
+          <Text style={styles.cardTitle} numberOfLines={1}>{item.label}</Text>
+        </View>
+      </View>
+    );
+
+    const FeaturedCard = (
+        <TouchableOpacity
+          key={`featured-${featured.id}`}
+          style={[styles.card, styles.featuredCard, isFeaturedBottom ? { marginTop: 12 } : { marginBottom: 12 }]}
+          activeOpacity={0.85}
+          onPress={() => setActiveTab(featured.id)}
+        >
+          {renderCardInner(featured)}
+        </TouchableOpacity>
+    );
+
+    const RowCards = (
+        <View key="row" style={styles.bentoRow}>
+          {rest.map((item: any) => (
+            <TouchableOpacity
+              key={item.id}
+              style={[styles.card, { width: rowCardWidth, height: 110 }]}
+              activeOpacity={0.85}
+              onPress={() => setActiveTab(item.id)}
             >
-              <View style={styles.actionIcon}>{action.icon}</View>
-              <Text style={styles.actionLabel}>{action.label}</Text>
-              <Text style={styles.actionDesc}>{action.desc}</Text>
+              {renderCardInner(item)}
             </TouchableOpacity>
           ))}
         </View>
+    );
 
-        {/* ── Recent Activity ── */}
-        <Text style={styles.secLbl}>SYSTEM SNAPSHOT</Text>
-        <View style={styles.activityBox}>
-          <ActivityRow icon={<Activity size={16} color="#1a2d5a" />} label="Database Health" val="Excellent" />
-          <ActivityRow icon={<ShieldCheck size={16} color="#15803D" />} label="Salesforce Sync" val="Active" />
-          <ActivityRow icon={<TrendingUp size={16} color="#D97706" />} label="Member Growth" val="+12% this week" isLast />
+    return (
+      <View>
+        {isFeaturedBottom ? RowCards : FeaturedCard}
+        {isFeaturedBottom ? FeaturedCard : RowCards}
+      </View>
+    );
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor="transparent" translucent={true} />
+      
+      {/* ── Scrollable Screen ── */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <View style={styles.headerCard}>
+
+            {/* ── Top row: identity + toggle ── */}
+            <View style={styles.identityRow}>
+              <View style={styles.logoRow}>
+                <View style={styles.logoCircle}>
+                  <Image source={require('../../../assets/logo.png')} style={{width: '100%', height: '100%'}} resizeMode="contain" />
+                </View>
+                <View style={styles.nameBlock}>
+                  <Text style={styles.churchName}>Church of GOD</Text>
+                  <Text style={styles.adminName}>{member?.name || 'Administrator'}</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={toggleTheme} style={styles.themeToggleBtn} activeOpacity={0.75}>
+                {isDark
+                  ? <Sun size={18} color="#fcd34d" />
+                  : <Moon size={18} color="#c0a020" />
+                }
+              </TouchableOpacity>
+            </View>
+
+            {/* ── Golden divider ── */}
+            <View style={styles.goldenDivider} />
+
+            {/* ── Dashboard title section ── */}
+            <Text style={styles.dashboardTitle} numberOfLines={1} adjustsFontSizeToFit>Admin Dashboard</Text>
+            <Text style={styles.dashboardSub}>Quick access to promises, worship, events, members and the life of the church.</Text>
+
+          </View>
+        </View>
+        {DASHBOARD_SECTIONS.map((section, idx) => {
+          const isTwoCols = section.items.length <= 2;
+          const SectionIcon = section.items[0]?.icon;
+          return (
+            <View key={idx} style={styles.sectionContainer}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionIconRow}>
+                  {SectionIcon && <SectionIcon size={18} color={isDark ? "#fcd34d" : colors.primary} />}
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
+                </View>
+              </View>
+
+              {((section as any).layout === 'featured-top' || (section as any).layout === 'featured-bottom')
+                ? renderBentoSection(section)
+                : (
+                  <View style={styles.cardGrid}>
+                    {section.items.map((item, index) => renderCard(item, index, isTwoCols))}
+                  </View>
+                )
+              }
+            </View>
+          );
+        })}
+
+        {/* ── Footer Actions ── */}
+        <View style={styles.footerRow}>
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => setViewMode('member')} activeOpacity={0.8}>
+            <ExpoLinearGradient colors={[colors.primary, '#101c38']} style={[styles.badgeBtn, { borderWidth: 0 }]}>
+              <Smartphone size={18} color="#fcd34d" />
+              <Text style={[styles.badgeBtnText, { color: '#fcd34d' }]}>Member View</Text>
+            </ExpoLinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.badgeBtn, styles.logoutBadgeBtn]} onPress={signOut} activeOpacity={0.8}>
+            <LogOut size={18} color="#ffffff" />
+            <Text style={[styles.badgeBtnText, { color: '#ffffff' }]}>Sign out</Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={() => {/* Handle Logout */}}>
-          <Text style={styles.logoutTxt}>Sign Out of Admin Console</Text>
-        </TouchableOpacity>
-
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
 }
 
-function StatBox({ label, val, icon, light }: any) {
-  return (
-    <View style={styles.statBox}>
-      <View style={styles.statIconRow}>
-        {icon}
-        <Text style={[styles.statBoxLbl, light && { color: '#6B7280' }]}>{label}</Text>
-      </View>
-      <Text style={[styles.statBoxVal, light && { color: '#1a2d5a' }]}>{val}</Text>
-    </View>
-  );
-}
-
-function ActivityRow({ icon, label, val, isLast }: any) {
-  return (
-    <View style={[styles.activityRow, isLast && { borderBottomWidth: 0 }]}>
-      <View style={styles.rowIcon}>{icon}</View>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowVal}>{val}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f2f7' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  
-  adminHeader: { backgroundColor: '#1a2d5a', paddingTop: Platform.OS === 'ios' ? 60 : 30, paddingHorizontal: 20, paddingBottom: 30, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
-  adminTitle: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  adminSub: { color: '#aac4e8', fontSize: 11, fontWeight: '500' },
-  adminBadge: { backgroundColor: '#c0392b', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  adminBadgeTxt: { color: '#fff', fontSize: 10, fontWeight: '800' },
-
-  statsStripContainer: { padding: 12 },
-  statsStrip: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    backgroundColor: '#fff', 
-    borderRadius: 20, 
-    padding: 15,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10
+  container: {
+    flex: 1,
+    backgroundColor: '#0B1120',
   },
-  statBox: { flex: 1, alignItems: 'center' },
-  statIconRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5 },
-  statBoxLbl: { color: '#aac4e8', fontSize: 9, fontWeight: '700' },
-  statBoxVal: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  sep: { width: 1, height: 20, backgroundColor: '#e5e7eb' },
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 32 : 12,
+    paddingHorizontal: 8,
+    paddingBottom: 24,
+  },
+  /* ── Single unified header card ── */
+  headerCard: {
+    backgroundColor: '#131d31',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#1e2d47',
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+  },
 
-  scroll: { paddingBottom: 40 },
+  /* ── Identity row ── */
+  identityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    flex: 1,
+  },
+  logoCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: 'rgba(252, 211, 77, 0.6)',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 3,
+  },
+  nameBlock: {
+    gap: 1,
+    flex: 1,
+  },
+  welcomeLabel: {
+    color: '#fcd34d',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 2.5,
+    marginBottom: 2,
+  },
+  churchName: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  adminName: {
+    color: '#8899b8',
+    fontSize: 12,
+    fontWeight: '400',
+    marginTop: 1,
+  },
 
-  statusBanner: { backgroundColor: '#fff', margin: 12, borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#e5e7eb' },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#15803D' },
-  statusTxt: { fontSize: 11, color: '#1a2d5a', fontWeight: '600' },
+  /* ── Golden divider ── */
+  goldenDivider: {
+    height: 1,
+    backgroundColor: 'rgba(252, 211, 77, 0.25)',
+    marginBottom: 18,
+  },
 
-  secLbl: { fontSize: 10, fontWeight: '800', color: '#9CA3AF', letterSpacing: 1, marginHorizontal: 16, marginBottom: 12, marginTop: 10 },
-  
-  actionGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 10 },
-  actionCard: { width: (width - 34) / 2, backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 0.5, borderColor: '#e5e7eb', elevation: 2 },
-  actionIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  actionLabel: { fontSize: 14, fontWeight: '700', color: '#111827', marginBottom: 4 },
-  actionDesc: { fontSize: 10, color: '#6B7280', fontWeight: '500' },
-
-  activityBox: { backgroundColor: '#fff', marginHorizontal: 12, borderRadius: 16, overflow: 'hidden', borderWidth: 0.5, borderColor: '#e5e7eb' },
-  activityRow: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 0.5, borderBottomColor: '#f3f4f6' },
-  rowIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#f9fafb', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  rowLabel: { flex: 1, fontSize: 12, color: '#111827', fontWeight: '600' },
-  rowVal: { fontSize: 12, color: '#1a2d5a', fontWeight: '700' },
-
-  logoutBtn: { marginTop: 40, alignItems: 'center' },
-  logoutTxt: { fontSize: 13, color: '#c0392b', fontWeight: '700', textDecorationLine: 'underline' }
+  /* ── Dashboard title ── */
+  dashboardTitle: {
+    color: '#fcd34d',
+    fontSize: 34, // Slightly larger to compensate for cursive
+    fontFamily: Platform.OS === 'ios' ? 'Bradley Hand' : 'cursive',
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    marginBottom: 8,
+  },
+  dashboardSub: {
+    color: '#8899b8',
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 20,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingTop: 12
+  },
+  sectionContainer: {
+    marginBottom: 32
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  sectionIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginRight: 12
+  },
+  sectionTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800'
+  },
+  goldenLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#fcd34d',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    opacity: 0.5
+  },
+  goldenDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#fcd34d',
+    marginRight: -2
+  },
+  cardGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between'
+  },
+  card: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#1e293b',
+    marginBottom: 12
+  },
+  featuredCard: {
+    width: '100%',
+    height: 100,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  featuredLabel: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+  },
+  featuredLabelTxt: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  bentoRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cardImageBg: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'flex-end'
+  },
+  cardImageStyle: {
+    opacity: 1
+  },
+  cardContent: {
+    padding: 10,
+    paddingTop: 0
+  },
+  iconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: 'rgba(252, 211, 77, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  cardTitle: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800'
+  },
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 20,
+    marginBottom: 20
+  },
+  badgeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    gap: 8
+  },
+  logoutBadgeBtn: {
+    backgroundColor: '#ef4444',
+  },
+  badgeBtnText: {
+    color: '#fcd34d',
+    fontSize: 14,
+    fontWeight: '700'
+  },
+  themeToggleBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(252, 211, 77, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(252, 211, 77, 0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  }
 });

@@ -1,6 +1,6 @@
 // Data extracted from stitchCelebrationsHtml.ts
 
-export const TODAY = new Date(); // Current date
+export const getToday = () => new Date(); // Current date, evaluated dynamically
 
 export interface Category {
   key: string;
@@ -26,16 +26,75 @@ export interface Member {
   ministry: string;
   family: string;
   phone: string;
+  photoUrl?: string;
 }
+
+import firestore from '@react-native-firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import SalesforceService from '../../services/SalesforceService';
 
-export async function fetchCelebrations(): Promise<Member[]> {
+export async function fetchCelebrations(forceRefresh = false): Promise<Member[]> {
+  const CACHE_KEY = 'cog_admin_celebs_cache_v2';
+  
+  if (!forceRefresh) {
+    try {
+      const cached = await AsyncStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { timestamp, data } = JSON.parse(cached);
+        // Cache for 2 hours (7200000 ms)
+        if (Date.now() - timestamp < 7200000) {
+          return data;
+        }
+      }
+    } catch (e) {}
+  }
+
   const sf = SalesforceService;
   const rawData = await sf.getAllCelebrations();
   
+  let userPhotos: Record<string, string> = {};
+  const PHOTOS_CACHE_KEY = 'cog_admin_user_photos_cache';
+  let photosLoaded = false;
+
+  try {
+    const cachedPhotosStr = await AsyncStorage.getItem(PHOTOS_CACHE_KEY);
+    if (cachedPhotosStr) {
+      const cachedPhotos = JSON.parse(cachedPhotosStr);
+      // Cache photos for 24 hours
+      if (Date.now() - cachedPhotos.timestamp < 86400000) {
+        userPhotos = cachedPhotos.data;
+        photosLoaded = true;
+      }
+    }
+  } catch (e) {}
+
+  if (!photosLoaded) {
+    try {
+      const usersSnap = await firestore().collection('users').get();
+      usersSnap.forEach(doc => {
+        const data = doc.data();
+        if (data.photoURL) {
+          if (data.phone) {
+            const cleanPhone = data.phone.replace(/[^0-9]/g, '').slice(-10);
+            userPhotos[cleanPhone] = data.photoURL;
+          }
+          if (data.sfContactId) {
+            userPhotos[data.sfContactId] = data.photoURL;
+          }
+          userPhotos[doc.id] = data.photoURL;
+        }
+      });
+      console.log(`Fetched ${Object.keys(userPhotos).length} user photos from Firestore.`);
+      await AsyncStorage.setItem(PHOTOS_CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: userPhotos }));
+    } catch (e) {
+      console.log('Error fetching user photos:', e);
+    }
+  }
+
   const members: Member[] = [];
   let idCounter = 1;
+  let matchedCount = 0;
 
   for (const contact of rawData) {
     const processDate = (dateStr: string | null | undefined, cat: string) => {
@@ -51,8 +110,18 @@ export async function fetchCelebrations(): Promise<Member[]> {
           refYear: parseInt(parts[0], 10),
           ministry: 'General', // Default since Ministry isn't currently fetched in this query
           family: 'Family',
-          phone: contact.Phone || contact.MobilePhone || '',
+          phone: contact.MobilePhone || contact.Phone || '',
         });
+
+        // Try to attach photo
+        const cleanPhone = members[members.length - 1].phone.replace(/[^0-9]/g, '').slice(-10);
+        if (cleanPhone && userPhotos[cleanPhone]) {
+          members[members.length - 1].photoUrl = userPhotos[cleanPhone];
+          matchedCount++;
+        } else if (contact.Id && userPhotos[contact.Id]) {
+          members[members.length - 1].photoUrl = userPhotos[contact.Id];
+          matchedCount++;
+        }
       }
     };
 
@@ -60,6 +129,12 @@ export async function fetchCelebrations(): Promise<Member[]> {
     processDate(contact.Anniversary_Date__c, 'wedding');
     processDate(contact.Date_of_Baptism__c, 'baptism');
   }
+
+  console.log(`Matched ${matchedCount} photos to members.`);
+  
+  try {
+    await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: members }));
+  } catch (e) {}
 
   return members;
 }
@@ -163,6 +238,105 @@ export const VERSES: Record<string, { ref: string; text: string }[]> = {
   ],
 };
 
+export const VERSES_TELUGU: Record<string, { ref: string; text: string }[]> = {
+  birthday: [
+    { ref: 'సంఖ్యాకాండము 6:24', text: 'యెహోవా నిన్ను ఆశీర్వదించి నిన్ను కాపాడును.' },
+    { ref: 'సంఖ్యాకాండము 6:25', text: 'యెహోవా తన ముఖకాంతిని నీ మీద ప్రకాశింపజేసి నీ మీద కృప చూపును.' },
+    { ref: 'కీర్తన 118:24', text: 'ఈ దినము యెహోవా ఏర్పరచినది; దీనియందు మనము సంతోషించి ఆనందింతుము.' },
+    { ref: 'సామెతలు 3:5', text: 'నీ పూర్ణహృదయముతో యెహోవాను నమ్ముకొనుము.' },
+    { ref: 'సామెతలు 3:6', text: 'నీ మార్గములన్నిటిలో ఆయనను స్మరించుము; అప్పుడు ఆయన నీ త్రోవలను సరిచేయును.' },
+    { ref: 'కీర్తన 37:4', text: 'యెహోవాలో ఆనందించుము; ఆయన నీ హృదయ వాంఛలను నెరవేర్చును.' },
+    { ref: 'కీర్తన 37:5', text: 'నీ కార్యములన్నియు యెహోవాకు అప్పగించుము.' },
+    { ref: 'కీర్తన 20:4', text: 'ఆయన నీ హృదయ కోరికలను నెరవేర్చును.' },
+    { ref: 'కీర్తన 23:1', text: 'యెహోవా నా కాపరి; నాకు కొదువలేదు.' },
+    { ref: 'కీర్తన 34:8', text: 'యెహోవా మేలైనవాడు; ఆయనను ఆశ్రయించువాడు ధన్యుడు.' },
+    { ref: 'నెహెమ్యా 8:10', text: 'యెహోవానందమే మీ బలము.' },
+    { ref: 'యెషయా 41:10', text: 'భయపడకుము, నేను నీకు తోడై యున్నాను.' },
+    { ref: 'యెషయా 41:10', text: 'నేను నిన్ను బలపరచెదను; నీకు సహాయము చేసెదను.' },
+    { ref: 'ఫిలిప్పీయులకు 4:13', text: 'క్రీస్తు నన్ను బలపరచుచున్నందున నేను సమస్తమును చేయగలను.' },
+    { ref: 'ఫిలిప్పీయులకు 4:19', text: 'నా దేవుడు మీ ప్రతి అవసరమును తీర్చును.' },
+    { ref: 'యాకోబు 1:17', text: 'ప్రతి మంచి వరమును, ప్రతి పరిపూర్ణమైన దానమును పైనుండి వచ్చును.' },
+    { ref: 'రోమీయులకు 15:13', text: 'ఆశ కలిగించు దేవుడు మిమ్మును సమస్త సంతోషముతోను సమాధానముతోను నింపును.' },
+    { ref: 'యెహోషువ 1:9', text: 'ధైర్యముగా నుండుము; భయపడకుము.' },
+    { ref: 'కీర్తన 145:13', text: 'యెహోవా తన వాగ్దానములన్నిటిలో నమ్మదగినవాడు.' },
+    { ref: 'కీర్తన 103:5', text: 'ఆయన నీ యౌవనమును గ్రద్దవలె నూతనపరచును.' },
+    { ref: '3 యోహాను 1:2', text: 'నీకు సమస్తమును క్షేమముగా ఉండునట్లు నేను ప్రార్థించుచున్నాను.' },
+    { ref: 'నహూము 1:7', text: 'యెహోవా శరణాగతులకు ఆశ్రయము.' },
+    { ref: '1 పేతురు 5:7', text: 'మీ చింతలన్నిటిని ఆయన మీద వేయుడి; ఆయన మీ సంగతి చింతించుచున్నాడు.' },
+    { ref: 'కీర్తన 16:11', text: 'నీ సన్నిధిలో సంపూర్ణ సంతోషము కలదు.' },
+    { ref: 'కీర్తన 121:8', text: 'యెహోవా నీ వెళ్లుటను రాకడను కాపాడును.' },
+    { ref: 'కీర్తన 90:17', text: 'మన దేవుని దయ మన మీద ఉండును గాక.' },
+    { ref: 'కీర్తన 27:1', text: 'యెహోవా నా వెలుగును నా రక్షణయు.' },
+    { ref: 'విలాపవాక్యములు 3:22–23', text: 'యెహోవా కృపలు అంతము లేనివి; ఆయన కనికరములు ప్రతి ఉదయము నూతనములు.' },
+    { ref: 'విలాపవాక్యములు 3:22', text: 'యెహోవా ప్రేమ ఎన్నటికీ నిలిచియుండును.' },
+    { ref: 'ఎఫెసీయులకు 3:20', text: 'మనము అడుగుదానికంటెను ఊహించుదానికంటెను అత్యధికముగా చేయగలవాడు దేవుడు.' },
+  ],
+  wedding: [
+    { ref: 'ఆదికాండము 2:24', text: 'కాబట్టి పురుషుడు తన తండ్రిని తన తల్లిని విడిచిపెట్టి తన భార్యను హత్తుకొనును; వారు ఒక శరీరముగా ఉండుదురు.' },
+    { ref: 'ప్రసంగి 4:9', text: 'ఇద్దరు ఒక్కనికంటె మేలు; వారు తమ పరిశ్రమకు మంచి ఫలము పొందుదురు.' },
+    { ref: 'ప్రసంగి 4:12', text: 'ముగ్గురితో పేనిన త్రాడు త్వరగా తెగిపోదు.' },
+    { ref: 'మార్కు 10:9', text: 'దేవుడు జతపరచిన వారిని మనుష్యుడు వేరు చేయకూడదు.' },
+    { ref: 'మత్తయి 19:6', text: 'వారు ఇక ఇద్దరు కాదు, ఒక శరీరము; కాబట్టి దేవుడు జతపరచిన వారిని మనుష్యుడు వేరు చేయకూడదు.' },
+    { ref: 'ఎఫెసీయులకు 5:2', text: 'క్రీస్తు మిమ్మును ప్రేమించినట్లు ప్రేమలో నడుచుకొనుడి.' },
+    { ref: 'ఎఫెసీయులకు 5:25', text: 'భర్తలారా, క్రీస్తు సంఘమును ప్రేమించినట్లు మీ భార్యలను ప్రేమించుడి.' },
+    { ref: 'ఎఫెసీయులకు 5:33', text: 'మీలో ప్రతి వాడు తన భార్యను తనను ప్రేమించినట్లు ప్రేమించవలెను; భార్య తన భర్తను గౌరవించవలెను.' },
+    { ref: 'కొలస్సయులకు 3:14', text: 'వీటన్నిటికంటె ప్రేమను ధరించుకొనుడి; అది పరిపూర్ణతకు బంధము.' },
+    { ref: 'కొలస్సయులకు 3:15', text: 'క్రీస్తు సమాధానము మీ హృదయములలో ఏలుచుండనియ్యుడి.' },
+    { ref: '1 కొరింథీయులకు 13:4', text: 'ప్రేమ దీర్ఘశాంతము కలిగి దయగలదై యుండును.' },
+    { ref: '1 కొరింథీయులకు 13:7', text: 'ప్రేమ అన్నిటిని భరించును, అన్నిటిని నమ్మును, అన్నిటిని నిరీక్షించును, అన్నిటిని సహించును.' },
+    { ref: '1 కొరింథీయులకు 13:8', text: 'ప్రేమ ఎన్నటికిని తరుగదు.' },
+    { ref: '1 పేతురు 4:8', text: 'ప్రేమ అనేక పాపములను కప్పివేయును.' },
+    { ref: '1 యోహాను 4:7', text: 'ప్రియులారా, మనము ఒకరినొకరు ప్రేమించుకొందము; ప్రేమ దేవునివలన కలుగును.' },
+    { ref: '1 యోహాను 4:12', text: 'మనము ఒకరినొకరు ప్రేమించుకొనినయెడల దేవుడు మనలో నివసించును.' },
+    { ref: 'రోమీయులకు 12:10', text: 'సహోదర ప్రేమలో ఒకరియెడల ఒకరు అనురాగము కలిగి ఉండుడి.' },
+    { ref: 'రోమీయులకు 15:5', text: 'దేవుడు మీకు ఒకే మనస్సును అనుగ్రహించును గాక.' },
+    { ref: 'ఫిలిప్పీయులకు 2:2', text: 'ఒకే ప్రేమగలవారై, ఒకే మనస్సుతో ఉండుడి.' },
+    { ref: 'ఫిలిప్పీయులకు 4:7', text: 'దేవుని సమాధానము మీ హృదయములను కాపాడును.' },
+    { ref: 'గలతీయులకు 5:22–23', text: 'ఆత్మ ఫలము ప్రేమ, సంతోషము, సమాధానము, దీర్ఘశాంతము, దయ, మంచితనము, విశ్వాసము, సాత్వికము, ఆశానిగ్రహము.' },
+    { ref: 'సామెతలు 3:3', text: 'కృపాసత్యములు నిన్ను విడువకుండునట్లు వాటిని నీ హృదయముమీద వ్రాసికొనుము.' },
+    { ref: 'సామెతలు 17:17', text: 'స్నేహితుడు అన్ని కాలములందును ప్రేమించును.' },
+    { ref: 'సామెతలు 18:22', text: 'భార్యను పొందినవాడు మేలైనదానిని పొందెను; యెహోవా అనుగ్రహము పొందెను.' },
+    { ref: 'సామెతలు 31:10', text: 'గుణవతియైన భార్య అమూల్యమైనది.' },
+    { ref: 'కీర్తనలు 127:1', text: 'యెహోవా ఇల్లు కట్టకపోతే కట్టువారి శ్రమ వ్యర్థము.' },
+    { ref: 'కీర్తనలు 128:1', text: 'యెహోవాయందు భయభక్తులు కలిగి ఆయన మార్గములందు నడుచువారందరు ధన్యులు.' },
+    { ref: 'కీర్తనలు 133:1', text: 'సహోదరులు ఐక్యముగా నివసించుట ఎంత మేలైనది!' },
+    { ref: 'సంఖ్యాకాండము 6:24–26', text: 'యెహోవా నిన్ను ఆశీర్వదించి నిన్ను కాపాడును గాక... తన సమాధానమును నీకు అనుగ్రహించును గాక.' },
+    { ref: 'యోహాను 15:12', text: 'నేను మిమ్మును ప్రేమించినట్లు మీరు ఒకరినొకరు ప్రేమించుకొనుడి.' },
+  ],
+  baptism: [
+    { ref: 'మత్తయి 28:19', text: 'కాబట్టి మీరు వెళ్లి సమస్త జనులను శిష్యులనుగా చేయుడి; వారికి తండ్రి, కుమారుడు, పరిశుద్ధాత్మ నామమున బాప్తిస్మమిచ్చుడి.' },
+    { ref: 'మార్కు 16:16', text: 'విశ్వసించి బాప్తిస్మము పొందినవాడు రక్షింపబడును; విశ్వసింపనివాడు శిక్షింపబడును.' },
+    { ref: 'అపొస్తలుల కార్యములు 2:38', text: 'మీరు మనస్సు మార్చుకొని, మీ పాపముల క్షమాపణ కొరకు యేసుక్రీస్తు నామమున బాప్తిస్మము పొందుడి; అప్పుడు పరిశుద్ధాత్మ వరమును పొందుదురు.' },
+    { ref: 'అపొస్తలుల కార్యములు 2:41', text: 'ఆయన మాటను ఆనందముగా అంగీకరించినవారు బాప్తిస్మము పొందిరి.' },
+    { ref: 'అపొస్తలుల కార్యములు 8:36', text: 'ఇదిగో నీరు ఉంది; నేను బాప్తిస్మము పొందుటకు ఏమి ఆటంకము?' },
+    { ref: 'అపొస్తలుల కార్యములు 8:38', text: 'వారు నీళ్లలోకి దిగిరి; ఫిలిప్పు అతనికి బాప్తిస్మము ఇచ్చెను.' },
+    { ref: 'అపొస్తలుల కార్యములు 10:47', text: 'పరిశుద్ధాత్మను పొందిన వీరికి బాప్తిస్మము ఇవ్వకుండా ఎవడు అడ్డగించగలడు?' },
+    { ref: 'అపొస్తలుల కార్యములు 22:16', text: 'లేచి బాప్తిస్మము పొంది, ఆయన నామమును ప్రార్థించుచు నీ పాపములను కడుగుకొనుము.' },
+    { ref: 'రోమీయులకు 6:3', text: 'క్రీస్తుయేసునందు బాప్తిస్మము పొందిన మనమందరము ఆయన మరణములో బాప్తిస్మము పొందినవారమని మీకు తెలియదా?' },
+    { ref: 'రోమీయులకు 6:4', text: 'క్రీస్తు లేపబడినట్లే మనమును నూతన జీవితములో నడుచుకొనుటకై బాప్తిస్మము ద్వారా ఆయనతో కూడ సమాధి చేయబడితిమి.' },
+    { ref: 'రోమీయులకు 6:11', text: 'మీరు పాపమునకు చనిపోయినవారై, క్రీస్తుయేసునందు దేవునికి బ్రతికియున్నవారమని ఎంచుకొనుడి.' },
+    { ref: '2 కొరింథీయులకు 5:17', text: 'ఎవడైనను క్రీస్తునందు ఉన్నయెడల అతడు నూతన సృష్టి; పాతవి గతించెను, ఇదిగో సమస్తము క్రొత్తవాయెను.' },
+    { ref: 'గలతీయులకు 3:26', text: 'మీరు అందరూ క్రీస్తుయేసునందు విశ్వాసమువలన దేవుని కుమారులై యున్నారు.' },
+    { ref: 'గలతీయులకు 3:27', text: 'క్రీస్తునందు బాప్తిస్మము పొందిన మీరందరూ క్రీస్తును ధరించుకొనియున్నారు.' },
+    { ref: 'ఎఫెసీయులకు 4:5', text: 'ఒక ప్రభువు, ఒక విశ్వాసము, ఒక బాప్తిస్మము.' },
+    { ref: 'కొలస్సయులకు 2:12', text: 'బాప్తిస్మములో ఆయనతో కూడ సమాధి చేయబడి, దేవుని శక్తిని విశ్వసించినందున ఆయనతో కూడ లేపబడితిరి.' },
+    { ref: 'తీతుకు 3:5', text: 'ఆయన తన కృపచేత పునర్జన్మస్నానమువలనను పరిశుద్ధాత్మ నూతనీకరణమువలనను మనలను రక్షించెను.' },
+    { ref: '1 పేతురు 3:21', text: 'బాప్తిస్మము ఇప్పుడు మిమ్మును రక్షించుచున్నది.' },
+    { ref: 'యోహాను 3:5', text: 'నీరు మరియు ఆత్మవలన జన్మించని వాడు దేవుని రాజ్యములో ప్రవేశింపలేడు.' },
+    { ref: 'యోహాను 3:16', text: 'దేవుడు లోకమును ఎంతో ప్రేమించెను గనుక తన అద్వితీయ కుమారుని అనుగ్రహించెను.' },
+    { ref: 'యోహాను 1:12', text: 'ఆయనను అంగీకరించిన వారికి దేవుని పిల్లలగుటకు అధికారము ఇచ్చెను.' },
+    { ref: '1 యోహాను 1:7', text: 'ఆయన కుమారుడైన యేసు రక్తము మనలను సమస్త పాపములనుండి శుద్ధి చేయును.' },
+    { ref: 'హెబ్రీయులకు 10:22', text: 'శుద్ధమైన హృదయముతో విశ్వాసపూర్ణత కలిగి దేవుని సమీపించుదము.' },
+    { ref: 'ఫిలిప్పీయులకు 1:6', text: 'మీలో మంచి కార్యమును ప్రారంభించినవాడు దానిని సంపూర్ణము చేయును.' },
+    { ref: 'ఫిలిప్పీయులకు 3:14', text: 'దేవుని ఉన్నతమైన పిలుపు బహుమానము కొరకు లక్ష్యమువైపు పరుగెత్తుచున్నాను.' },
+    { ref: 'యాకోబు 1:22', text: 'వాక్యము వినుвариగానే కాక దాని ప్రకారము చేయువారుగా ఉండుడి.' },
+    { ref: 'కీర్తనలు 119:105', text: 'నీ వాక్యము నా పాదములకు దీపమును, నా మార్గమునకు వెలుగును.' },
+    { ref: 'యెహెజ్కేలు 36:26', text: 'మీకు క్రొత్త హృదయమును ఇచ్చి, క్రొత్త ఆత్మను మీలో ఉంచెదను.' },
+    { ref: 'యెషయా 43:1', text: 'నేను నిన్ను విమోచించితిని; పేరుపెట్టి నిన్ను పిలిచితిని; నీవు నావాడవు.' },
+    { ref: '2 తిమోతికి 1:9', text: 'ఆయన మనలను రక్షించి పరిశుద్ధమైన పిలుపుతో పిలిచెను.' },
+  ],
+};
+
 export const THEMES: { key: string; name: string; c: readonly [string, string, ...string[]]; bgImage?: string }[] = [
   { key: 'floral', name: 'Floral Celebration', c: ['#E7C767', '#BE9A3A'] },
   { key: 'golden', name: 'Golden Blessings', c: ['#F3D98B', '#B4842A'] },
@@ -182,6 +356,7 @@ export const AVATAR_PALETTES: (readonly [string, string])[] = [
 ];
 
 export function occurrenceThisYear(m: Member) {
+  const TODAY = getToday();
   return new Date(TODAY.getFullYear(), m.month - 1, m.day);
 }
 
@@ -190,22 +365,24 @@ export function stripTime(d: Date) {
 }
 
 export function nextOccurrence(m: Member) {
+  const TODAY = getToday();
   let d = occurrenceThisYear(m);
   if (d < stripTime(TODAY)) d = new Date(TODAY.getFullYear() + 1, m.month - 1, m.day);
   return d;
 }
 
 export function daysUntil(m: Member) {
-  const diff = nextOccurrence(m).getTime() - stripTime(TODAY).getTime();
+  const diff = nextOccurrence(m).getTime() - stripTime(getToday()).getTime();
   return Math.round(diff / 86400000);
 }
 
 export function isToday(m: Member) {
+  const TODAY = getToday();
   return m.month === TODAY.getMonth() + 1 && m.day === TODAY.getDate();
 }
 
 export function isPastThisYear(m: Member) {
-  return occurrenceThisYear(m) < stripTime(TODAY) && !isToday(m);
+  return occurrenceThisYear(m) < stripTime(getToday()) && !isToday(m);
 }
 
 export function isThisWeek(m: Member) {
@@ -214,6 +391,7 @@ export function isThisWeek(m: Member) {
 }
 
 export function isThisMonth(m: Member) {
+  const TODAY = getToday();
   return m.month === TODAY.getMonth() + 1;
 }
 
@@ -223,14 +401,18 @@ export function formatDate(m: Member) {
 }
 
 export function yearsLabel(cat: string, refYear: number) {
+  const TODAY = getToday();
   if (cat === 'birthday') return `${TODAY.getFullYear() - refYear} yrs`;
   return `${TODAY.getFullYear() - refYear} yrs together`;
 }
 
 export function initials(name: string) {
+  if (!name) return '?';
   const clean = name.split('&')[0].trim();
-  const parts = clean.split(' ');
-  return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 export function paletteFor(id: string) {

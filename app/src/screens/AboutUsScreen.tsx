@@ -16,6 +16,7 @@ import {
   Sparkles, Gift, Bell, Hand, Users, Video, MessageSquare, Quote
 } from 'lucide-react-native';
 import firestore from '@react-native-firebase/firestore';
+import { useTheme } from '../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
@@ -68,6 +69,7 @@ const DEFAULT: AboutUsData = {
 export default function AboutUsScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { isDark } = useTheme();
   const [data, setData] = useState<AboutUsData>(DEFAULT);
   const [loading, setLoading] = useState(true);
 
@@ -96,21 +98,21 @@ export default function AboutUsScreen() {
   }, []);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : theme.colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top || 20 }]}>
+      <View style={[styles.header, { paddingTop: insets.top || 20, backgroundColor: isDark ? '#1e293b' : '#ffffff' }]}>
         <View style={styles.headerInner}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <ChevronLeft size={22} color={theme.colors.primary} />
+          <TouchableOpacity style={[styles.backBtn, { backgroundColor: isDark ? '#334155' : 'rgba(17,51,91,0.05)' }]} onPress={() => navigation.goBack()}>
+            <ChevronLeft size={22} color={isDark ? '#fff' : theme.colors.primary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>About Us</Text>
+          <Text style={[styles.headerTitle, { color: isDark ? '#fff' : theme.colors.primary }]}>About Us</Text>
           <View style={{ width: 40 }} />
         </View>
       </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <ActivityIndicator size="large" color={isDark ? '#FCD34D' : theme.colors.primary} />
         </View>
       ) : (
         <ScrollView
@@ -120,44 +122,42 @@ export default function AboutUsScreen() {
         >
           {/* Hero Branding Section */}
           <View style={styles.heroSection}>
-            <View style={styles.logoCircle}>
-              <Image
-                source={require('../../assets/logo.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
-            <Text style={styles.heroTitle}>Church of GOD</Text>
-            <Text style={[styles.heroSubtitle, { color: theme.colors.primary, fontSize: 18, marginTop: 8, fontStyle: 'normal' }]}>
+            <Image
+              source={require('../../assets/logo.png')}
+              style={[styles.logo, { borderColor: isDark ? '#FCD34D' : 'rgba(195, 198, 207, 0.3)', borderWidth: isDark ? 2 : 0 }]}
+              resizeMode="cover"
+            />
+            <Text style={[styles.heroTitle, { color: isDark ? '#fff' : theme.colors.primary }]}>Church of GOD</Text>
+            <Text style={[styles.heroSubtitle, { color: isDark ? '#cbd5e1' : theme.colors.primary, fontSize: 18, marginTop: 8, fontStyle: 'normal' }]}>
               క్రీస్తు నందు సహోదరుల సహవాసము
             </Text>
           </View>
 
           {/* Our Calling Section */}
-          <View style={styles.callingSection}>
+          <View style={[styles.callingSection, { backgroundColor: isDark ? '#1e293b' : theme.colors.surfaceContainerLowest, borderColor: isDark ? '#334155' : 'rgba(228,226,226,0.5)' }]}>
             <View style={styles.sectionHeaderWrap}>
-              <Heart size={24} color={theme.colors.secondary} />
-              <Text style={styles.sectionTitle}>Our Calling</Text>
+              <Heart size={24} color={isDark ? '#FCD34D' : theme.colors.secondary} />
+              <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : theme.colors.primary }]}>Our Calling</Text>
             </View>
-            <Text style={styles.bodyTextLg}>At Church of GOD, our calling is rooted in a simple yet profound mandate: to serve and love our community as a reflection of divine compassion. We believe that every individual is a story of grace waiting to be told, and we strive to be the supportive chapter where healing and purpose meet.</Text>
+            <Text style={[styles.bodyTextLg, { color: isDark ? '#cbd5e1' : theme.colors.textPrimary }]}>At Church of GOD, our calling is rooted in a simple yet profound mandate: to serve and love our community as a reflection of divine compassion. We believe that every individual is a story of grace waiting to be told, and we strive to be the supportive chapter where healing and purpose meet.</Text>
           </View>
 
           {/* Our Vision (Asymmetric Highlight) */}
           <View style={styles.visionSection}>
-            <View style={styles.visionImageWrap}>
+            <View style={[styles.visionImageWrap, { borderColor: isDark ? '#334155' : 'rgba(228,226,226,0.5)' }]}>
               <Image
                 source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDCRrQhraZUrt8P0ycMeRmUKcXWr_MqDqAmtoYG3tNj-cKX7AOm3gmFuMKAnsCN5T_8JIXBvTxbYkNIx9T-mWm891XoMFENUSJDrULVnP6UztbzMidM4pZQIZnVGW2mnMjixbvq3jSPRekUfP3-PKbRmxxQuyDCNukU8sykDm0e2NJVYuEGMo7riqcWOOsUP7SdrJt05MykucTl9oxSvQc_1MXkQN0T0_T83sNwe1aASucUgKsrvM0u' }}
                 style={styles.visionImage}
                 resizeMode="cover"
               />
-              <View style={styles.visionGradient} />
+              <View style={[styles.visionGradient, { backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(17,51,91,0.15)' }]} />
             </View>
             <View style={styles.visionContent}>
-              <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>Our Vision</Text>
-              <View style={styles.visionQuoteBox}>
-                <Text style={styles.visionQuoteText}>"Building a house of prayer for all nations, where every soul finds a home and every heart finds peace."</Text>
+              <Text style={[styles.sectionTitle, { marginBottom: 16, color: isDark ? '#fff' : theme.colors.primary }]}>Our Vision</Text>
+              <View style={[styles.visionQuoteBox, { borderLeftColor: isDark ? '#FCD34D' : theme.colors.secondaryContainer }]}>
+                <Text style={[styles.visionQuoteText, { color: isDark ? '#fff' : '#000' }]}>"Building a house of prayer for all nations, where every soul finds a home and every heart finds peace."</Text>
               </View>
-              <Text style={styles.bodyTextMd}>
+              <Text style={[styles.bodyTextMd, { color: isDark ? '#94a3b8' : theme.colors.textSecondary }]}>
                 We look forward to a future where the walls of the church extend into the streets, bringing hope to the hopeless and a tangible sense of belonging to all who seek it.
               </Text>
             </View>
@@ -165,98 +165,98 @@ export default function AboutUsScreen() {
 
           {/* Our Core Values (Pill Chips) */}
           <View style={styles.valuesSection}>
-            <Text style={[styles.sectionTitle, { marginBottom: 24, textAlign: 'center' }]}>Our Core Values</Text>
+            <Text style={[styles.sectionTitle, { marginBottom: 24, textAlign: 'center', color: isDark ? '#fff' : theme.colors.primary }]}>Our Core Values</Text>
             <View style={styles.valuesGrid}>
-              <View style={[styles.valueChip, { backgroundColor: theme.colors.primaryFixed }]}>
-                <Heart size={20} color={theme.colors.onPrimaryFixed} />
-                <Text style={[styles.valueLabel, { color: theme.colors.onPrimaryFixed }]}>Compassion</Text>
+              <View style={[styles.valueChip, { backgroundColor: isDark ? '#334155' : theme.colors.primaryFixed }]}>
+                <Heart size={20} color={isDark ? '#FCD34D' : theme.colors.onPrimaryFixed} />
+                <Text style={[styles.valueLabel, { color: isDark ? '#fff' : theme.colors.onPrimaryFixed }]}>Compassion</Text>
               </View>
-              <View style={[styles.valueChip, { backgroundColor: theme.colors.secondaryFixed }]}>
-                <Target size={20} color={theme.colors.onSecondaryFixed} />
-                <Text style={[styles.valueLabel, { color: theme.colors.onSecondaryFixed }]}>Integrity</Text>
+              <View style={[styles.valueChip, { backgroundColor: isDark ? '#334155' : theme.colors.secondaryFixed }]}>
+                <Target size={20} color={isDark ? '#FCD34D' : theme.colors.onSecondaryFixed} />
+                <Text style={[styles.valueLabel, { color: isDark ? '#fff' : theme.colors.onSecondaryFixed }]}>Integrity</Text>
               </View>
-              <View style={[styles.valueChip, { backgroundColor: theme.colors.surfaceContainerHighest }]}>
-                <Sparkles size={20} color={theme.colors.textSecondary} />
-                <Text style={[styles.valueLabel, { color: theme.colors.textSecondary }]}>Faith</Text>
+              <View style={[styles.valueChip, { backgroundColor: isDark ? '#334155' : theme.colors.surfaceContainerHighest }]}>
+                <Sparkles size={20} color={isDark ? '#FCD34D' : theme.colors.textSecondary} />
+                <Text style={[styles.valueLabel, { color: isDark ? '#fff' : theme.colors.textSecondary }]}>Faith</Text>
               </View>
-              <View style={[styles.valueChip, { backgroundColor: theme.colors.primaryFixedDim }]}>
-                <Users size={20} color={theme.colors.primary} />
-                <Text style={[styles.valueLabel, { color: theme.colors.primary }]}>Fellowship</Text>
+              <View style={[styles.valueChip, { backgroundColor: isDark ? '#334155' : theme.colors.primaryFixedDim }]}>
+                <Users size={20} color={isDark ? '#FCD34D' : theme.colors.primary} />
+                <Text style={[styles.valueLabel, { color: isDark ? '#fff' : theme.colors.primary }]}>Fellowship</Text>
               </View>
             </View>
           </View>
 
           {/* App Features (Bento-style Cards) */}
           <View style={styles.featuresSection}>
-            <Text style={[styles.sectionTitle, { marginBottom: 24 }]}>Connected in Spirit</Text>
+            <Text style={[styles.sectionTitle, { marginBottom: 24, color: isDark ? '#fff' : theme.colors.primary }]}>Connected in Spirit</Text>
             <View style={styles.bentoGrid}>
               
               {/* Sermons */}
-              <View style={styles.bentoCard}>
-                <View style={[styles.bentoIconBox, { backgroundColor: 'rgba(17,51,91,0.1)' }]}>
-                  <BookOpen size={24} color={theme.colors.primary} />
+              <View style={[styles.bentoCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : 'rgba(17,51,91,0.08)' }]}>
+                <View style={[styles.bentoIconBox, { backgroundColor: isDark ? 'rgba(252, 211, 77, 0.1)' : 'rgba(17,51,91,0.1)' }]}>
+                  <BookOpen size={24} color={isDark ? '#FCD34D' : theme.colors.primary} />
                 </View>
-                <Text style={styles.bentoTitle}>Sermons On-Demand</Text>
-                <Text style={styles.bentoDesc}>Revisit Sunday messages anytime. Journey through our archive of teachings wherever you are.</Text>
+                <Text style={[styles.bentoTitle, { color: isDark ? '#fff' : theme.colors.primary }]}>Sermons On-Demand</Text>
+                <Text style={[styles.bentoDesc, { color: isDark ? '#94a3b8' : theme.colors.textSecondary }]}>Revisit Sunday messages anytime. Journey through our archive of teachings wherever you are.</Text>
               </View>
               
               {/* Live Services */}
-              <View style={styles.bentoCard}>
-                <View style={[styles.bentoIconBox, { backgroundColor: 'rgba(115,92,0,0.1)' }]}>
-                  <Video size={24} color={theme.colors.secondary} />
+              <View style={[styles.bentoCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : 'rgba(17,51,91,0.08)' }]}>
+                <View style={[styles.bentoIconBox, { backgroundColor: isDark ? 'rgba(252, 211, 77, 0.1)' : 'rgba(115,92,0,0.1)' }]}>
+                  <Video size={24} color={isDark ? '#FCD34D' : theme.colors.secondary} />
                 </View>
-                <Text style={styles.bentoTitle}>Live Services</Text>
-                <Text style={styles.bentoDesc}>Watch our Sunday gatherings live. Connect from anywhere in the world.</Text>
+                <Text style={[styles.bentoTitle, { color: isDark ? '#fff' : theme.colors.primary }]}>Live Services</Text>
+                <Text style={[styles.bentoDesc, { color: isDark ? '#94a3b8' : theme.colors.textSecondary }]}>Watch our Sunday gatherings live. Connect from anywhere in the world.</Text>
               </View>
 
               {/* Prayer (Specialized Card) */}
-              <View style={[styles.bentoCard, styles.prayerCard]}>
-                <View style={[styles.bentoIconBox, { backgroundColor: 'rgba(255,224,136,0.3)' }]}>
-                  <Hand size={24} color={theme.colors.onSecondaryFixed} />
+              <View style={[styles.bentoCard, styles.prayerCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : 'rgba(17,51,91,0.08)' }]}>
+                <View style={[styles.bentoIconBox, { backgroundColor: isDark ? 'rgba(252, 211, 77, 0.1)' : 'rgba(255,224,136,0.3)' }]}>
+                  <Hand size={24} color={isDark ? '#FCD34D' : theme.colors.onSecondaryFixed} />
                 </View>
-                <Text style={styles.bentoTitle}>Prayer Requests</Text>
-                <Text style={[styles.bentoDesc, { fontStyle: 'italic' }]}>"Submit and join in communal prayer. Your burdens are shared, and your joys are celebrated."</Text>
+                <Text style={[styles.bentoTitle, { color: isDark ? '#fff' : theme.colors.primary }]}>Prayer Requests</Text>
+                <Text style={[styles.bentoDesc, { fontStyle: 'italic', color: isDark ? '#94a3b8' : theme.colors.textSecondary }]}>"Submit and join in communal prayer. Your burdens are shared, and your joys are celebrated."</Text>
               </View>
 
               {/* Giving */}
-              <View style={styles.bentoCard}>
-                <View style={[styles.bentoIconBox, { backgroundColor: 'rgba(17,51,91,0.1)' }]}>
-                  <Gift size={24} color={theme.colors.primary} />
+              <View style={[styles.bentoCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : 'rgba(17,51,91,0.08)' }]}>
+                <View style={[styles.bentoIconBox, { backgroundColor: isDark ? 'rgba(252, 211, 77, 0.1)' : 'rgba(17,51,91,0.1)' }]}>
+                  <Gift size={24} color={isDark ? '#FCD34D' : theme.colors.primary} />
                 </View>
-                <Text style={styles.bentoTitle}>Giving & Support</Text>
-                <Text style={styles.bentoDesc}>Seamlessly support church ministries. Secure and faithful stewardship for our shared mission.</Text>
+                <Text style={[styles.bentoTitle, { color: isDark ? '#fff' : theme.colors.primary }]}>Giving & Support</Text>
+                <Text style={[styles.bentoDesc, { color: isDark ? '#94a3b8' : theme.colors.textSecondary }]}>Seamlessly support church ministries. Secure and faithful stewardship for our shared mission.</Text>
               </View>
 
               {/* Devotionals */}
-              <View style={styles.bentoCard}>
-                <View style={[styles.bentoIconBox, { backgroundColor: 'rgba(200,198,194,0.4)' }]}>
-                  <Sparkles size={24} color={theme.colors.tertiary} />
+              <View style={[styles.bentoCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : 'rgba(17,51,91,0.08)' }]}>
+                <View style={[styles.bentoIconBox, { backgroundColor: isDark ? 'rgba(252, 211, 77, 0.1)' : 'rgba(200,198,194,0.4)' }]}>
+                  <Sparkles size={24} color={isDark ? '#FCD34D' : theme.colors.tertiary} />
                 </View>
-                <Text style={styles.bentoTitle}>Daily Promises</Text>
-                <Text style={styles.bentoDesc}>Start your day with scripture and reflection. Morning bread for your spiritual journey.</Text>
+                <Text style={[styles.bentoTitle, { color: isDark ? '#fff' : theme.colors.primary }]}>Daily Promises</Text>
+                <Text style={[styles.bentoDesc, { color: isDark ? '#94a3b8' : theme.colors.textSecondary }]}>Start your day with scripture and reflection. Morning bread for your spiritual journey.</Text>
               </View>
 
               {/* Events */}
-              <View style={styles.bentoCard}>
-                <View style={[styles.bentoIconBox, { backgroundColor: 'rgba(17,51,91,0.1)' }]}>
-                  <Calendar size={24} color={theme.colors.primary} />
+              <View style={[styles.bentoCard, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : 'rgba(17,51,91,0.08)' }]}>
+                <View style={[styles.bentoIconBox, { backgroundColor: isDark ? 'rgba(252, 211, 77, 0.1)' : 'rgba(17,51,91,0.1)' }]}>
+                  <Calendar size={24} color={isDark ? '#FCD34D' : theme.colors.primary} />
                 </View>
-                <Text style={styles.bentoTitle}>Events & RSVP</Text>
-                <Text style={styles.bentoDesc}>Stay updated and register for gatherings. Never miss a moment with your church family.</Text>
+                <Text style={[styles.bentoTitle, { color: isDark ? '#fff' : theme.colors.primary }]}>Events & RSVP</Text>
+                <Text style={[styles.bentoDesc, { color: isDark ? '#94a3b8' : theme.colors.textSecondary }]}>Stay updated and register for gatherings. Never miss a moment with your church family.</Text>
               </View>
 
             </View>
           </View>
 
           {/* Scripture Block */}
-          <View style={styles.scriptureBlock}>
+          <View style={[styles.scriptureBlock, { backgroundColor: isDark ? '#1e293b' : theme.colors.primary }]}>
             <View style={styles.quoteIconWrap}>
-              <Quote size={80} color="rgba(255,255,255,0.1)" />
+              <Quote size={80} color={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)'} />
             </View>
             <Text style={styles.scriptureText}>
               "And the peace of God, which transcends all understanding, will guard your hearts and your minds in Christ Jesus."
             </Text>
-            <Text style={styles.scriptureRef}>PHILIPPIANS 4:7</Text>
+            <Text style={[styles.scriptureRef, { color: isDark ? '#FCD34D' : 'rgba(255,255,255,0.8)' }]}>PHILIPPIANS 4:7</Text>
           </View>
 
           <View style={{ height: 40 }} />
@@ -306,25 +306,11 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     marginBottom: 40,
   },
-  logoCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: '#f0f2f7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#FCD34D',
-    marginBottom: 16,
-    shadowColor: '#FCD34D',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
   logo: {
-    width: 110,
-    height: 110,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    marginBottom: 24,
   },
   heroTitle: {
     fontSize: 42,

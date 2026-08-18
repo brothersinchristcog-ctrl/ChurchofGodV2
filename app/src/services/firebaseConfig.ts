@@ -7,7 +7,9 @@ import functions from '@react-native-firebase/functions';
 // initializeApp or set persistence. It's handled automatically 
 // by the native plugins via app.json/Google-Services.json configuration.
 
+import storage from '@react-native-firebase/storage';
+
 export const db = firestore();
 export const FieldValue = firestore.FieldValue;
 
-export { auth, firestore, messaging, functions };
+export { auth, firestore, messaging, functions, storage };

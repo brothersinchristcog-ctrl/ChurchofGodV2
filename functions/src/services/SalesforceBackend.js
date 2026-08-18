@@ -59,10 +59,12 @@ export class SalesforceBackend {
      * Fetches the Daily Promise
      */
     async getDailyPromise() {
-        const today = new Date().toISOString().split('T')[0];
+        // Use Asia/Kolkata timezone to match the cron schedule timezone
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
         const soql = `SELECT Id, Promises__c, Promise_text_telugu__c, Date__c, Number__c
                   FROM Daily_Promises__c
-                  ORDER BY Date__c DESC LIMIT 1`;
+                  WHERE Date__c = ${today}
+                  LIMIT 1`;
         const result = await this.query(soql);
         return result.records[0] || null;
     }
@@ -125,13 +127,13 @@ export class SalesforceBackend {
             const today = new Date();
             const month = today.getMonth() + 1; // JS month is 0-indexed
             const day = today.getDate();
-            const soql = `SELECT Id, Name, Birthdate, Phone, Email FROM Contact WHERE CALENDAR_MONTH(Birthdate) = ${month} AND CALENDAR_DAY(Birthdate) = ${day} LIMIT 100`;
+            const soql = `SELECT Id, Name, Birthdate, Phone, MobilePhone, Email FROM Contact WHERE CALENDAR_MONTH(Birthdate) = ${month} AND DAY_IN_MONTH(Birthdate) = ${day} LIMIT 100`;
             const result = await this.query(soql);
             return result.records.map((rec) => ({
                 id: rec.Id,
                 name: rec.Name,
                 birthdate: rec.Birthdate,
-                phone: rec.Phone,
+                phone: rec.MobilePhone,
                 email: rec.Email
             }));
         }
@@ -141,11 +143,34 @@ export class SalesforceBackend {
         }
     }
     /**
+     * Fetches today's baptism anniversaries from Salesforce
+     */
+    async getTodayBaptisms() {
+        try {
+            const today = new Date();
+            const month = today.getMonth() + 1;
+            const day = today.getDate();
+            const soql = `SELECT Id, Name, Date_of_Baptism__c, Phone, MobilePhone, Email FROM Contact WHERE CALENDAR_MONTH(Date_of_Baptism__c) = ${month} AND DAY_IN_MONTH(Date_of_Baptism__c) = ${day} LIMIT 100`;
+            const result = await this.query(soql);
+            return result.records.map((rec) => ({
+                id: rec.Id,
+                name: rec.Name,
+                baptismDate: rec.Date_of_Baptism__c,
+                phone: rec.MobilePhone,
+                email: rec.Email
+            }));
+        }
+        catch (error) {
+            console.error('Error fetching today baptisms in backend:', error);
+            return [];
+        }
+    }
+    /**
      * Fetches today's wedding anniversaries from Salesforce
      */
     async getTodayAnniversaries() {
         try {
-            const soql = `SELECT Id, Name, Gender__c, AccountId, Anniversary_Date__c FROM Contact WHERE Anniversary_Date__c != null`;
+            const soql = `SELECT Id, Name, Gender__c, AccountId, Anniversary_Date__c, Phone, MobilePhone FROM Contact WHERE Anniversary_Date__c != null`;
             const result = await this.query(soql).catch(() => ({ records: [] }));
             const today = new Date();
             const todayMonth = today.getMonth() + 1; // 1-12
@@ -170,7 +195,8 @@ export class SalesforceBackend {
                     accountGroups[accId].push({
                         name: rec.Name,
                         gender: rec.Gender__c,
-                        year: annYear
+                        year: annYear,
+                        phone: rec.MobilePhone
                     });
                 }
             }
@@ -181,13 +207,17 @@ export class SalesforceBackend {
                 if (!members || members.length === 0)
                     continue;
                 let husband = '';
+                let husbandPhone = '';
                 let wife = '';
+                let wifePhone = '';
                 let years = 12;
                 const male = members.find(m => m.gender === 'Male');
                 const female = members.find(m => m.gender === 'Female');
                 if (male && female) {
                     husband = male.name;
+                    husbandPhone = male.phone || '';
                     wife = female.name;
+                    wifePhone = female.phone || '';
                     years = new Date().getFullYear() - male.year;
                 }
                 else if (members.length >= 2) {
@@ -197,11 +227,15 @@ export class SalesforceBackend {
                         members[0].name.toLowerCase().includes('kumari');
                     if (firstIsFemale) {
                         wife = members[0].name;
+                        wifePhone = members[0].phone || '';
                         husband = members[1].name;
+                        husbandPhone = members[1].phone || '';
                     }
                     else {
                         husband = members[0].name;
+                        husbandPhone = members[0].phone || '';
                         wife = members[1].name;
+                        wifePhone = members[1].phone || '';
                     }
                     years = new Date().getFullYear() - members[0].year;
                 }
@@ -209,11 +243,15 @@ export class SalesforceBackend {
                     const single = members[0];
                     if (single.gender === 'Male') {
                         husband = single.name;
+                        husbandPhone = single.phone || '';
                         wife = 'Spouse';
+                        wifePhone = '';
                     }
                     else {
                         husband = 'Spouse';
+                        husbandPhone = '';
                         wife = single.name;
+                        wifePhone = single.phone || '';
                     }
                     years = new Date().getFullYear() - single.year;
                 }
@@ -223,7 +261,9 @@ export class SalesforceBackend {
                 anniversaries.push({
                     id: `anniv-${index++}`,
                     husband,
+                    husbandPhone,
                     wife,
+                    wifePhone,
                     years
                 });
             }
@@ -231,6 +271,35 @@ export class SalesforceBackend {
         }
         catch (error) {
             console.error('Error fetching today anniversaries in backend:', error);
+            return [];
+        }
+    }
+    /**
+     * Fetches all Salesforce Contacts where User_Type__c = 'Admin'.
+     * Used to CC admins on automated daily celebration WhatsApp wishes.
+     * Returns an array of { name, phone } objects with valid phone numbers only.
+     */
+    async getAdminContacts() {
+        try {
+            const soql = `SELECT Id, FirstName, LastName, Phone, MobilePhone
+                    FROM Contact
+                    WHERE User_Type__c = 'Admin'
+                    AND (Phone != null OR MobilePhone != null)
+                    ORDER BY LastName ASC`;
+            const result = await this.query(soql);
+            if (!result || !result.records || result.records.length === 0) {
+                console.log('ℹ️ No admin contacts found in Salesforce.');
+                return [];
+            }
+            return result.records
+                .map((r) => ({
+                name: `${r.FirstName || ''} ${r.LastName || ''}`.trim() || 'Admin',
+                phone: (r.MobilePhone || r.Phone || '').trim()
+            }))
+                .filter((a) => !!a.phone);
+        }
+        catch (error) {
+            console.error('Error fetching admin contacts from Salesforce:', error);
             return [];
         }
     }

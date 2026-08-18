@@ -138,6 +138,10 @@ export default function SignUpScreen({ navigation }: any) {
           console.warn('Profile name sync failed, but member created:', profileErr);
         }
 
+        // Clear celebrations cache so new member shows up immediately if celebrating today
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        await AsyncStorage.removeItem('cog_admin_celebs_cache_v2').catch(() => {});
+
         if (result.warnings) {
           Alert.alert(
             'Partially Saved',

@@ -14,8 +14,10 @@ import {
   Image
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { 
   ChevronLeft, 
+  ArrowLeft,
   MapPin, 
   CalendarCheck,
   Calendar,
@@ -32,7 +34,7 @@ export default function EventsScreen({ navigation }: any) {
   const [pastEvents, setPastEvents] = useState<ScheduleEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'thisWeek' | 'upcoming' | 'past'>('upcoming');
+  const [activeTab, setActiveTab] = useState<'thisWeek' | 'upcoming' | 'past'>('thisWeek');
 
   const displayEvents = React.useMemo(() => {
     if (activeTab === 'thisWeek') {
@@ -47,7 +49,15 @@ export default function EventsScreen({ navigation }: any) {
       });
     }
     if (activeTab === 'upcoming') {
-      return upcomingEvents;
+      return upcomingEvents.filter(e => {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const endOfWeek = new Date(today);
+        endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
+        endOfWeek.setHours(23,59,59,999);
+        const d = new Date(e.date);
+        return d > endOfWeek;
+      });
     }
     return pastEvents;
   }, [activeTab, upcomingEvents, pastEvents]);
@@ -214,17 +224,33 @@ export default function EventsScreen({ navigation }: any) {
       <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
       
       {/* ── Page Header ── */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <ChevronLeft size={24} color="#fff" />
-          <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity>
-        
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Events Archive</Text>
-          <Text style={styles.headerSub}>కార్యక్రమాల జాబితా</Text>
+      <View style={styles.headerWrapper}>
+        <View style={styles.headerShadowWrapper}>
+          <View style={styles.gradientBorderContainer}>
+            <Svg height="100%" width="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
+              <Defs>
+                <LinearGradient id="borderGrad" x1="0" y1="0" x2="1" y2="0">
+                  <Stop offset="0" stopColor="#3b82f6" />
+                  <Stop offset="0.5" stopColor="#0ea5e9" />
+                  <Stop offset="1" stopColor="#8b5cf6" />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#borderGrad)" />
+            </Svg>
+
+            <View style={styles.header}>
+              <TouchableOpacity style={styles.backBtn} onPress={() => { if (navigation.canGoBack()) { navigation.goBack(); } else { navigation.navigate('Tabs', { screen: 'Home' }); } }}>
+                <ArrowLeft size={24} color="#fff" />
+              </TouchableOpacity>
+              
+              <View style={styles.headerCenter}>
+                <Text style={styles.headerTitle}>Events Archive</Text>
+                <Text style={styles.headerSub}>కార్యక్రమాల జాబితా</Text>
+              </View>
+              <View style={{ width: 40 }} />
+            </View>
+          </View>
         </View>
-        <View style={{ width: 60 }} />
       </View>
 
       {/* Tabs */}
@@ -282,19 +308,39 @@ const styles = StyleSheet.create({
   loadingText: { color: '#fbbf24', marginTop: 15, fontWeight: '600' },
 
   // Header
+  headerWrapper: {
+    width: '100%',
+    position: 'relative'
+  },
+  headerShadowWrapper: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 15,
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    backgroundColor: '#1a2d5a', 
+  },
+  gradientBorderContainer: {
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    overflow: 'hidden',
+  },
   header: {
     backgroundColor: '#1a2d5a',
-    paddingTop: Platform.OS === 'ios' ? 60 : 25,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 20,
     paddingBottom: 25,
+    marginBottom: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
+    borderBottomLeftRadius: 33,
+    borderBottomRightRadius: 33,
+    overflow: 'hidden'
   },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, minWidth: 60 },
-  backText: { color: '#fff', fontSize: 15, fontWeight: '500' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', minWidth: 40 },
   headerCenter: { alignItems: 'center' },
   headerTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
   headerSub: { color: '#aac4e8', fontSize: 11, marginTop: 2 },
@@ -309,7 +355,10 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 3,
-    marginBottom: 5,
+    marginBottom: 15,
+    marginTop: 20,
+    marginHorizontal: 16,
+    borderRadius: 25,
   },
   tabBtn: {
     flex: 1,

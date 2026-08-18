@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
+  ArrowLeft,
   ChevronLeft, 
   Play, 
   Mic,
@@ -27,6 +28,7 @@ import {
   Moon
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
 import SalesforceService, { Sermon } from '../services/SalesforceService';
 
 const { width } = Dimensions.get('window');
@@ -91,25 +93,35 @@ const SermonItem = React.memo(({ item, navigation, isDark }: any) => (
   </TouchableOpacity>
 ));
 
-const SermonSectionHeader = React.memo(({ title, count, isCollapsed, toggleSection, isDark }: any) => {
-  const color = CATEGORY_COLORS[title] || '#1a2d5a';
-  return (
-    <TouchableOpacity
-      style={[styles.sectionHeader, { borderLeftColor: color, backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}
-      onPress={() => toggleSection(title)}
-      activeOpacity={0.7}
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.sectionTitle, { color }]}>{title}</Text>
-        <Text style={[styles.sectionCount, { color: isDark ? '#64748b' : '#94a3b8' }]}>{count} sermon{count !== 1 ? 's' : ''}</Text>
-      </View>
-      {isCollapsed
-        ? <ChevronRight size={18} color={color} />
-        : <ChevronDown size={18} color={color} />
-      }
-    </TouchableOpacity>
-  );
-});
+  const DARK_CATEGORY_COLORS: Record<string, string> = {
+    'Bible Study':              '#60a5fa',
+    "Women's Fasting Prayer":   '#f87171',
+    'Second Saturday Prayer':   '#34d399',
+    'Uncategorized':            '#94a3b8',
+  };
+  
+  const SermonSectionHeader = React.memo(({ title, count, isCollapsed, toggleSection, isDark }: any) => {
+    const color = isDark 
+      ? (DARK_CATEGORY_COLORS[title] || '#60a5fa')
+      : (CATEGORY_COLORS[title] || '#1a2d5a');
+      
+    return (
+      <TouchableOpacity
+        style={[styles.sectionHeader, { borderLeftColor: color, backgroundColor: isDark ? '#1e293b' : '#f8fafc' }]}
+        onPress={() => toggleSection(title)}
+        activeOpacity={0.7}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.sectionTitle, { color }]}>{title}</Text>
+          <Text style={[styles.sectionCount, { color: isDark ? '#94a3b8' : '#94a3b8' }]}>{count} sermon{count !== 1 ? 's' : ''}</Text>
+        </View>
+        {isCollapsed
+          ? <ChevronRight size={18} color={color} />
+          : <ChevronDown size={18} color={color} />
+        }
+      </TouchableOpacity>
+    );
+  });
 
 export default function SermonsScreen({ navigation }: any) {
   const { isDark, toggleTheme } = useTheme();
@@ -177,19 +189,34 @@ export default function SermonsScreen({ navigation }: any) {
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 10, paddingBottom: 16 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <ChevronLeft color="#fff" size={24} />
-          <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Sermons</Text>
-          <Text style={styles.headerSub}>Watch & Listen</Text>
-        </View>
-        <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
-          {isDark ? <Sun color="#fbbf24" size={20} /> : <Moon color="#cbd5e1" size={20} />}
-        </TouchableOpacity>
-      </View>
+      <LinearGradient
+          colors={isDark ? ['#60a5fa', '#3b82f6', '#60a5fa'] : ['#1e40af', '#3b82f6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{
+            borderBottomLeftRadius: 30,
+            borderBottomRightRadius: 30,
+            paddingBottom: 4,
+            elevation: 8,
+            shadowColor: '#030a1e',
+            shadowOpacity: 0.75,
+            shadowRadius: 15,
+            shadowOffset: { width: 0, height: 10 },
+          }}
+        >
+          <View style={[styles.header, { backgroundColor: isDark ? '#0a2350' : '#1a2d5a', paddingTop: Math.max(insets.top, 20) + 10, paddingBottom: 16, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }]}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => { if (navigation.canGoBack()) { navigation.goBack(); } else { navigation.navigate('Tabs', { screen: 'Home' }); } }}>
+              <ArrowLeft color="#fff" size={24} />
+            </TouchableOpacity>
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerTitle}>Sermons</Text>
+              <Text style={styles.headerSub}>Watch & Listen</Text>
+            </View>
+            <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
+              {isDark ? <Sun color="#fbbf24" size={20} /> : <Moon color="#cbd5e1" size={20} />}
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
 
       <View style={[styles.filterSection, { backgroundColor: isDark ? '#0f172a' : '#fff' }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
