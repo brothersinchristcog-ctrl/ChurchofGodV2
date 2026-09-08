@@ -54,6 +54,8 @@ import AdminGalleryNavigator from '../screens/admin/gallery/AdminGalleryNavigato
 import AdminExpenseMain from '../screens/admin/expenses/AdminExpenseMain';
 import AdminDonationsMain from '../screens/admin/donations/AdminDonationsMain';
 import AdminBibleClassesMain from '../screens/admin/bible_classes/AdminBibleClassesMain';
+import AdminFeedbackList from '../screens/admin/AdminFeedbackList';
+import AdminSubscriptionsMain from '../screens/admin/AdminSubscriptionsMain';
 
 const { width } = Dimensions.get('window');
 
@@ -126,6 +128,8 @@ export default function AdminNavigator() {
     { name: 'Expenses', icon: BookOpen, component: AdminExpenseMain },
     { name: 'Donations', icon: Heart, component: AdminDonationsMain },
     { name: 'Bible Classes', icon: Video, component: AdminBibleClassesMain },
+    { name: 'User Feedback', icon: MessageCircle, component: AdminFeedbackList },
+    { name: 'Subscriptions', icon: Users, component: AdminSubscriptionsMain }
   ];
   const ActiveComponent = tabs[activeTab].component;
   const isWhatsApp = tabs[activeTab].name === 'WhatsApp';
@@ -133,13 +137,15 @@ export default function AdminNavigator() {
   const isExpenses = tabs[activeTab].name === 'Expenses';
   const isDonations = tabs[activeTab].name === 'Donations';
   const isBibleClasses = tabs[activeTab].name === 'Bible Classes';
+  const isFeedback = tabs[activeTab].name === 'User Feedback';
+  const isSubscriptions = tabs[activeTab].name === 'Subscriptions';
   
   let headerBgColor = '#1a2d5a';
   if (isDashboard) headerBgColor = colors.background;
   else if (isWhatsApp) headerBgColor = '#0b141a';
   else if (isExpenses) headerBgColor = '#FFF9E9';
   else if (isDonations) headerBgColor = '#1B1F3B';
-  else if (isBibleClasses) headerBgColor = isDark ? '#0f172a' : '#f8fafc';
+  else if (isBibleClasses || isFeedback || isSubscriptions) headerBgColor = isDark ? '#0f172a' : '#f8fafc';
 
   const goBack = () => {
     requestAnimationFrame(() => {
@@ -150,7 +156,7 @@ export default function AdminNavigator() {
   return (
     <AdminTabContext.Provider value={{ activeTab, setActiveTab, editingData, setEditingData, goBack, openDrawer }}>
       <SafeAreaView style={[styles.safeArea, { backgroundColor: headerBgColor }]}>
-        {![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(activeTab) && (
+        {![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].includes(activeTab) && (
           <View style={[styles.header, { backgroundColor: headerBgColor }]}>
             <View style={styles.headerTop}>
               <TouchableOpacity onPress={openDrawer} style={styles.hamburgerBtn}>

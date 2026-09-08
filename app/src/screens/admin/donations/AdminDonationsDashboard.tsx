@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { ArrowLeft, ChevronRight, PlusSquare, FileText } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, PlusSquare, FileText, Heart, CheckCircle } from 'lucide-react-native';
 import { COLORS, formatCurrency } from './AdminDonationsUtils';
 
 export default function AdminDonationsDashboard({ donations, onNavigate }: any) {
@@ -29,22 +29,21 @@ export default function AdminDonationsDashboard({ donations, onNavigate }: any) 
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
-        <View style={styles.topbarRow}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => {
-            // Because we are inside AdminNavigator, we can just use navigation context to go back to dashboard?
-            // Actually, AdminNavigator uses AdminTabContext. Let's just emit an event or go back if possible.
-            // But usually the Dashboard tab is activeTab = 0.
-            // A simple way is to use DeviceEventEmitter.emit('NAVIGATE_ADMIN', 0);
-            import('react-native').then(({ DeviceEventEmitter }) => {
-              DeviceEventEmitter.emit('NAVIGATE_ADMIN', 0);
-            });
-          }}>
-            <ArrowLeft color="#fff" size={20} />
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.eyebrow}>CHURCH OF GOD</Text>
-            <Text style={styles.title}>Donations</Text>
+        <View style={[styles.topbarRow, { justifyContent: 'space-between', width: '100%' }]}>
+          <View style={{ width: 40, alignItems: 'flex-start' }}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => {
+              import('react-native').then(({ DeviceEventEmitter }) => {
+                DeviceEventEmitter.emit('NAVIGATE_ADMIN', 0);
+              });
+            }}>
+              <ArrowLeft color="#fff" size={20} />
+            </TouchableOpacity>
           </View>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={styles.eyebrow}>CHURCH OF GOD</Text>
+            <Text style={[styles.title, { textAlign: 'center' }]}>Donations</Text>
+          </View>
+          <View style={{ width: 40 }} />
         </View>
       </View>
 
@@ -78,20 +77,22 @@ export default function AdminDonationsDashboard({ donations, onNavigate }: any) 
           </Text>
           <Text style={styles.quoteRef}>— 2 Corinthians 9:7</Text>
         </View>
+
+
       </ScrollView>
 
       <View style={{ paddingHorizontal: 20, paddingBottom: 24 }}>
         <View style={[styles.singleBadgeContainer, { overflow: 'hidden', padding: 0 }]}>
-          <TouchableOpacity style={[styles.badgeBtn, { backgroundColor: 'transparent' }]} onPress={() => onNavigate('create')} activeOpacity={0.8}>
-            <PlusSquare color={COLORS.indigo} size={20} />
-            <Text style={[styles.badgeBtnText, { color: COLORS.indigo }]}>Create</Text>
+          <TouchableOpacity style={[styles.badgeBtn, { backgroundColor: 'transparent' }]} onPress={() => onNavigate('give')} activeOpacity={0.8}>
+            <Heart color={COLORS.indigo} size={20} />
+            <Text style={[styles.badgeBtnText, { color: COLORS.indigo }]}>Online Donations</Text>
           </TouchableOpacity>
 
           <View style={styles.badgeDivider} />
 
           <TouchableOpacity style={[styles.badgeBtn, { backgroundColor: 'transparent' }]} onPress={() => onNavigate('list')} activeOpacity={0.8}>
             <FileText color={COLORS.indigo} size={20} />
-            <Text style={[styles.badgeBtnText, { color: COLORS.indigo }]}>View All</Text>
+            <Text style={[styles.badgeBtnText, { color: COLORS.indigo }]}>Offline Donations</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -232,8 +233,17 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   badgeBtnText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: COLORS.indigo,
-  }
+  },
+  sectionTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 14, marginLeft: 4, color: COLORS.inkSoft },
+  emptyHistoryBox: { padding: 20, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 10, backgroundColor: '#fff' },
+  emptyHistoryText: { fontSize: 13, fontStyle: 'italic', color: COLORS.inkSoft },
+  historyCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)', backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  historyCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  historyIconBox: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' },
+  historyCatText: { fontSize: 14, fontWeight: '700', marginBottom: 2, color: COLORS.ink },
+  historyDateText: { fontSize: 11, color: COLORS.inkSoft },
+  historyAmountText: { fontSize: 16, fontWeight: '800', color: COLORS.indigo },
 });

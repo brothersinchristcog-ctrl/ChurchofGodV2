@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -13,11 +14,14 @@ interface AuthContextType {
   setMember: (member: SalesforceMember | null) => void;
   viewMode: 'admin' | 'member';
   setViewMode: (mode: 'admin' | 'member') => void;
+  subscriptionStatus: string;
+  hasAccess: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 import SalesforceService from '../services/SalesforceService';
+import ActivityTracker from '../services/ActivityTracker';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<FirebaseAuthTypes.User | null>(null);
@@ -92,6 +96,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } else {
         setMember(null);
+        ActivityTracker.clearUser();
+        ActivityTracker.endSession();
         AsyncStorage.removeItem('@cached_member');
       }
       
@@ -99,6 +105,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
     return subscriber; 
+  }, []);
+
+  // Update ActivityTracker when member is found
+  useEffect(() => {
+    if (user && !user.isAnonymous) {
+      const ut = member?.userType?.toLowerCase() || '';
+      const isAdmin = ut === 'admin' || ut === 'pastor' || ut === 'system administrator' || ut.includes('admin') || ut.includes('pastor');
+      const role = isAdmin ? 'Admin' : 'Member';
+      ActivityTracker.setUser(user.uid, member?.name || 'Unknown', role);
+      
+      // Ensure session is started if not already
+      ActivityTracker.startSession();
+    }
+  }, [user, member]);
+
+  // AppState Session Tracking
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active') {
+        ActivityTracker.startSession();
+      } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+        ActivityTracker.endSession();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   const signInAnonymously = async () => {
@@ -129,8 +163,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string>('FREE');
+
+  useEffect(() => {
+    let unsub = () => {};
+    if (user && !user.isAnonymous) {
+      const firestore = require('@react-native-firebase/firestore').default;
+      unsub = firestore().collection('users').doc(user.uid).collection('subscription').doc('current')
+        .onSnapshot((doc: any) => {
+          if (doc.exists) {
+            const data = doc.data();
+            let statusStr = data?.status || 'FREE';
+            
+            if (statusStr === 'ACTIVE' && data?.endDate) {
+              const eDate = data.endDate.toDate ? data.endDate.toDate() : new Date(data.endDate);
+              if (eDate < new Date()) {
+                statusStr = 'EXPIRED';
+              }
+            }
+            setSubscriptionStatus(statusStr);
+          } else {
+            setSubscriptionStatus('FREE');
+          }
+        }, (err: any) => {
+          console.warn('Subscription listen error:', err);
+        });
+    } else {
+      setSubscriptionStatus('FREE');
+    }
+    return () => unsub();
+  }, [user]);
+
+  const userCreationTime = user?.metadata?.creationTime ? new Date(user.metadata.creationTime).getTime() : 0;
+  const launchTime = new Date('2027-01-01T00:00:00').getTime();
+  const isBeforeLaunch = Date.now() < launchTime;
+  const isNewMember = userCreationTime >= launchTime;
+  const trialEndTime = userCreationTime + (30 * 24 * 60 * 60 * 1000);
+  const isTrialActive = isNewMember && Date.now() < trialEndTime;
+  
+  const hasAccess = isBeforeLaunch || isTrialActive || subscriptionStatus === 'ACTIVE';
+
   return (
-    <AuthContext.Provider value={{ user, member, loading, signInAnonymously, signOut, setMember, viewMode, setViewMode }}>
+    <AuthContext.Provider value={{ user, member, loading, signInAnonymously, signOut, setMember, viewMode, setViewMode, subscriptionStatus, hasAccess }}>
       {children}
     </AuthContext.Provider>
   );

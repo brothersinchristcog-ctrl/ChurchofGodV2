@@ -3,9 +3,10 @@
     "name": "Church of God",
     "slug": "app",
     "scheme": "com.brothersinchrist.churchofgod",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
+
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
@@ -32,7 +33,7 @@
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
       ],
       "softwareKeyboardLayoutMode": "pan",
-      "versionCode": 7
+      "versionCode": 8
     },
     "web": {
       "favicon": "./assets/logo.png"
@@ -47,7 +48,16 @@
       ],
       "expo-font",
       "./plugins/removeMediaPermissions",
-      "expo-web-browser"
+      "./plugins/withAndroidQueries",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-logo.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ]
     ],
     "extra": {
       "eas": {

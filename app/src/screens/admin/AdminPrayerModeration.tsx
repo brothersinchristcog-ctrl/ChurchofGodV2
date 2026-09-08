@@ -13,7 +13,8 @@ import {
   Alert,
   RefreshControl,
   Modal,
-  Animated
+  Animated,
+  DeviceEventEmitter
 } from 'react-native';
 import {
   Heart,
@@ -33,7 +34,10 @@ import {
   Megaphone,
   Info,
   AlertTriangle,
-  Menu
+  Menu,
+  Globe,
+  Lock,
+  XOctagon
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AdminTabContext } from '../../context/AdminTabContext';
@@ -41,6 +45,7 @@ import SalesforceService from '../../services/SalesforceService';
 import Theme from '../../theme/Theme';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import firestore from '@react-native-firebase/firestore';
 
 const { width } = Dimensions.get('window');
 
@@ -155,6 +160,15 @@ export default function AdminPrayerModeration() {
   }, []);
 
   useEffect(() => {
+    if (prayers.length > 0) {
+      const activeCount = prayers.filter(p => (p.status === 'Approved' || p.isPublished) && !p.isClosed).length;
+      firestore().collection('prayer_reactions').doc('global_stats').set({
+        totalActivePrayers: activeCount,
+      }, { merge: true }).catch(() => {});
+    }
+  }, [prayers]);
+
+  useEffect(() => {
     fetchPrayers();
   }, [fetchPrayers]);
 
@@ -164,18 +178,62 @@ export default function AdminPrayerModeration() {
   };
 
   const handleAnswer = (id: string) => {
-    // 1. Immediate optimistic UI update
-    setPrayers(prev => prev.map(p => p.id === id ? { ...p, status: 'Answered' } : p));
-    
-    // 2. Immediate success card
+    setPrayers(prev => prev.map(p => p.id === id ? { ...p, status: 'Answered', isAnswered: true, isClosed: true } : p));
     showAlert({ title: 'Success', message: 'Prayer request status updated as Answered.', type: 'success' });
-    // 3. Background API call
     SalesforceService.markAsAnswered(id).then(() => {
-      fetchPrayers(true); // Sync fresh data in background
+      fetchPrayers(true);
     }).catch(err => {
-      // Revert if failed
       fetchPrayers(true);
       showAlert({ title: 'Error', message: 'Failed to update status.', type: 'error' });
+    });
+  };
+
+  const handleApprovePrivate = (id: string) => {
+    setPrayers(prev => prev.map(p => p.id === id ? { ...p, status: 'Working', isAnswered: true } : p));
+    showAlert({ title: 'Approved', message: 'Prayer request has been approved.', type: 'success' });
+    SalesforceService.approvePrivate(id).then(() => {
+      fetchPrayers(true);
+    }).catch(err => {
+      fetchPrayers(true);
+      showAlert({ title: 'Error', message: 'Failed to approve.', type: 'error' });
+    });
+  };
+
+  const handleApprovePublish = (id: string) => {
+    setPrayers(prev => prev.map(p => p.id === id ? { ...p, status: 'Approved', isPublished: true } : p));
+    showAlert({ title: 'Published!', message: 'Prayer request has been approved and published to all church members.', type: 'success' });
+    SalesforceService.approveAndPublish(id).then(() => {
+      // Broadcast new prayer available using known accessible collection
+      firestore().collection('prayer_reactions').doc('global_stats').set({
+        lastPublishedAt: Date.now(),
+        publishCount: firestore.FieldValue.increment(1)
+      }, { merge: true }).catch(e => console.log('Failed to broadcast new prayer:', e));
+      DeviceEventEmitter.emit('NEW_PRAYER_PUBLISHED');
+      fetchPrayers(true);
+    }).catch(err => {
+      fetchPrayers(true);
+      showAlert({ title: 'Error', message: 'Failed to publish.', type: 'error' });
+    });
+  };
+
+  const handleClose = (id: string) => {
+    showAlert({
+      title: 'Close Request',
+      message: 'Are you sure you want to close this prayer request? It will be disabled on the prayer wall.',
+      type: 'confirm',
+      confirmText: 'CLOSE',
+      cancelText: 'CANCEL',
+      onConfirm: () => {
+        setPrayers(prev => prev.map(p => p.id === id ? { ...p, status: 'Closed', isClosed: true, isAnswered: true } : p));
+        showAlert({ title: 'Closed', message: 'Prayer request has been closed.', type: 'success' });
+        SalesforceService.closePrayerRequest(id).then(() => {
+          fetchPrayers(true);
+        }).catch(err => {
+          fetchPrayers(true);
+          showAlert({ title: 'Error', message: 'Failed to close request.', type: 'error' });
+        });
+      },
+      onCancel: () => closeAlert()
     });
   };
 
@@ -228,8 +286,10 @@ export default function AdminPrayerModeration() {
     }
   };
 
-  const pendingPrayers = prayers.filter(p => !p.isAnswered);
-  const answeredPrayers = prayers.filter(p => p.isAnswered);
+  const pendingPrayers = prayers.filter(p => p.status === 'New');
+  const publishedPrayers = prayers.filter(p => p.status === 'Approved' || p.isPublished);
+  const closedPrayers = prayers.filter(p => p.isClosed);
+  const answeredPrayers = prayers.filter(p => p.status === 'Working' || p.isClosed);
 
   const getTimeAgo = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -242,78 +302,126 @@ export default function AdminPrayerModeration() {
     return Math.floor(hours / 24) + "d ago";
   };
 
-  const renderPrayerCard = (item: any, isAnswered = false) => (
-    <View key={item.id} style={[styles.pCard, isAnswered && styles.pCardAnswered]}>
-      <View style={styles.pCardHd}>
-        <View style={[styles.pAvatar, { backgroundColor: isAnswered ? '#059669' : '#7C3AED' }]}>
-          <Text style={styles.pAvatarTxt}>{(item.name || 'F').charAt(0)}</Text>
-        </View>
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={styles.pUserName}>{item.name}</Text>
-            {isAnswered && (
-              <View style={styles.ansBadge}>
-                <CheckCircle2 size={10} color={Theme.Colors.success} />
-                <Text style={styles.ansBadgeTxt}>Processed</Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.pTime}>{getTimeAgo(item.createdAt)}{item.phone ? ` · ${item.phone}` : ''}</Text>
-        </View>
-        {!isAnswered && (
-          <TouchableOpacity onPress={() => handleRemove(item.id)}>
-            <Trash2 size={18} color="#ef4444" />
-          </TouchableOpacity>
-        )}
-      </View>
+  const renderPrayerCard = (item: any, section: 'pending' | 'published' | 'history' = 'pending') => {
+    const isPending = section === 'pending';
+    const isPublishedSection = section === 'published';
+    const isHistory = section === 'history';
+    const avatarColor = isPending ? '#7C3AED' : isPublishedSection ? '#2563eb' : '#059669';
 
-      <View style={styles.pTextContainer}>
-        <Text style={styles.pText}>{item.text}</Text>
-        {item.textTe && item.textTe.trim() !== (item.text || '').trim() && (
-          <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: isDark ? colors.border : '#cbd5e1' }}>
-            <Text style={[styles.pText, { fontStyle: 'italic', color: isDark ? '#cbd5e1' : '#475569' }]}>
-              {item.textTe}
-            </Text>
+    return (
+      <View key={item.id} style={[styles.pCard, isHistory && styles.pCardAnswered]}>
+        <View style={styles.pCardHd}>
+          <View style={[styles.pAvatar, { backgroundColor: avatarColor }]}>
+            <Text style={styles.pAvatarTxt}>{(item.name || 'F').charAt(0)}</Text>
           </View>
-        )}
-      </View>
-
-      {/* REPLIES / COMMENTS SECTION */}
-      {item.replies && item.replies.length > 0 && (
-        <View style={styles.repliesContainer}>
-          <Text style={styles.repliesHeader}>Comments</Text>
-          {item.replies.map((reply: any) => (
-            <View key={reply.id} style={styles.replyCard}>
-              <View style={styles.replyHeader}>
-                <Text style={styles.replyAuthor}>{reply.author}</Text>
-                <Text style={styles.replyDate}>{new Date(reply.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
-              </View>
-              <Text style={styles.replyBody}>{reply.body}</Text>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.pUserName}>{item.name}</Text>
+              {item.isPublic && (
+                <View style={[styles.ansBadge, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                  <Globe size={10} color="#2563eb" />
+                  <Text style={[styles.ansBadgeTxt, { color: '#2563eb' }]}>Public</Text>
+                </View>
+              )}
+              {item.isPublished && (
+                <View style={[styles.ansBadge, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                  <CheckCircle2 size={10} color="#16a34a" />
+                  <Text style={[styles.ansBadgeTxt, { color: '#16a34a' }]}>Published</Text>
+                </View>
+              )}
+              {item.isClosed && (
+                <View style={[styles.ansBadge, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+                  <XOctagon size={10} color="#dc2626" />
+                  <Text style={[styles.ansBadgeTxt, { color: '#dc2626' }]}>Closed</Text>
+                </View>
+              )}
+              {isHistory && !item.isClosed && (
+                <View style={styles.ansBadge}>
+                  <CheckCircle2 size={10} color={Theme.Colors.success} />
+                  <Text style={styles.ansBadgeTxt}>Processed</Text>
+                </View>
+              )}
             </View>
-          ))}
-        </View>
-      )}
-
-      <View style={styles.pFooter}>
-        <View style={styles.catBadge}>
-          <View style={styles.catDot} />
-          <Text style={styles.catTxt}>{item.category || 'General'}</Text>
-        </View>
-
-        {!isAnswered && (
-          <View style={styles.pActions}>
-            <TouchableOpacity
-              style={[styles.pActionBtn, { backgroundColor: '#F0FDF4' }]}
-              onPress={() => handleAnswer(item.id)}
-            >
-              <CheckCircle2 size={12} color="#15803D" />
-              <Text style={[styles.pActionBtnTxt, { color: '#15803D' }]}>Approve</Text>
+            <Text style={styles.pTime}>{getTimeAgo(item.createdAt)}{item.phone ? ` · ${item.phone}` : ''}</Text>
+          </View>
+          {isPending && (
+            <TouchableOpacity onPress={() => handleRemove(item.id)}>
+              <Trash2 size={18} color="#ef4444" />
             </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={styles.pTextContainer}>
+          <Text style={styles.pText}>{item.text}</Text>
+          {item.textTe && item.textTe.trim() !== (item.text || '').trim() && (
+            <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: isDark ? colors.border : '#cbd5e1' }}>
+              <Text style={[styles.pText, { fontStyle: 'italic', color: isDark ? '#cbd5e1' : '#475569' }]}>
+                {item.textTe}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* REPLIES / COMMENTS SECTION */}
+        {item.replies && item.replies.length > 0 && (
+          <View style={styles.repliesContainer}>
+            <Text style={styles.repliesHeader}>Comments</Text>
+            {item.replies.map((reply: any) => (
+              <View key={reply.id} style={styles.replyCard}>
+                <View style={styles.replyHeader}>
+                  <Text style={styles.replyAuthor}>{reply.author}</Text>
+                  <Text style={styles.replyDate}>{new Date(reply.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                </View>
+                <Text style={styles.replyBody}>{reply.body}</Text>
+              </View>
+            ))}
           </View>
         )}
+
+        <View style={styles.pFooter}>
+          <View style={styles.catBadge}>
+            <View style={styles.catDot} />
+            <Text style={styles.catTxt}>{item.category || 'General'}</Text>
+          </View>
+
+          {/* Actions based on status */}
+          {isPending && (
+            <View style={styles.pActions}>
+              {item.isPublic ? (
+                <TouchableOpacity
+                  style={[styles.pActionBtn, { backgroundColor: '#EFF6FF' }]}
+                  onPress={() => handleApprovePublish(item.id)}
+                >
+                  <Globe size={12} color="#2563eb" />
+                  <Text style={[styles.pActionBtnTxt, { color: '#2563eb' }]}>Approve & Publish</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.pActionBtn, { backgroundColor: '#F0FDF4' }]}
+                  onPress={() => handleApprovePrivate(item.id)}
+                >
+                  <CheckCircle2 size={12} color="#15803D" />
+                  <Text style={[styles.pActionBtnTxt, { color: '#15803D' }]}>Approve</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {isPublishedSection && !item.isClosed && (
+            <View style={styles.pActions}>
+              <TouchableOpacity
+                style={[styles.pActionBtn, { backgroundColor: '#FEF2F2' }]}
+                onPress={() => handleClose(item.id)}
+              >
+                <XOctagon size={12} color="#dc2626" />
+                <Text style={[styles.pActionBtnTxt, { color: '#dc2626' }]}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   if (loading && !refreshing) {
     return (
@@ -357,7 +465,11 @@ export default function AdminPrayerModeration() {
         <View style={styles.statsRow}>
           <View style={styles.statsPill}>
             <Text style={styles.statsPillText}>
-              <Text style={{ color: '#ef4444', fontWeight: '800' }}>{pendingPrayers.length}</Text> New Requests
+              <Text style={{ color: '#ef4444', fontWeight: '800' }}>{pendingPrayers.length}</Text> New
+            </Text>
+            <Text style={styles.statsDivider}>|</Text>
+            <Text style={styles.statsPillText}>
+              <Text style={{ color: '#2563eb', fontWeight: '800' }}>{publishedPrayers.length}</Text> Published
             </Text>
             <Text style={styles.statsDivider}>|</Text>
             <Text style={styles.statsPillText}>
@@ -372,17 +484,27 @@ export default function AdminPrayerModeration() {
             <View style={styles.listHd}>
               <Text style={[styles.listHdTitle, { color: Theme.Colors.accent }]}>Requests for Review ({pendingPrayers.length})</Text>
             </View>
-            {pendingPrayers.map(p => renderPrayerCard(p))}
+            {pendingPrayers.map(p => renderPrayerCard(p, 'pending'))}
           </>
         )}
 
-        {/* ── Answered Section ── */}
+        {/* ── Published Section ── */}
+        {publishedPrayers.length > 0 && (
+          <>
+            <View style={[styles.listHd, { marginTop: 20 }]}>
+              <Text style={[styles.listHdTitle, { color: '#2563eb' }]}>Published to Prayer Wall ({publishedPrayers.length})</Text>
+            </View>
+            {publishedPrayers.map(p => renderPrayerCard(p, 'published'))}
+          </>
+        )}
+
+        {/* ── History Section ── */}
         {answeredPrayers.length > 0 && (
           <>
             <View style={[styles.listHd, { marginTop: 20 }]}>
               <Text style={styles.listHdTitle}>Recent History</Text>
             </View>
-            {answeredPrayers.slice(0, 5).map(p => renderPrayerCard(p, true))}
+            {answeredPrayers.slice(0, 5).map(p => renderPrayerCard(p, 'history'))}
           </>
         )}
 

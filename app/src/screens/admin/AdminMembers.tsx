@@ -14,7 +14,9 @@ import {
   Image,
   Modal,
   TouchableWithoutFeedback,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  Alert,
+  FlatList
 } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import { Users, Phone, Mail, ChevronDown, ChevronUp, Clock, UserCheck, Menu, MapPin, Plus, X, Calendar, CheckCircle2, MoreVertical, UserPlus, Send, Search } from 'lucide-react-native';
@@ -36,10 +38,14 @@ export default function AdminMembers() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Inactive'>('All');
   const [selectedVillage, setSelectedVillage] = useState<string>('All');
   const [isVillageDropdownOpen, setIsVillageDropdownOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [adminSuccessDetails, setAdminSuccessDetails] = useState<{ name: string; isAdmin: boolean; title: string; message: string; } | null>(null);
+  const [adminConfirmDetails, setAdminConfirmDetails] = useState<{ member: any; isAdmin: boolean; title: string; message: string; } | null>(null);
   const [expandedHouseholdIds, setExpandedHouseholdIds] = useState<Set<string>>(new Set());
   const [userPhotos, setUserPhotos] = useState<Record<string, string>>({});
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -116,6 +122,13 @@ export default function AdminMembers() {
     fetchMembers();
     fetchUserPhotos();
   }, []);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [searchInput]);
 
   const fetchUserPhotos = async () => {
     try {
@@ -204,6 +217,48 @@ export default function AdminMembers() {
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setExpandedHouseholdIds(next);
+  };
+
+  const handleToggleAdmin = (member: any) => {
+    const isAdmin = member.User_Type__c === 'Admin';
+    const actionText = isAdmin ? 'Remove Admin Access' : 'Promote to Admin';
+    const confirmMessage = isAdmin 
+      ? `Are you sure you want to remove ${member.Name} from the Admin role? They will lose access to the admin dashboard.`
+      : `Are you sure you want to promote ${member.Name} to an Admin? They will have full access to the admin dashboard.`;
+    
+    setAdminConfirmDetails({
+      member,
+      isAdmin,
+      title: actionText,
+      message: confirmMessage
+    });
+  };
+
+  const confirmToggleAdmin = async () => {
+    if (!adminConfirmDetails) return;
+    const { member, isAdmin } = adminConfirmDetails;
+    const successTitle = isAdmin ? 'Admin Access Removed' : 'Promoted to Admin!';
+    const successMessage = isAdmin 
+      ? `${member.Name} has been demoted and no longer has admin privileges.`
+      : `${member.Name} has been successfully promoted to an Admin.`;
+    const newUserType = isAdmin ? 'Member' : 'Admin';
+
+    try {
+      setPromotingId(member.Id);
+      setAdminConfirmDetails(null);
+      await SalesforceService.updateMemberUserType(member.Id, newUserType);
+      setMembers(prev => prev.map(m => m.Id === member.Id ? { ...m, User_Type__c: newUserType } : m));
+      setAdminSuccessDetails({
+        name: member.Name,
+        isAdmin: !isAdmin,
+        title: successTitle,
+        message: successMessage
+      });
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update member role');
+    } finally {
+      setPromotingId(null);
+    }
   };
 
   const getInitials = (name: string) => {
@@ -458,23 +513,24 @@ export default function AdminMembers() {
         
         const messageText = `Greetings in Jesus' Name! 🙏✨\n\nDear ${contactName},\n\nYou are warmly invited to join our Church of GOD Mobile Application! ⛪\n\nYour church profile has already been registered for you, so you DO NOT need to sign up. Simply download the app and Sign In directly with your mobile number: ${cleanPhone}\n\n📲 Download the App from Google Play Store:\n${appPlayStoreUrl}\n\nMay God bless you abundantly! ❤️`;
 
+        const waMeUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(messageText)}`;
+        const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(messageText)}&phone=${formattedPhone}`;
+        
         try {
-          const shareOptions: any = {
-            social: Share.Social.WHATSAPP as any,
-            whatsAppNumber: formattedPhone,
-            message: messageText,
-          };
-          await Share.shareSingle(shareOptions);
-        } catch (shareErr) {
-          console.log('Share.shareSingle failed, falling back to wa.me URL:', shareErr);
-          const waMeUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(messageText)}`;
-          const whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodeURIComponent(messageText)}`;
-          const canOpen = await Linking.canOpenURL(whatsappUrl).catch(() => false);
-          if (canOpen) {
-            await Linking.openURL(whatsappUrl).catch(() => Linking.openURL(waMeUrl));
+          if (Platform.OS === 'android') {
+            // Android: wa.me is most reliable for preserving text without 3rd party share bugs
+            await Linking.openURL(waMeUrl).catch(() => Linking.openURL(whatsappUrl));
           } else {
-            await Linking.openURL(waMeUrl).catch(err => console.warn('Could not open wa.me URL:', err));
+            // iOS: Try whatsapp:// first to avoid Safari, fallback to wa.me
+            const canOpen = await Linking.canOpenURL(whatsappUrl).catch(() => false);
+            if (canOpen) {
+              await Linking.openURL(whatsappUrl);
+            } else {
+              await Linking.openURL(waMeUrl);
+            }
           }
+        } catch (err) {
+          console.error("Could not open WhatsApp:", err);
         }
 
         // 4. Display success details card
@@ -584,9 +640,14 @@ export default function AdminMembers() {
         </Modal>
       )}
 
-      <ScrollView 
-        showsVerticalScrollIndicator={false} 
+      <FlatList 
+        data={filteredMembers}
+        keyExtractor={(item, index) => item.Id ? `${item.Id}_${index}` : `mem_${index}`}
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -594,7 +655,8 @@ export default function AdminMembers() {
             colors={[isDark ? '#93c5fd' : '#1a2d5a']}
           />
         }
-      >
+        ListHeaderComponent={
+          <>
         {/* Stats Row */}
         <View style={styles.statsRow}>
           <View style={styles.statsPill}>
@@ -619,8 +681,8 @@ export default function AdminMembers() {
             placeholder="Search by name, email, phone, or village..."
             placeholderTextColor="#9CA3AF"
             style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+            value={searchInput}
+            onChangeText={setSearchInput}
           />
         </View>
 
@@ -680,9 +742,10 @@ export default function AdminMembers() {
             </View>
           )}
 
-        {/* Member Cards List */}
-        <View style={[styles.membersList, { zIndex: -1 }]}>
-          {filteredMembers.map((member, mIdx) => {
+          </>
+        }
+        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+        renderItem={({ item: member, index: mIdx }) => {
             const isExpanded = expandedId === member.Id;
             const associated = member.AccountId
               ? (accountMembersMap.get(member.AccountId) || []).filter(m => m.Id !== member.Id)
@@ -691,7 +754,6 @@ export default function AdminMembers() {
 
             return (
               <View 
-                key={member.Id ? `${member.Id}_${mIdx}` : `mem_${mIdx}`} 
                 style={[styles.memberCard, isExpanded && styles.memberCardExpanded]}
               >
                 <TouchableOpacity 
@@ -914,16 +976,168 @@ export default function AdminMembers() {
                         </Text>
                       )}
                     </View>
+
+                    {/* Toggle Admin Button */}
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+                        borderWidth: 1,
+                        borderColor: member.User_Type__c === 'Admin' ? '#ef4444' : (isDark ? '#334155' : '#e2e8f0'),
+                        borderRadius: 12,
+                        paddingVertical: 12,
+                        flexDirection: 'row',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        marginTop: 15,
+                        gap: 8,
+                        opacity: promotingId === member.Id ? 0.7 : 1
+                      }}
+                      onPress={() => handleToggleAdmin(member)}
+                      disabled={promotingId === member.Id}
+                    >
+                      {promotingId === member.Id ? (
+                        <ActivityIndicator size="small" color={member.User_Type__c === 'Admin' ? '#ef4444' : '#3b82f6'} />
+                      ) : (
+                        <>
+                          <UserPlus size={16} color={member.User_Type__c === 'Admin' ? '#ef4444' : '#3b82f6'} />
+                          <Text style={{ color: member.User_Type__c === 'Admin' ? '#ef4444' : '#3b82f6', fontSize: 14, fontWeight: '600' }}>
+                            {member.User_Type__c === 'Admin' ? 'Remove Admin' : 'Promote to Admin'}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
                   </View>
                 )}
               </View>
             );
-          })}
-        </View>
+        }}
+        ListFooterComponent={
+          <>
+            <Text style={styles.footerBranding}>Church of GOD Admin · Member Activity Logs</Text>
+            <View style={{ height: 100 }} />
+          </>
+        }
+      />
 
-        <Text style={styles.footerBranding}>Church of GOD Admin · Member Activity Logs</Text>
-        <View style={{ height: 100 }} />
-      </ScrollView>
+      {/* Admin Confirm Modal */}
+      <Modal 
+        visible={!!adminConfirmDetails} 
+        transparent={true} 
+        animationType="fade"
+        onRequestClose={() => setAdminConfirmDetails(null)}
+      >
+        <TouchableWithoutFeedback onPress={() => setAdminConfirmDetails(null)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+              <View style={[styles.modalCard, { alignItems: 'center', paddingVertical: 25 }]}>
+                
+                <View style={{ 
+                  width: 64, 
+                  height: 64, 
+                  borderRadius: 32, 
+                  backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff', 
+                  justifyContent: 'center', 
+                  alignItems: 'center',
+                  marginBottom: 16,
+                  borderWidth: 2,
+                  borderColor: '#3b82f6'
+                }}>
+                  <Users size={32} color="#3b82f6" />
+                </View>
+
+                <Text style={{ fontSize: 20, fontWeight: '800', color: isDark ? '#f8fafc' : '#0f172a', marginBottom: 6, textAlign: 'center' }}>
+                  {adminConfirmDetails?.title}
+                </Text>
+                <Text style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', textAlign: 'center', marginBottom: 24, lineHeight: 18 }}>
+                  {adminConfirmDetails?.message}
+                </Text>
+
+                <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+                  <TouchableOpacity 
+                    style={{ 
+                      flex: 1,
+                      paddingVertical: 14, 
+                      borderRadius: 12, 
+                      backgroundColor: isDark ? '#334155' : '#e2e8f0', 
+                      alignItems: 'center' 
+                    }}
+                    onPress={() => setAdminConfirmDetails(null)}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: isDark ? '#f8fafc' : '#475569' }}>Cancel</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={{ 
+                      flex: 1,
+                      paddingVertical: 14, 
+                      borderRadius: 12, 
+                      backgroundColor: adminConfirmDetails?.isAdmin ? '#ef4444' : '#1a2d5a', 
+                      alignItems: 'center' 
+                    }}
+                    onPress={confirmToggleAdmin}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#ffffff' }}>
+                      {adminConfirmDetails?.isAdmin ? 'Remove' : 'Promote'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Admin Success Modal - Centered Popup Card */}
+      <Modal 
+        visible={!!adminSuccessDetails} 
+        transparent={true} 
+        animationType="fade"
+        onRequestClose={() => setAdminSuccessDetails(null)}
+      >
+        <TouchableWithoutFeedback onPress={() => setAdminSuccessDetails(null)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+              <View style={[styles.modalCard, { alignItems: 'center', paddingVertical: 25 }]}>
+                <View style={{ 
+                  width: 64, 
+                  height: 64, 
+                  borderRadius: 32, 
+                  backgroundColor: adminSuccessDetails?.isAdmin ? (isDark ? 'rgba(34, 197, 94, 0.15)' : '#dcfce7') : (isDark ? 'rgba(239, 68, 68, 0.15)' : '#fee2e2'), 
+                  justifyContent: 'center', 
+                  alignItems: 'center',
+                  marginBottom: 16,
+                  borderWidth: 2,
+                  borderColor: adminSuccessDetails?.isAdmin ? '#22c55e' : '#ef4444'
+                }}>
+                  {adminSuccessDetails?.isAdmin ? <CheckCircle2 size={36} color="#22c55e" /> : <UserCheck size={36} color="#ef4444" />}
+                </View>
+
+                <Text style={{ fontSize: 20, fontWeight: '800', color: isDark ? '#f8fafc' : '#0f172a', marginBottom: 6, textAlign: 'center' }}>
+                  {adminSuccessDetails?.title}
+                </Text>
+                <Text style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', textAlign: 'center', marginBottom: 24, lineHeight: 18 }}>
+                  {adminSuccessDetails?.message}
+                </Text>
+
+                <TouchableOpacity 
+                  style={{ 
+                    width: '100%',
+                    paddingVertical: 14, 
+                    borderRadius: 12, 
+                    backgroundColor: adminSuccessDetails?.isAdmin ? '#1a2d5a' : '#ef4444', 
+                    alignItems: 'center' 
+                  }}
+                  onPress={() => setAdminSuccessDetails(null)}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#ffffff' }}>Got it!</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       {/* Add Member Modal - Centered Popup Card */}
       <Modal 

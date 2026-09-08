@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -15,9 +15,13 @@ import {
   Alert,
   Image,
   Switch,
-  InteractionManager
+  InteractionManager,
+  Animated,
+  Easing,
+  Pressable
 } from 'react-native';
 import Svg, { Line, Path, Circle, Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
 import { 
   Star,
   MapPin,
@@ -25,7 +29,8 @@ import {
   ChevronRight, 
   LogOut, 
   User, 
-  Bell, 
+  Bell,
+  Sun,
   Moon, 
   Heart, 
   CreditCard,
@@ -37,7 +42,8 @@ import {
   CheckCircle,
   AlertTriangle,
   MessageSquare,
-  Crown
+  Crown,
+  Activity
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -47,6 +53,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { Lock, Shield } from 'lucide-react-native';
 import storage from '@react-native-firebase/storage';
 import firestore from '@react-native-firebase/firestore';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import FeedbackCard from '../components/FeedbackCard';
 
 const { width } = Dimensions.get('window');
 
@@ -59,6 +67,165 @@ type CustomAlertConfig = {
   onCancel?: () => void;
   confirmText?: string;
   cancelText?: string;
+};
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const CustomThemeToggle = ({ isDark, onToggle }: { isDark: boolean, onToggle: () => void }) => {
+  const isLocalDark = useRef(isDark);
+  const anim = useRef(new Animated.Value(isDark ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (isLocalDark.current !== isDark) {
+      isLocalDark.current = isDark;
+      Animated.timing(anim, {
+        toValue: isDark ? 1 : 0,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [isDark]);
+
+  const handlePress = () => {
+    const nextState = !isLocalDark.current;
+    isLocalDark.current = nextState;
+    
+    Animated.timing(anim, {
+      toValue: nextState ? 1 : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+
+    // Defer the global context update so animation begins instantly
+    setTimeout(() => {
+      onToggle();
+    }, 50);
+  };
+
+  const em = 10; // Scaled for better visibility
+  const toggleWidth = 6 * em;
+  const toggleHeight = 3 * em;
+  const circleSize = 2.5 * em;
+  const iconSize = 1.5 * em;
+
+  const bgColor = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['hsl(48,90%,85%)', '#000000']
+  });
+
+  const circleBgColor = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['hsl(48,90%,55%)', '#111111']
+  });
+
+  const translateX = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 3 * em]
+  });
+
+  const rayOpacity = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0]
+  });
+
+  const coreScale = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.5, 1]
+  });
+
+  return (
+    <AnimatedPressable 
+      onPress={handlePress}
+      style={{
+        width: toggleWidth,
+        height: toggleHeight,
+        borderRadius: toggleHeight / 2,
+        backgroundColor: bgColor,
+        padding: 0.25 * em,
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+        overflow: 'hidden',
+      }}
+    >
+      {/* Stars in dark mode */}
+      <Animated.View style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        opacity: anim,
+      }}>
+        <View style={{ position: 'absolute', top: 0.8 * em, left: 1.2 * em, width: 2, height: 2, backgroundColor: '#fff', borderRadius: 1 }} />
+        <View style={{ position: 'absolute', top: 0.5 * em, left: 2.2 * em, width: 1.5, height: 1.5, backgroundColor: '#fff', borderRadius: 1 }} />
+        <View style={{ position: 'absolute', top: 1.8 * em, left: 1.8 * em, width: 2.5, height: 2.5, backgroundColor: '#fff', borderRadius: 1.25 }} />
+      </Animated.View>
+
+      <Animated.View style={{
+        width: circleSize,
+        height: circleSize,
+        borderRadius: circleSize / 2,
+        backgroundColor: circleBgColor,
+        transform: [{ translateX }],
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}>
+        <View style={{ width: iconSize, height: iconSize, position: 'relative' }}>
+          {/* Sun Rays */}
+          {[0, 45, 90, 135, 180, 225, 270, 315].map((deg, i) => (
+            <Animated.View key={i} style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              width: 0.1 * em,
+              height: 0.2 * em,
+              backgroundColor: '#fff',
+              borderRadius: 0.05 * em,
+              opacity: rayOpacity,
+              transform: [
+                { translateX: -0.05 * em },
+                { translateY: -0.1 * em },
+                { rotate: `${deg}deg` },
+                { translateY: 0.5 * em }
+              ]
+            }} />
+          ))}
+
+          {/* Core (Sun to Half Moon) */}
+          <Animated.View style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: iconSize,
+            height: iconSize,
+            transform: [{ scale: coreScale }],
+          }}>
+            <View style={{
+              width: iconSize,
+              height: iconSize,
+              borderRadius: iconSize / 2,
+              backgroundColor: '#fff',
+            }} />
+            
+            {/* Cutout Mask that slides in */}
+            <Animated.View style={{
+              position: 'absolute',
+              top: -0.2 * em,
+              left: 0.2 * em,
+              width: iconSize,
+              height: iconSize,
+              borderRadius: iconSize / 2,
+              backgroundColor: circleBgColor,
+              transform: [
+                { scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }
+              ]
+            }} />
+          </Animated.View>
+        </View>
+      </Animated.View>
+    </AnimatedPressable>
+  );
 };
 
 export default function ProfileScreen({ navigation }: any) {
@@ -83,10 +250,18 @@ export default function ProfileScreen({ navigation }: any) {
     firstName: '',
     lastName: '',
     email: '',
+    phone: '',
     mailingCity: '',
     mailingStreet: '',
-    mailingState: ''
+    mailingState: '',
+    birthdate: '',
+    baptismDate: '',
+    anniversaryDate: ''
   });
+  
+  // Date Picker State
+  const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
+  const datePickerFieldRef = useRef<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const [alertConfig, setAlertConfig] = useState<CustomAlertConfig>({
     visible: false,
@@ -101,25 +276,25 @@ export default function ProfileScreen({ navigation }: any) {
   const [biometricEnabled, setBiometricEnabled] = useState(false);
 
   const userTypeStr = member?.userType?.toLowerCase() || '';
-  const isActualAdmin = userTypeStr === 'admin' || 
-                        userTypeStr === 'pastor' || 
-                        userTypeStr === 'system administrator' || 
-                        userTypeStr.includes('admin') || 
-                        userTypeStr.includes('pastor');
+  const isActualAdmin = userTypeStr === 'admin';
 
   const fetchProfileData = async () => {
     try {
       if (user?.phoneNumber) {
-        const contactCheck = await SalesforceService.checkContactExists(user.phoneNumber);
+        const contactCheck = await SalesforceService.checkContactExists(user.phoneNumber, user.uid);
         if (contactCheck?.exists && contactCheck.member) {
           setMember(contactCheck.member);
           setEditForm({
             firstName: contactCheck.member.firstName || '',
             lastName: contactCheck.member.lastName || '',
             email: contactCheck.member.email || '',
+            phone: contactCheck.member.phone || user.phoneNumber || '',
             mailingCity: contactCheck.member.mailingCity || '',
             mailingStreet: contactCheck.member.mailingStreet || '',
-            mailingState: contactCheck.member.mailingState || ''
+            mailingState: contactCheck.member.mailingState || '',
+            birthdate: contactCheck.member.birthdate || '',
+            baptismDate: contactCheck.member.baptismDate || '',
+            anniversaryDate: contactCheck.member.anniversaryDate || ''
           });
         }
       }
@@ -148,6 +323,15 @@ export default function ProfileScreen({ navigation }: any) {
     } finally {
       setUpdating(false);
     }
+  };
+
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return dateStr;
   };
 
   const pickImage = async () => {
@@ -282,7 +466,12 @@ export default function ProfileScreen({ navigation }: any) {
     <View style={[styles.container, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
       <StatusBar barStyle="light-content" backgroundColor="#0a192f" />
       
-      <View style={styles.heroSectionWrapper}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1a2d5a" />}
+      >
+        <View style={styles.heroSectionWrapper}>
         <View style={styles.heroShadowWrapper}>
           <View style={styles.gradientBorderContainer}>
             <Svg height="100%" width="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
@@ -309,12 +498,8 @@ export default function ProfileScreen({ navigation }: any) {
             <Path d="M 0 50 Q 250 150 400 50" stroke="rgba(255,255,255,0.02)" strokeWidth="1" fill="none" />
           </Svg>
 
-          <View style={[styles.headerTop, { zIndex: 10 }]}>
-            <View style={{ width: 40 }} />
-            <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
-               <Text style={{fontSize: 12, marginRight: 4}}>{isDark ? '🌙' : '☀️'}</Text>
-               <Text style={styles.themeToggleText}>{isDark ? 'Dark' : 'Light'}</Text>
-            </TouchableOpacity>
+          <View style={[styles.headerTop, { zIndex: 10, justifyContent: 'flex-end' }]}>
+            <CustomThemeToggle isDark={isDark} onToggle={toggleTheme} />
           </View>
 
           <View style={styles.profileMainRow}>
@@ -331,7 +516,6 @@ export default function ProfileScreen({ navigation }: any) {
             </View>
 
             <View style={styles.welcomeTextContainer}>
-              <Text style={styles.welcomeSubText}>Welcome back,</Text>
               <Text style={styles.welcomeTitleText}>{member?.name || user?.displayName || 'Beloved Member'}</Text>
               <View style={styles.sinceBadge}>
                 <Text style={styles.sinceMemberText}>Member since {member?.joinDate ? new Date(member.joinDate).getFullYear().toString() : '2024'}</Text>
@@ -381,19 +565,30 @@ export default function ProfileScreen({ navigation }: any) {
         </View>
       </View>
 
-      <ScrollView 
-        showsVerticalScrollIndicator={false} 
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1a2d5a" />}
-      >
-        <Text style={styles.sectionLabel}>ACCOUNT</Text>
+      <Text style={styles.sectionLabel}>ACCOUNT</Text>
         <View style={styles.menuGroup}>
           <MenuItem 
             icon={<User size={20} color="#1a2d5a" />} 
             iconBg="#eff6ff"
             title="My profile" 
             sub="Edit name, photo, address" 
-            onPress={() => setIsEditModalVisible(true)}
+            onPress={() => {
+              if (member) {
+                setEditForm({
+                  firstName: member.firstName || '',
+                  lastName: member.lastName || '',
+                  email: member.email || '',
+                  phone: member.phone || user?.phoneNumber || '',
+                  mailingCity: member.mailingCity || '',
+                  mailingStreet: member.mailingStreet || '',
+                  mailingState: member.mailingState || '',
+                  birthdate: member.birthdate || '',
+                  baptismDate: member.baptismDate || '',
+                  anniversaryDate: member.anniversaryDate || ''
+                });
+              }
+              setIsEditModalVisible(true);
+            }}
           />
           <MenuItem 
             icon={<CreditCard size={20} color="#c0392b" />} 
@@ -407,15 +602,35 @@ export default function ProfileScreen({ navigation }: any) {
             iconBg="#f5f3ff"
             title="My prayer requests" 
             sub="View & manage your requests" 
-            isLast 
             onPress={() => {
               navigation.navigate('PrayerWall');
+            }}
+          />
+          <MenuItem 
+            icon={<Crown size={20} color="#d97706" />} 
+            iconBg="#fffbeb"
+            title="My Subscription" 
+            sub="Manage membership & payments" 
+            isLast 
+            onPress={() => {
+              navigation.navigate('SubscriptionScreen');
             }}
           />
         </View>
 
         <Text style={styles.sectionLabel}>SETTINGS</Text>
         <View style={styles.menuGroup}>
+          {isActualAdmin && (
+            <MenuItem 
+              icon={<Activity size={20} color="#3b82f6" />} 
+              iconBg="#eff6ff"
+              title="App Activity" 
+              sub="View member engagement metrics" 
+              onPress={() => {
+                navigation.navigate('AppActivity');
+              }}
+            />
+          )}
           <MenuItem 
             icon={<Bell size={20} color="#1a2d5a" />} 
             iconBg="#eff6ff"
@@ -468,27 +683,24 @@ export default function ProfileScreen({ navigation }: any) {
           </>
         )}
 
-        <Text style={styles.sectionLabel}>SUPPORT</Text>
-        <View style={styles.menuGroup}>
-          <MenuItem 
-            icon={<LogOut size={20} color="#c0392b" />} 
-            iconBg="#fff1f2"
-            title="Sign out" 
-            sub="Securely exit your account" 
-            isLast={!isActualAdmin} 
-            onPress={signOut}
-          />
-          {isActualAdmin && (
-            <MenuItem 
-              icon={<Shield size={20} color="#1a2d5a" />} 
-              iconBg="#e2e8f0"
-              title="Return to Admin Portal" 
-              sub="Switch back to dashboard" 
-              isLast 
-              onPress={() => setViewMode('admin')}
-            />
-          )}
-        </View>
+        <Text style={styles.sectionLabel}>FEEDBACK</Text>
+        <FeedbackCard memberName={member?.name || user?.displayName || 'Unknown'} />
+
+        <TouchableOpacity 
+          style={styles.signOutBadgeWrap} 
+          onPress={signOut}
+          activeOpacity={0.8}
+        >
+          <ExpoLinearGradient
+            colors={['#1a2d5a', '#0a192f']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.signOutBadge}
+          >
+            <LogOut size={16} color="#fff" />
+            <Text style={styles.signOutBadgeText}>Sign out</Text>
+          </ExpoLinearGradient>
+        </TouchableOpacity>
 
         <Text style={styles.versionTxt}>Version 1.0.0</Text>
       </ScrollView>
@@ -556,22 +768,24 @@ export default function ProfileScreen({ navigation }: any) {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Phone Number (Managed by Auth)</Text>
+                <Text style={styles.inputLabel}>Phone Number</Text>
                 <TextInput 
-                  style={[styles.input, { backgroundColor: '#f1f5f9', color: '#64748b' }]}
-                  value={user?.phoneNumber || ''}
-                  editable={false}
+                  style={styles.input}
+                  value={editForm.phone}
+                  onChangeText={(t) => setEditForm({...editForm, phone: t})}
+                  placeholder="Phone Number"
+                  keyboardType="phone-pad"
                 />
               </View>
 
               <View style={styles.inputRow}>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>City</Text>
+                  <Text style={styles.inputLabel}>Village/Town</Text>
                   <TextInput 
                     style={styles.input}
                     value={editForm.mailingCity}
                     onChangeText={(t) => setEditForm({...editForm, mailingCity: t})}
-                    placeholder="City"
+                    placeholder="Village/Town"
                   />
                 </View>
                 <View style={[styles.inputGroup, { flex: 1, marginLeft: 10 }]}>
@@ -594,6 +808,44 @@ export default function ProfileScreen({ navigation }: any) {
                   placeholder="Street"
                   multiline
                 />
+              </View>
+
+              <View style={styles.inputRow}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Date of Birth</Text>
+                  <TouchableOpacity 
+                    style={[styles.input, { justifyContent: 'center' }]} 
+                    onPress={() => { datePickerFieldRef.current = 'birthdate'; setDatePickerVisibility(true); }}
+                  >
+                    <Text style={{ color: editForm.birthdate ? '#1e293b' : '#9CA3AF' }} numberOfLines={1}>
+                      {formatDateDisplay(editForm.birthdate) || 'Select'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={[styles.inputGroup, { flex: 1, marginLeft: 10 }]}>
+                  <Text style={styles.inputLabel}>Wedding Anniv.</Text>
+                  <TouchableOpacity 
+                    style={[styles.input, { justifyContent: 'center' }]} 
+                    onPress={() => { datePickerFieldRef.current = 'anniversaryDate'; setDatePickerVisibility(true); }}
+                  >
+                    <Text style={{ color: editForm.anniversaryDate ? '#1e293b' : '#9CA3AF' }} numberOfLines={1}>
+                      {formatDateDisplay(editForm.anniversaryDate) || 'Select'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Date of Baptism</Text>
+                <TouchableOpacity 
+                  style={[styles.input, { justifyContent: 'center' }]} 
+                  onPress={() => { datePickerFieldRef.current = 'baptismDate'; setDatePickerVisibility(true); }}
+                >
+                  <Text style={{ color: editForm.baptismDate ? '#1e293b' : '#9CA3AF' }}>
+                    {formatDateDisplay(editForm.baptismDate) || 'Select Baptism Date'}
+                  </Text>
+                </TouchableOpacity>
               </View>
 
               <TouchableOpacity 
@@ -821,6 +1073,25 @@ export default function ProfileScreen({ navigation }: any) {
         </View>
       </Modal>
 
+      <DateTimePickerModal
+        isVisible={isDatePickerVisible}
+        mode="date"
+        onConfirm={(date: Date) => {
+          const formatted = date.toISOString().split('T')[0];
+          const field = datePickerFieldRef.current;
+          if (field) {
+            setEditForm(prev => ({ ...prev, [field]: formatted }));
+          }
+          setDatePickerVisibility(false);
+          datePickerFieldRef.current = null;
+        }}
+        onCancel={() => {
+          setDatePickerVisibility(false);
+          datePickerFieldRef.current = null;
+        }}
+        maximumDate={new Date()}
+      />
+
     </View>
   );
 }
@@ -892,8 +1163,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 35
+    marginTop: -5,
+    marginBottom: 4,
+  },
+  signOutBadgeWrap: {
+    marginHorizontal: 20,
+    marginTop: 40,
+    marginBottom: 40,
+    alignSelf: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+    borderRadius: 20,
+  },
+  signOutBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    gap: 8,
+  },
+  signOutBadgeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   avatarWrapper: {
     width: 90,
@@ -952,6 +1249,8 @@ const styles = StyleSheet.create({
   },
   infoBoxWrapper: {
     marginHorizontal: 15,
+    marginTop: 15,
+    marginBottom: -15,
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: 'rgba(255,255,255,0.06)', 
@@ -963,7 +1262,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 14,
-    paddingHorizontal: 8,
+    paddingHorizontal: 16,
+    flexGrow: 1,
   },
   iconCircle: {
     width: 30,
@@ -976,8 +1276,7 @@ const styles = StyleSheet.create({
   infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 2,
-    flex: 1
+    paddingHorizontal: 2
   },
   infoTextWrapper: {
     justifyContent: 'center',

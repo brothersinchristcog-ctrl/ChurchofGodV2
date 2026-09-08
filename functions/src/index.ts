@@ -1,5 +1,6 @@
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import * as functionsCompat from 'firebase-functions/v1';
 import { initializeApp } from 'firebase-admin/app';
@@ -8,6 +9,8 @@ import { getMessaging } from 'firebase-admin/messaging';
 import { getStorage } from 'firebase-admin/storage';
 import { SalesforceBackend } from './services/SalesforceBackend.js';
 import axios from 'axios';
+import Razorpay from 'razorpay';
+import crypto from 'crypto';
 
 
 
@@ -75,6 +78,28 @@ const getSf = () => {
   }
   return _sfBackend;
 };
+
+/**
+ * Safely sends a multicast message in chunks of 500 to avoid FCM limits.
+ */
+async function sendInChunks(tokens: string[], messagePayload: any) {
+  let successCount = 0;
+  let failureCount = 0;
+  const chunkSize = 500;
+  
+  for (let i = 0; i < tokens.length; i += chunkSize) {
+    const chunk = tokens.slice(i, i + chunkSize);
+    const chunkMessage = { ...messagePayload, tokens: chunk };
+    try {
+      const response = await getMsg().sendEachForMulticast(chunkMessage);
+      successCount += response.successCount;
+      failureCount += response.failureCount;
+    } catch (err) {
+      console.error(`Error sending chunk ${i / chunkSize}:`, err);
+    }
+  }
+  return { successCount, failureCount };
+}
 
 /**
  * 📖 GET DAILY PROMISE
@@ -201,7 +226,12 @@ export const notifyMembers = onCall({ invoker: 'public' }, async (request) => {
       tokens: tokens
     };
 
-    const fcmResponse = await getMsg().sendEachForMulticast(message);
+    const fcmResponse = await sendInChunks(tokens, {
+      notification: message.notification,
+      data: message.data,
+      android: message.android,
+      apns: message.apns
+    });
     console.log(`✅ Push Sent: ${fcmResponse.successCount} success, ${fcmResponse.failureCount} failed`);
     return { success: true, sent: fcmResponse.successCount, failed: fcmResponse.failureCount };
   } catch (error: any) {
@@ -297,7 +327,12 @@ export const automatedDailyPromise = onSchedule({ schedule: '0 5 * * *', timeZon
         },
         tokens: tokens
       };
-      await getMsg().sendEachForMulticast(message);
+      await sendInChunks(tokens, {
+        notification: message.notification,
+        data: message.data,
+        android: message.android,
+        apns: message.apns
+      });
       console.log(`✅ Automated Daily Promise sent to ${tokens.length} members`);
     }
   } catch (error) {
@@ -487,7 +522,12 @@ export const automatedDailyAnniversaries = onSchedule({ schedule: '30 6 * * *', 
           },
           tokens: targetTokens
         };
-        await getMsg().sendEachForMulticast(message);
+        await sendInChunks(targetTokens, {
+          notification: message.notification,
+          data: message.data,
+          android: message.android,
+          apns: message.apns
+        });
         console.log(`✅ Anniversary FCM sent to ${coupleNames}`);
       }
     }
@@ -1424,7 +1464,12 @@ export const onBroadcastCreated = functionsCompat.firestore
         tokens: tokens
       };
 
-      const response = await getMsg().sendEachForMulticast(message);
+      const response = await sendInChunks(tokens, {
+        notification: message.notification,
+        data: message.data,
+        android: message.android,
+        apns: message.apns
+      });
       console.log(`✅ Broadcast push delivered: ${response.successCount} success, ${response.failureCount} failed.`);
     } catch (error) {
       console.error('Error sending broadcast push:', error);
@@ -1571,7 +1616,12 @@ export const checkYouTubeLive = onSchedule('*/5 * * * *', async (event) => {
           tokens: tokens
         };
         
-        const response = await getMsg().sendEachForMulticast(message);
+        const response = await sendInChunks(tokens, {
+          notification: message.notification,
+          data: message.data,
+          android: message.android,
+          apns: message.apns
+        });
         console.log(`✅ YouTube Live push delivered: ${response.successCount} success, ${response.failureCount} failed.`);
       }
     }
@@ -1644,7 +1694,12 @@ export const triggerTestYouTubeLive = onCall({ invoker: 'public' }, async (reque
       tokens: tokens
     };
     
-    const response = await getMsg().sendEachForMulticast(message);
+    const response = await sendInChunks(tokens, {
+      notification: message.notification,
+      data: message.data,
+      android: message.android,
+      apns: message.apns
+    });
     return { success: true, sent: response.successCount, failed: response.failureCount, broadcastId: docRef.id };
   } catch (error: any) {
     console.error('triggerTestYouTubeLive Error:', error);
@@ -1684,7 +1739,12 @@ async function sendPushToAllMembers(payload: any) {
       },
       tokens
     };
-    await getMsg().sendEachForMulticast(message);
+    await sendInChunks(tokens, {
+      notification: message.notification,
+      data: message.data,
+      android: message.android,
+      apns: message.apns
+    });
   } catch (error) {
     console.error('sendPushToAllMembers Error:', error);
   }
@@ -1986,3 +2046,361 @@ export const onCelebrationWishCreated = functionsCompat.firestore
       console.error('Error in onCelebrationWishCreated:', err.message);
     }
   });
+
+// ─── RAZORPAY INTEGRATION ───
+
+/**
+ * Create a Razorpay Order
+ * Type can be 'donation' (church keys) or 'subscription' (company keys)
+ */
+export const createRazorpayOrder = onCall({ invoker: 'public' }, async (request) => {
+  try {
+    const { amount, type, receipt, notes } = request.data;
+    
+    if (!amount || !type) {
+      throw new HttpsError('invalid-argument', 'Amount and type are required');
+    }
+
+    let key_id = '';
+    let key_secret = '';
+
+    if (type === 'donation') {
+      key_id = process.env.RAZORPAY_CHURCH_KEY_ID || '';
+      key_secret = process.env.RAZORPAY_CHURCH_KEY_SECRET || '';
+    } else if (type === 'subscription') {
+      key_id = process.env.RAZORPAY_COMPANY_KEY_ID || '';
+      key_secret = process.env.RAZORPAY_COMPANY_KEY_SECRET || '';
+    } else {
+      throw new HttpsError('invalid-argument', 'Invalid transaction type');
+    }
+
+    if (!key_id || !key_secret) {
+      throw new HttpsError('failed-precondition', 'Razorpay keys are not configured on the server for this type');
+    }
+
+    const instance = new Razorpay({ key_id, key_secret });
+
+    const options: any = {
+      amount: Math.round(amount * 100), // amount in the smallest currency unit (paise)
+      currency: "INR",
+      receipt: receipt || `receipt_${Date.now()}`
+    };
+
+    if (notes) {
+      options.notes = notes;
+    }
+
+    const order = await instance.orders.create(options);
+    
+    // Return order and the key_id so the frontend can use it to initialize Razorpay checkout
+    return { success: true, order, key_id };
+  } catch (error: any) {
+    console.error('createRazorpayOrder Error:', error);
+    throw new HttpsError('internal', error.message);
+  }
+});
+
+/**
+ * Verify Razorpay Payment Signature
+ */
+export const verifyRazorpayPayment = onCall({ invoker: 'public' }, async (request) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, type, plan } = request.data;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !type) {
+      throw new HttpsError('invalid-argument', 'Missing payment verification details');
+    }
+
+    let key_secret = '';
+
+    if (type === 'donation') {
+      key_secret = process.env.RAZORPAY_CHURCH_KEY_SECRET || '';
+    } else if (type === 'subscription') {
+      key_secret = process.env.RAZORPAY_COMPANY_KEY_SECRET || '';
+    }
+
+    if (!key_secret) {
+      throw new HttpsError('failed-precondition', 'Razorpay secret key not found for verification');
+    }
+
+    const hmac = crypto.createHmac('sha256', key_secret);
+    hmac.update(razorpay_order_id + "|" + razorpay_payment_id);
+    const generated_signature = hmac.digest('hex');
+
+    if (generated_signature === razorpay_signature) {
+      if (type === 'subscription') {
+        const uid = request.auth?.uid;
+        if (uid) {
+          const db = getDb();
+          const now = new Date();
+          
+          // Get current subscription to check end date
+          const subRef = db.collection('users').doc(uid).collection('subscription').doc('current');
+          const subDoc = await subRef.get();
+          
+          let newEndDate = new Date();
+          if (subDoc.exists) {
+            const currentData = subDoc.data();
+            if (currentData && currentData.status === 'ACTIVE' && currentData.endDate) {
+              // If already active, add 30 days to existing end date
+              const existingEnd = currentData.endDate.toDate();
+              if (existingEnd > now) {
+                newEndDate = new Date(existingEnd);
+              }
+            }
+          }
+          const planName = plan === 'annual' ? 'annual' : 'monthly';
+          if (planName === 'annual') {
+            newEndDate.setFullYear(newEndDate.getFullYear() + 1);
+          } else {
+            newEndDate.setMonth(newEndDate.getMonth() + 1);
+          }
+
+          // Update subscription
+          await subRef.set({
+            status: 'ACTIVE',
+            startDate: FieldValue.serverTimestamp(),
+            endDate: newEndDate,
+            lastPaymentId: razorpay_payment_id,
+            plan: planName,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+
+          // Add to payments history
+          await db.collection('users').doc(uid).collection('payments').add({
+            transactionId: razorpay_payment_id,
+            orderId: razorpay_order_id,
+            amount: planName === 'annual' ? 108 : 9, // Store standard base amount
+            currency: 'INR',
+            status: 'PAID',
+            transactionDate: FieldValue.serverTimestamp(),
+            plan: planName
+          });
+        }
+      }
+
+      return { success: true, message: 'Payment verified successfully' };
+    } else {
+      return { success: false, message: 'Payment verification failed (signature mismatch)' };
+    }
+  } catch (error: any) {
+    console.error('verifyRazorpayPayment Error:', error);
+    throw new HttpsError('internal', error.message);
+  }
+});
+
+/**
+ * ⏰ SUBSCRIPTION EXPIRY CRON JOB
+ * Runs daily at midnight to expire subscriptions that have passed their end date.
+ */
+export const checkSubscriptionExpiries = onSchedule('every day 00:00', async (event) => {
+  try {
+    const db = getDb();
+    const now = new Date();
+    
+    // Query all ACTIVE subscriptions
+    const snap = await db.collectionGroup('subscription')
+      .where('status', '==', 'ACTIVE')
+      .get();
+      
+    let expiredCount = 0;
+    const batch = db.batch();
+    
+    for (const doc of snap.docs) {
+      if (doc.id === 'current') {
+        const data = doc.data();
+        if (data.endDate && data.endDate.toDate) {
+          const endDate = data.endDate.toDate();
+          if (endDate < now) {
+            batch.update(doc.ref, { status: 'EXPIRED' });
+            expiredCount++;
+            
+            const uid = doc.ref.parent.parent?.id;
+            if (uid) {
+              try {
+                const userDoc = await db.collection('users').doc(uid).get();
+                const fcmToken = userDoc.data()?.fcmToken;
+                if (fcmToken) {
+                  await getMsg().send({
+                    token: fcmToken,
+                    notification: {
+                      title: 'Subscription Expired',
+                      body: 'Your premium subscription has expired. Please renew to keep accessing Sermons, Events, and more.'
+                    }
+                  });
+                }
+              } catch (e) {
+                console.error(`Failed to send FCM for expired sub uid: ${uid}`, e);
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    if (expiredCount > 0) {
+      await batch.commit();
+    }
+    
+    console.log(`Successfully checked subscriptions. Expired ${expiredCount} users.`);
+    
+  } catch (error: any) {
+    console.error('Error in checkSubscriptionExpiries:', error);
+  }
+});
+
+/**
+ * Razorpay Webhook Endpoint
+ * Listens for payment.captured or order.paid events
+ */
+export const razorpayWebhook = onRequest({ invoker: 'public' }, async (req, res) => {
+  try {
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.error('RAZORPAY_WEBHOOK_SECRET is not set');
+      res.status(500).send('Webhook secret not configured');
+      return;
+    }
+
+    const signature = req.headers['x-razorpay-signature'] as string;
+    if (!signature) {
+      res.status(400).send('Missing signature');
+      return;
+    }
+
+    // Verify webhook signature
+    const bodyString = JSON.stringify(req.body);
+    const expectedSignature = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(bodyString)
+      .digest('hex');
+
+    if (expectedSignature !== signature) {
+      console.error('Webhook signature mismatch');
+      res.status(401).send('Invalid signature');
+      return;
+    }
+
+    const event = req.body.event;
+    const payload = req.body.payload;
+
+    if (event === 'payment.captured' || event === 'order.paid') {
+      // The notes can be inside payment.entity.notes or order.entity.notes
+      const entity = payload.payment?.entity || payload.order?.entity;
+      const notes = entity?.notes || {};
+      
+      const uid = notes.uid;
+      const plan = notes.plan || 'monthly';
+      const amount = (entity.amount || 0) / 100;
+
+      if (uid) {
+        const db = getDb();
+        const endDate = new Date();
+        if (plan === 'annual') {
+          endDate.setFullYear(endDate.getFullYear() + 1);
+        } else {
+          endDate.setMonth(endDate.getMonth() + 1);
+        }
+
+        // Update subscription status
+        await db.collection('users').doc(uid).collection('subscription').doc('current').set({
+          status: 'ACTIVE',
+          startDate: FieldValue.serverTimestamp(),
+          endDate: endDate,
+          plan: plan,
+          lastPaymentId: entity.id,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        // Log payment
+        await db.collection('users').doc(uid).collection('payments').add({
+          amount: amount,
+          currency: 'INR',
+          plan: plan,
+          status: 'SUCCESS',
+          transactionDate: FieldValue.serverTimestamp(),
+          transactionId: entity.id,
+          orderId: entity.order_id || null,
+          method: entity.method || 'webhook',
+        });
+        console.log(`Successfully processed webhook payment for user ${uid}`);
+      } else {
+        console.warn('Webhook received but no UID found in notes', entity.id);
+      }
+    }
+
+    res.status(200).send('Webhook received successfully');
+  } catch (error: any) {
+    console.error('Razorpay Webhook Error:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// ─── ACTIVITY TRACKING AGGREGATORS ───
+
+/**
+ * Aggregates new sessions into a daily summary document.
+ */
+export const onSessionCreated = onDocumentCreated('activity_sessions/{sessionId}', async (event) => {
+  const snapshot = event.data;
+  if (!snapshot) return;
+
+  const data = snapshot.data();
+  // Get date in YYYY-MM-DD for IST timezone
+  const dateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const db = getDb();
+  
+  const summaryRef = db.collection('activity_daily_summary').doc(dateStr);
+
+  try {
+    await db.runTransaction(async (transaction: any) => {
+      const doc = await transaction.get(summaryRef);
+      if (!doc.exists) {
+        transaction.set(summaryRef, {
+          date: dateStr,
+          sessions: 1,
+          uniqueMembers: [data.userId],
+          features: {}
+        });
+      } else {
+        const currentData = doc.data();
+        const members = currentData.uniqueMembers || [];
+        if (!members.includes(data.userId)) {
+          members.push(data.userId);
+        }
+        transaction.update(summaryRef, {
+          sessions: FieldValue.increment(1),
+          uniqueMembers: members
+        });
+      }
+    });
+  } catch (err) {
+    console.error('Error aggregating session:', err);
+  }
+});
+
+/**
+ * Aggregates new events into the daily summary document feature breakdown.
+ */
+export const onEventCreated = onDocumentCreated('activity_events/{eventId}', async (event) => {
+  const snapshot = event.data;
+  if (!snapshot) return;
+
+  const data = snapshot.data();
+  if (data.eventType !== 'SCREEN_VIEW') return;
+
+  const dateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const db = getDb();
+  
+  const summaryRef = db.collection('activity_daily_summary').doc(dateStr);
+  const featureKey = `features.${data.feature}`;
+
+  try {
+    await summaryRef.set({
+      date: dateStr,
+      [featureKey]: FieldValue.increment(1)
+    }, { merge: true });
+  } catch (err) {
+    console.error('Error aggregating event:', err);
+  }
+});
