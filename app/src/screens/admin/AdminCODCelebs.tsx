@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, SafeAreaView, Dimensions, ActivityIndicator, Image, Alert, Modal, KeyboardAvoidingView, Platform, Linking } from 'react-native';
-import { ChevronRight, Search, SlidersHorizontal, Image as ImageIcon, Book, Eye, Edit2, MessageCircle, Check, Gift, Cake, Focus, Cross, ArrowLeft, Home, Calendar, Plus, RefreshCw, Menu } from 'lucide-react-native';
+import { ChevronRight, Search, SlidersHorizontal, Image as ImageIcon, Book, Eye, Edit2, MessageCircle, Check, Gift, Cake, Focus, Cross, ArrowLeft, Home, Calendar, Plus, RefreshCw, Menu, Phone } from 'lucide-react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import Share from 'react-native-share';
 import * as ImagePicker from 'expo-image-picker';
@@ -495,7 +495,15 @@ export default function AdminCODCelebs() {
           </View>
           <View style={[styles.infoTile, styles.infoTileFull]}>
             <Text style={styles.infoLbl}>WhatsApp Number</Text>
-            <Text style={styles.infoVal}>{m.phone}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={[styles.infoVal, { flex: 1 }]}>{m.phone}</Text>
+              <TouchableOpacity 
+                onPress={() => Linking.openURL(`tel:${m.phone}`)}
+                style={{ padding: 8, backgroundColor: 'rgba(30, 42, 99, 0.05)', borderRadius: 8 }}
+              >
+                <Phone size={18} color="#1E2A63" />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
         
@@ -1297,6 +1305,12 @@ export default function AdminCODCelebs() {
                 message: fullText,
                 whatsAppNumber: cleanPhone
               };
+
+              if (shareUrl) {
+                shareOptions.url = shareUrl;
+                shareOptions.type = 'image/jpeg';
+                shareOptions.filename = 'celebration_card';
+              }
 
               if (shareUrl) {
                 shareOptions.url = shareUrl;

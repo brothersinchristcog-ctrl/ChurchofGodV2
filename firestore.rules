@@ -19,6 +19,14 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && (isOwner(userId) || !exists(/databases/$(database)/documents/users/$(userId)));
+      
+      match /subscription/{subId} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    match /{path=**}/subscription/{subId} {
+      allow read: if isAuthenticated();
     }
 
 
@@ -55,6 +63,14 @@ service cloud.firestore {
     // 6. Giving Transactions (Strict privacy)
     match /givingTransactions/{txId} {
       allow read, write: if isOwner(resource.data.uid);
+    }
+
+    match /donations/{donationId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /church_donations/{donationId} {
+      allow read, write: if isAuthenticated();
     }
 
     // 7. Broadcasts (Announcements history and Emergency meeting broadcasts)
@@ -114,6 +130,23 @@ service cloud.firestore {
       match /typing/{userId} {
         allow read, write: if isAuthenticated();
       }
+    }
+    
+    // 16. App Feedback
+    match /feedback/{feedbackId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 17. App Activity Tracking
+    match /activity_sessions/{sessionId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /activity_events/{eventId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /activity_daily_summary/{dateStr} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Written by Cloud Functions
     }
   }
 }

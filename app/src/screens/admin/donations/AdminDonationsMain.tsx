@@ -5,11 +5,14 @@ import AdminDonationsDashboard from './AdminDonationsDashboard';
 import AdminDonationsList from './AdminDonationsList';
 import AdminDonationsDetails from './AdminDonationsDetails';
 import AdminDonationsForm from './AdminDonationsForm';
+import AdminDonationsGive from './AdminDonationsGive';
 import { COLORS } from './AdminDonationsUtils';
 
 export default function AdminDonationsMain() {
+  // Trigger rebuild
   const [activeTab, setActiveTab] = useState('dashboard');
   const [donations, setDonations] = useState<any[]>([]);
+  const [onlineDonations, setOnlineDonations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   // States for passing data between screens
@@ -39,8 +42,19 @@ export default function AdminDonationsMain() {
         setLoading(false);
       });
 
-    return () => unsubscribe();
+    const unsubscribeOnline = db.collection('church_donations')
+      .onSnapshot((snapshot) => {
+        const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setOnlineDonations(fetched);
+      });
+
+    return () => {
+      unsubscribe();
+      unsubscribeOnline();
+    };
   }, []);
+
+  const allDonations = [...donations, ...onlineDonations.filter(d => d.status === 'completed')];
 
   const navigateTo = (tab: string, data?: any) => {
     if (tab === 'details') {
@@ -64,7 +78,7 @@ export default function AdminDonationsMain() {
     <View style={styles.container}>
       {activeTab === 'dashboard' && (
         <AdminDonationsDashboard 
-          donations={donations} 
+          donations={allDonations} 
           onNavigate={navigateTo} 
         />
       )}
@@ -83,6 +97,11 @@ export default function AdminDonationsMain() {
       {activeTab === 'create' && (
         <AdminDonationsForm 
           editData={editDonation}
+          onNavigate={navigateTo} 
+        />
+      )}
+      {activeTab === 'give' && (
+        <AdminDonationsGive 
           onNavigate={navigateTo} 
         />
       )}

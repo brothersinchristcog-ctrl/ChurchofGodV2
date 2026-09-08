@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, FlatList, Modal } from 'react-native';
-import { ArrowLeft, Search, Calendar as CalIcon, Download, Share2, CheckCircle2 } from 'lucide-react-native';
+import { ArrowLeft, Search, Calendar as CalIcon, Download, Share2, CheckCircle2, Plus } from 'lucide-react-native';
 import { COLORS, formatCurrency, formatDate, generateBulkDonationReceipt, getBulkDonationReceiptHTML } from './AdminDonationsUtils';
 import { useAuth } from '../../../context/AuthContext';
 import { WebView } from 'react-native-webview';
@@ -73,15 +73,21 @@ export default function AdminDonationsList({ donations, onNavigate }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
-        <View style={styles.topbarBgCircle} pointerEvents="none" />
-        <View style={styles.topbarRow}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => onNavigate('dashboard')}>
-            <ArrowLeft color="#fff" size={20} />
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.eyebrow}>RECORDS</Text>
-            <Text style={styles.title}>All Donations</Text>
+        <View style={[styles.topbarRow, { justifyContent: 'space-between', width: '100%' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => onNavigate('dashboard')}>
+              <ArrowLeft color="#fff" size={20} />
+            </TouchableOpacity>
+            <Text style={styles.title}>Offline Donations</Text>
           </View>
+
+          <TouchableOpacity 
+            style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.gold, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 4 }} 
+            onPress={() => onNavigate('create')}
+            activeOpacity={0.8}
+          >
+            <Plus color={COLORS.indigo} size={24} strokeWidth={3} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -159,7 +165,7 @@ export default function AdminDonationsList({ donations, onNavigate }: any) {
                 <View style={styles.donMeta}>
                   <Text style={styles.donMetaText}>{formatDate(item.date)}</Text>
                   <Text style={styles.donMetaText}>{item.method}</Text>
-                  <Text style={styles.donMetaText}>{item.id.replace('DON-', 'COG-')}</Text>
+                  <Text style={styles.donMetaText}>{(item.id || '').replace('DON-', 'COG-')}</Text>
                 </View>
               </TouchableOpacity>
             )}
@@ -202,21 +208,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.parchment,
   },
   topbar: {
-    backgroundColor: COLORS.indigo, 
-    paddingTop: 45, 
+    backgroundColor: COLORS.indigo,
+    paddingTop: 45,
     paddingBottom: 25,
     paddingHorizontal: 20,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
     position: 'relative',
-    overflow: 'hidden',
-  },
-  topbarBgCircle: {
-    position: 'absolute',
-    right: -40,
-    top: -40,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(201,162,39,0.18)',
   },
   topbarRow: {
     flexDirection: 'row',
@@ -227,25 +225,14 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderColor: 'rgba(255,255,255,0.18)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  eyebrow: {
-    fontSize: 11,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    color: COLORS.goldLight,
-    fontWeight: '600',
-    opacity: 0.9,
-  },
   title: {
     fontSize: 22,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#fff',
-    marginTop: 2,
   },
   content: {
     flex: 1,
