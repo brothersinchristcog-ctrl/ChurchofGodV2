@@ -3,7 +3,7 @@
     "name": "Church of God",
     "slug": "app",
     "scheme": "com.brothersinchrist.churchofgod",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
 
@@ -33,7 +33,7 @@
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
       ],
       "softwareKeyboardLayoutMode": "pan",
-      "versionCode": 8
+      "versionCode": 9
     },
     "web": {
       "favicon": "./assets/logo.png"

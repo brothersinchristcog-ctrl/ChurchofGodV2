@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useCallback } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -9,7 +9,9 @@ import {
   ImageBackground,
   Image,
   StatusBar,
-  Platform
+  Platform,
+  BackHandler,
+  ToastAndroid
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
@@ -23,6 +25,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
@@ -101,6 +104,32 @@ export default function AdminDashboard() {
   const { setActiveTab } = useContext(AdminTabContext);
   const { setViewMode, signOut, member } = useAuth();
   const { isDark, colors, toggleTheme } = useTheme();
+
+  const [backPressCount, setBackPressCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (backPressCount === 1) {
+          BackHandler.exitApp();
+          return true;
+        }
+        setBackPressCount(1);
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Are you sure you want to exit? Press back again to confirm.', ToastAndroid.SHORT);
+        }
+        setTimeout(() => setBackPressCount(0), 2000);
+        return true;
+      };
+
+      const backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        onBackPress
+      );
+
+      return () => backHandler.remove();
+    }, [backPressCount])
+  );
 
   const renderCard = (item: any, index: number, isTwoCols: boolean) => {
     // Determine card width and gap

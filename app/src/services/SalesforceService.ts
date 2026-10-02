@@ -360,6 +360,17 @@ spfkUchVp71l4aWpCW50lro=
     }
   }
 
+  async getAllMembers(): Promise<any[]> {
+    try {
+      const soql = `SELECT Id, Name, Phone, MobilePhone, MailingCity FROM Contact ORDER BY Name ASC LIMIT 1000`;
+      const result = await this.query(soql, true);
+      return result.records || [];
+    } catch (error) {
+      console.error('❌ [SalesforceService] getAllMembers Error:', error);
+      return [];
+    }
+  }
+
   async updateMemberProfile(contactId: string, details: any) {
     try {
       const token = await this.getAccessToken();
@@ -1260,6 +1271,17 @@ spfkUchVp71l4aWpCW50lro=
     } catch (error) {
       console.error('❌ [SalesforceService] getTodayEvents Error:', error);
       return [];
+    }
+  }
+
+  async getEventsCountThisMonth(): Promise<number> {
+    try {
+      const soql = `SELECT Id FROM Schedule_Event__c WHERE Date__c = THIS_MONTH AND Date__c <= TODAY`;
+      const result = await this.query(soql);
+      return result.totalSize || result.records.length || 0;
+    } catch (error) {
+      console.error('❌ [SalesforceService] getEventsCountThisMonth Error:', error);
+      return 0;
     }
   }
 

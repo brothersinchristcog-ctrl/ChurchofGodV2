@@ -148,5 +148,15 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if false; // Written by Cloud Functions
     }
+
+    // 18. Attendance
+    match /attendance/{attendanceId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // 19. Event Locations (Geofencing overrides)
+    match /event_locations/{eventId} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }

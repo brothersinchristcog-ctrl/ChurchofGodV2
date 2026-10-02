@@ -59,6 +59,9 @@ import CelebrationHistoryScreen from '../screens/CelebrationHistoryScreen';
 import SubscriptionScreen from '../screens/SubscriptionScreen';
 import SubscriptionSuccessScreen from '../screens/SubscriptionSuccessScreen';
 import AppActivityScreen from '../screens/member/AppActivityScreen';
+import AttendanceScreen from '../screens/AttendanceScreen';
+import QRScannerScreen from '../screens/QRScannerScreen';
+import EventAttendeesScreen from '../screens/EventAttendeesScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -480,6 +483,9 @@ function Navigation() {
       <Stack.Screen name="SubscriptionScreen" component={SubscriptionScreen} />
       <Stack.Screen name="SubscriptionSuccessScreen" component={SubscriptionSuccessScreen} />
       <Stack.Screen name="AppActivity" component={AppActivityScreen} />
+      <Stack.Screen name="Attendance" component={AttendanceScreen} />
+      <Stack.Screen name="QRScanner" component={QRScannerScreen} />
+      <Stack.Screen name="EventAttendees" component={EventAttendeesScreen} />
     </Stack.Navigator>
   );
 

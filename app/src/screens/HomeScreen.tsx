@@ -20,7 +20,9 @@ import {
   Easing,
   PanResponder,
   InteractionManager,
-  DeviceEventEmitter
+  DeviceEventEmitter,
+  BackHandler,
+  ToastAndroid
 } from 'react-native';
 
 import { 
@@ -54,16 +56,19 @@ import {
   Droplet,
   Image as ImageIcon,
   Video,
+  QrCode
 } from 'lucide-react-native';
 
 import firestore from '@react-native-firebase/firestore';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import * as Location from 'expo-location';
 import { useAuth } from '../context/AuthContext';
 import Theme from '../theme/Theme';
 import SalesforceService, { DailyPromise, ScheduleEvent, SalesforceMember, Sermon } from '../services/SalesforceService';
 import Svg, { Path, Circle, Rect, Polygon, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import AnimatedCheckCircle from '../components/AnimatedCheckCircle';
 
 const YoutubeIcon = ({ size = 26, color = '#fff' }: { size?: number; color?: string }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
@@ -321,7 +326,7 @@ const InfographicNav = ({ navigation, setShowMorePopup, isDark }: any) => {
   );
 };
 
-const UpcomingEventItem = React.memo(({ item, index, eventsLength, navigation, formatTime, formatTeluguDate }: any) => (
+const UpcomingEventItem = React.memo(({ item, index, eventsLength, navigation, formatTime, formatTeluguDate, isActualAdmin }: any) => (
   <View>
     <TouchableOpacity 
       style={styles.ebItem} 
@@ -363,6 +368,8 @@ const UpcomingEventItem = React.memo(({ item, index, eventsLength, navigation, f
         <Text style={styles.ebDetailsLink}>Details →</Text>
       </View>
     </TouchableOpacity>
+
+
     {index < eventsLength - 1 && <View style={styles.ebDivider} />}
   </View>
 ));
@@ -517,6 +524,32 @@ export default function HomeScreen() {
   const [showDevotionPopup, setShowDevotionPopup] = useState(false);
   const [isLanguageModalVisible, setIsLanguageModalVisible] = useState(false);
   const { hasAccess } = useAuth(); // from AuthContext
+
+  const [backPressCount, setBackPressCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (backPressCount === 1) {
+          BackHandler.exitApp();
+          return true;
+        }
+        setBackPressCount(1);
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Are you sure you want to exit? Press back again to confirm.', ToastAndroid.SHORT);
+        }
+        setTimeout(() => setBackPressCount(0), 2000);
+        return true;
+      };
+
+      const backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        onBackPress
+      );
+
+      return () => backHandler.remove();
+    }, [backPressCount])
+  );
 
   const handleRestrictedNavigate = (screenName: string, action?: () => void) => {
     if (!hasAccess) {
@@ -744,6 +777,19 @@ export default function HomeScreen() {
   const scrollY = useRef(new Animated.Value(0)).current;
   const [headerHeight, setHeaderHeight] = useState(Platform.OS === 'ios' ? 230 : 215);
   const [topPartHeight, setTopPartHeight] = useState(Platform.OS === 'ios' ? 112 : 97);
+
+  const [animateAttendance, setAnimateAttendance] = useState(false);
+  const attendanceBadgeY = useRef(0);
+
+  useEffect(() => {
+    if (animateAttendance) return;
+    const id = scrollY.addListener(({ value }) => {
+      if (attendanceBadgeY.current > 0 && value + Dimensions.get('window').height * 0.9 > attendanceBadgeY.current) {
+        setAnimateAttendance(true);
+      }
+    });
+    return () => scrollY.removeListener(id);
+  }, [animateAttendance, scrollY]);
 
   if (loading && !refreshing) {
     return (
@@ -1066,6 +1112,34 @@ export default function HomeScreen() {
             <GridItem icon={<Video size={26} color="#fff" />} label="Bible Classes" color="#b45309" onPress={() => handleRestrictedNavigate('BibleClasses')} />
           </View>
 
+          <View 
+            style={{ alignItems: 'center', marginTop: 12, marginBottom: 4 }}
+            onLayout={(e) => {
+              // Add offset since the badge is inside the scrollview content
+              attendanceBadgeY.current = e.nativeEvent.layout.y;
+            }}
+          >
+            <TouchableOpacity 
+              style={{
+                flexDirection: 'row', 
+                alignItems: 'center', 
+                backgroundColor: '#16a34a', 
+                paddingVertical: 10, 
+                paddingHorizontal: 24, 
+                borderRadius: 24,
+                elevation: 2,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 3
+              }} 
+              onPress={() => handleRestrictedNavigate('Attendance')}
+            >
+              <AnimatedCheckCircle size={20} color="#fff" style={{ marginRight: 8 }} animate={animateAttendance} />
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Attendance</Text>
+            </TouchableOpacity>
+          </View>
+
           <InfographicNav 
             navigation={navigation} 
             setShowMorePopup={setShowMorePopup} isDark={isDark} />
@@ -1092,6 +1166,7 @@ export default function HomeScreen() {
                     navigation={navigation}
                     formatTime={formatTime}
                     formatTeluguDate={formatTeluguDate}
+                    isActualAdmin={isActualAdmin}
                   />
                 ))
               ) : (

@@ -2404,3 +2404,7 @@ export const onEventCreated = onDocumentCreated('activity_events/{eventId}', asy
     console.error('Error aggregating event:', err);
   }
 });
+
+
+
+
