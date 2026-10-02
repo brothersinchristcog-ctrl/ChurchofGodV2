@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useCallback } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -9,7 +9,9 @@ import {
   ImageBackground,
   Image,
   StatusBar,
-  Platform
+  Platform,
+  BackHandler,
+  ToastAndroid
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
@@ -23,6 +25,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { LinearGradient as ExpoLinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
@@ -74,15 +77,18 @@ const DASHBOARD_SECTIONS = [
   },
   {
     title: 'Church Ledger',
+    layout: 'featured-bottom',
     items: [
+      { id: 22, label: 'Subscriptions', icon: Users, image: require('../../../assets/images/admin_dashboard/subscriptions.png'), featured: true },
       { id: 18, label: 'Expenses', icon: BookOpen, image: require('../../../assets/images/admin_dashboard/church_ledger.png') },
       { id: 19, label: 'Donations', icon: Heart, image: require('../../../assets/images/admin_dashboard/donations.png') }
     ]
   },
   {
-    title: 'Online Bible Classes',
+    title: 'Online Bible Classes & Feedback',
     items: [
-      { id: 20, label: 'Bible Classes', icon: Video, image: require('../../../assets/images/admin_dashboard/bible_classes.png') }
+      { id: 20, label: 'Bible Classes', icon: Video, image: require('../../../assets/images/admin_dashboard/bible_classes.png') },
+      { id: 21, label: 'Feedback', icon: MessageCircle, image: require('../../../assets/images/admin_dashboard/feedback.png') }
     ]
   },
   {
@@ -98,6 +104,32 @@ export default function AdminDashboard() {
   const { setActiveTab } = useContext(AdminTabContext);
   const { setViewMode, signOut, member } = useAuth();
   const { isDark, colors, toggleTheme } = useTheme();
+
+  const [backPressCount, setBackPressCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (backPressCount === 1) {
+          BackHandler.exitApp();
+          return true;
+        }
+        setBackPressCount(1);
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Are you sure you want to exit? Press back again to confirm.', ToastAndroid.SHORT);
+        }
+        setTimeout(() => setBackPressCount(0), 2000);
+        return true;
+      };
+
+      const backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        onBackPress
+      );
+
+      return () => backHandler.remove();
+    }, [backPressCount])
+  );
 
   const renderCard = (item: any, index: number, isTwoCols: boolean) => {
     // Determine card width and gap
@@ -173,19 +205,21 @@ export default function AdminDashboard() {
         <Image
           source={item.image}
           style={
-            item.id === 6 
+              item.id === 6 
               ? [StyleSheet.absoluteFillObject, { width: '100%', height: '150%', top: -10 }]
               : item.id === 8
               ? [StyleSheet.absoluteFillObject, { width: '100%', height: '150%', top: '-30%' }]
               : item.id === 9
               ? [StyleSheet.absoluteFillObject, { width: '100%', height: '150%', top: '-20%' }]
+              : item.id === 22
+              ? [StyleSheet.absoluteFillObject, { width: '100%', height: '100%', backgroundColor: '#5384c6' }]
               : [StyleSheet.absoluteFillObject, { 
                   width: '100%', height: '100%', 
                   backgroundColor: item.id === 1 ? '#fbf0dc' : item.id === 2 ? '#022d56' : item.id === 12 ? '#bcbec0' : [4, 11].includes(item.id) ? '#ffffff' : item.id === 5 ? '#c3e3c5' : 'transparent',
                   ...(item.id === 12 ? { transform: [{ scale: 1.25 }] } : {})
                 }]
           }
-          resizeMode={[1, 2, 3, 4, 5, 11, 12].includes(item.id) ? "contain" : "cover"}
+          resizeMode={[1, 2, 3, 4, 5, 11, 12, 22].includes(item.id) ? "contain" : "cover"}
         />
         <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
           <Defs>
@@ -484,6 +518,7 @@ const styles = StyleSheet.create({
   },
   bentoRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
   cardImageBg: {

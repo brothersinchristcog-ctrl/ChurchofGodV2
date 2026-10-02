@@ -230,15 +230,15 @@ export const getDonationReceiptHTML = (donation: any, authorizerName: string) =>
               </div>
               <div class="header-right">
                 <div class="receipt-badge">RECEIPT</div>
-                <div class="receipt-meta">Receipt No: <strong>${donation.id.replace('DON-', 'COG-')}</strong></div>
+                <div class="receipt-meta">Receipt No: <strong>${(donation.id || '').replace('DON-', 'COG-')}</strong></div>
                 <div class="receipt-meta">Date: <strong>${formatDate(donation.date)}</strong></div>
               </div>
             </div>
             
             <div class="acknowledgement-paragraph">
               We gratefully acknowledge the receipt of <span class="highlight-text">${formatCurrency(donation.amount)}</span> 
-              from <span class="highlight-name">${donation.name === 'Anonymous' ? 'Unknown Donor' : donation.name}</span> 
-              as a generous contribution towards <strong>${donation.type}</strong>.
+              from <span class="highlight-name">${(donation.userName || donation.name) === 'Anonymous' || !(donation.userName || donation.name) ? 'Unknown Donor' : (donation.userName || donation.name)}</span> 
+              as a generous contribution towards <strong>${donation.category || donation.type || 'Donation'}</strong>.
             </div>
             
             <table class="details-table">
@@ -251,8 +251,8 @@ export const getDonationReceiptHTML = (donation: any, authorizerName: string) =>
               </thead>
               <tbody>
                 <tr>
-                  <td><strong>${donation.type}</strong></td>
-                  <td>${donation.method} ${donation.ref && donation.ref !== '—' ? '<br/><span style="font-size:14px;color:#6B7280;">Ref: ' + donation.ref + '</span>' : ''}</td>
+                  <td><strong>${donation.category || donation.type || 'Donation'}</strong></td>
+                  <td>${donation.method || donation.paymentMethod || 'Online'} ${donation.ref && donation.ref !== '—' ? '<br/><span style="font-size:14px;color:#6B7280;">Ref: ' + donation.ref + '</span>' : ''}</td>
                   <td><strong>${formatCurrency(donation.amount)}</strong></td>
                 </tr>
               </tbody>
@@ -287,8 +287,8 @@ export const generateDonationReceipt = async (donation: any, share: boolean = fa
     const html = getDonationReceiptHTML(donation, authorizerName);
     const { uri } = await Print.printToFileAsync({ html });
     
-    const safeName = (donation.name === 'Anonymous' ? 'UnknownDonor' : donation.name).replace(/[^a-zA-Z0-9]/g, '');
-    const safeType = donation.type.replace(/[^a-zA-Z0-9]/g, '');
+    const safeName = (donation.name === 'Anonymous' ? 'UnknownDonor' : donation.name || '').replace(/[^a-zA-Z0-9]/g, '');
+    const safeType = (donation.type || '').replace(/[^a-zA-Z0-9]/g, '');
     const fileName = `COG-${safeName}-${safeType}.pdf`;
     const newUri = `${FileSystem.cacheDirectory}${fileName}`;
     
@@ -371,13 +371,17 @@ export const getBulkDonationReceiptHTML = (donations: any[], type: string, autho
   
   const date = new Date().toISOString();
 
-  const tableRows = donations.map((d: any) => `
+  const tableRows = donations.map((d: any) => {
+    const donorName = d.userName || d.name;
+    const displayName = (donorName === 'Anonymous' || !donorName) ? 'Unknown Donor' : donorName;
+    const displayMethod = d.method || d.paymentMethod || 'Online';
+    return `
     <tr>
-      <td><strong>${d.name === 'Anonymous' ? 'Unknown Donor' : d.name}</strong></td>
-      <td>${d.method} ${d.ref && d.ref !== '—' ? '<br/><span style="font-size:14px;color:#6B7280;">Ref: ' + d.ref + '</span>' : ''}</td>
+      <td><strong>${displayName}</strong></td>
+      <td>${displayMethod} ${d.ref && d.ref !== '—' ? '<br/><span style="font-size:14px;color:#6B7280;">Ref: ' + d.ref + '</span>' : ''}</td>
       <td><strong>${formatCurrency(d.amount)}</strong></td>
     </tr>
-  `).join('');
+  `}).join('');
 
   return `
       <html>
@@ -445,7 +449,7 @@ export const generateBulkDonationReceipt = async (donations: any[], type: string
     const html = getBulkDonationReceiptHTML(donations, type, authorizerName);
     const { uri } = await Print.printToFileAsync({ html });
     
-    const safeType = type.replace(/[^a-zA-Z0-9]/g, '');
+    const safeType = (type || '').replace(/[^a-zA-Z0-9]/g, '');
     const fileName = `COG-Bulk-${safeType}.pdf`;
     const newUri = `${FileSystem.cacheDirectory}${fileName}`;
     

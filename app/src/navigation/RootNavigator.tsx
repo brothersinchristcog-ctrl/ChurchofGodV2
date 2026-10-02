@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { Home, Heart, BookOpen, HandCoins, User } from 'lucide-react-native';
-import { ActivityIndicator, View, Text, StyleSheet, Alert, Platform, TouchableOpacity, Pressable, AppState, Image, Modal, TouchableWithoutFeedback } from 'react-native';
+import { ActivityIndicator, View, Text, StyleSheet, Alert, Platform, TouchableOpacity, Pressable, AppState, Image, Modal, TouchableWithoutFeedback, DeviceEventEmitter } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Lock, Phone, Bell, MessageCircle, X } from 'lucide-react-native';
@@ -16,6 +16,7 @@ import AdminNavigator from './AdminNavigator';
 import NotificationService from '../services/NotificationService';
 import SecurityService from '../services/SecurityService';
 import CelebrationPopup from '../components/CelebrationPopup';
+import SubscriptionModal from '../components/SubscriptionModal';
 
 
 // Auth & Onboarding
@@ -36,6 +37,7 @@ import PrayerWallScreen from '../screens/PrayerWallScreen';
 import GivingScreen from '../screens/GivingScreen';
 import SermonsScreen from '../screens/SermonsScreen';
 import SongsScreen from '../screens/SongsScreen';
+import SongViewScreen from '../screens/SongViewScreen';
 import EventDetailsScreen from '../screens/EventDetailsScreen';
 import UpdatesScreen from '../screens/UpdatesScreen';
 import BibleScreen from '../screens/BibleScreen';
@@ -54,7 +56,12 @@ import MemberBibleClasses from '../screens/member/bible_classes/MemberBibleClass
 import MemberBibleClassView from '../screens/member/bible_classes/MemberBibleClassView';
 import DailyCelebrationChatScreen from '../screens/DailyCelebrationChatScreen';
 import CelebrationHistoryScreen from '../screens/CelebrationHistoryScreen';
-
+import SubscriptionScreen from '../screens/SubscriptionScreen';
+import SubscriptionSuccessScreen from '../screens/SubscriptionSuccessScreen';
+import AppActivityScreen from '../screens/member/AppActivityScreen';
+import AttendanceScreen from '../screens/AttendanceScreen';
+import QRScannerScreen from '../screens/QRScannerScreen';
+import EventAttendeesScreen from '../screens/EventAttendeesScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -88,7 +95,8 @@ const CustomTabBarButton = ({ children, onPress }: any) => (
 );
 
 function TabNavigator() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, hasAccess } = useAuth();
+  const navigation = useNavigation<any>();
   const isGuest = user?.isAnonymous;
 
   const handleGuestInteraction = (e: any) => {
@@ -105,6 +113,26 @@ function TabNavigator() {
     }
   };
 
+  const handleRestrictedTab = (e: any) => {
+    if (isGuest) {
+      e.preventDefault();
+      handleGuestInteraction(e);
+      return;
+    }
+    if (!hasAccess) {
+      DeviceEventEmitter.emit('SHOW_SUB_MODAL');
+    }
+  };
+
+  React.useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('RESTRICTED_MODAL_DISMISSED', () => {
+      if (!hasAccess) {
+        navigation.navigate('Tabs', { screen: 'Home' });
+      }
+    });
+    return () => sub.remove();
+  }, [hasAccess, navigation]);
+
   const icons: any = {
     Home: Home,
     Promise: Book,
@@ -120,7 +148,11 @@ function TabNavigator() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Promise" component={PromiseArchiveScreen} /> 
-      <Tab.Screen name="Sermons" component={SermonsScreen} />
+      <Tab.Screen 
+        name="Sermons" 
+        component={SermonsScreen} 
+        listeners={{ tabPress: handleRestrictedTab }}
+      />
       <Tab.Screen 
         name="Prayer" 
         component={PrayerWallScreen} 
@@ -421,6 +453,7 @@ function Navigation() {
       <Stack.Screen name="Give" component={GivingScreen} />
       <Stack.Screen name="Sermons" component={SermonsScreen} />
       <Stack.Screen name="Songs" component={SongsScreen} />
+      <Stack.Screen name="SongView" component={SongViewScreen} />
       <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
       <Stack.Screen name="Updates" component={UpdatesScreen} />
       <Stack.Screen name="PrayerWall" component={PrayerWallScreen} />
@@ -447,6 +480,12 @@ function Navigation() {
       <Stack.Screen name="BibleClassView" component={MemberBibleClassView} />
       <Stack.Screen name="DailyCelebrationChat" component={DailyCelebrationChatScreen} />
       <Stack.Screen name="CelebrationHistory" component={CelebrationHistoryScreen} />
+      <Stack.Screen name="SubscriptionScreen" component={SubscriptionScreen} />
+      <Stack.Screen name="SubscriptionSuccessScreen" component={SubscriptionSuccessScreen} />
+      <Stack.Screen name="AppActivity" component={AppActivityScreen} />
+      <Stack.Screen name="Attendance" component={AttendanceScreen} />
+      <Stack.Screen name="QRScanner" component={QRScannerScreen} />
+      <Stack.Screen name="EventAttendees" component={EventAttendeesScreen} />
     </Stack.Navigator>
   );
 
@@ -517,7 +556,7 @@ function Navigation() {
       )}
       
       <CelebrationPopup member={member} />
-
+      <SubscriptionModal />
     </View>
   );
 }

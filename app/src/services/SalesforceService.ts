@@ -306,7 +306,7 @@ spfkUchVp71l4aWpCW50lro=
               firstName: exactMatch.FirstName,
               lastName: exactMatch.LastName,
               email: exactMatch.Email,
-              phone: exactMatch.Phone || exactMatch.MobilePhone,
+              phone: exactMatch.MobilePhone || exactMatch.Phone,
               userType: exactMatch.User_Type__c || 'Member',
               mailingCity: exactMatch.MailingCity,
               mailingState: exactMatch.MailingState,
@@ -360,6 +360,17 @@ spfkUchVp71l4aWpCW50lro=
     }
   }
 
+  async getAllMembers(): Promise<any[]> {
+    try {
+      const soql = `SELECT Id, Name, Phone, MobilePhone, MailingCity FROM Contact ORDER BY Name ASC LIMIT 1000`;
+      const result = await this.query(soql, true);
+      return result.records || [];
+    } catch (error) {
+      console.error('❌ [SalesforceService] getAllMembers Error:', error);
+      return [];
+    }
+  }
+
   async updateMemberProfile(contactId: string, details: any) {
     try {
       const token = await this.getAccessToken();
@@ -367,9 +378,15 @@ spfkUchVp71l4aWpCW50lro=
       if (details.firstName) body.FirstName = details.firstName;
       if (details.lastName) body.LastName = details.lastName;
       if (details.email) body.Email = details.email;
+      if (details.phone) {
+        body.MobilePhone = details.phone;
+      }
       if (details.mailingCity) body.MailingCity = details.mailingCity;
       if (details.mailingStreet) body.MailingStreet = details.mailingStreet;
       if (details.description !== undefined) body.Description = details.description;
+      if (details.birthdate !== undefined) body.Birthdate = details.birthdate || null;
+      if (details.baptismDate !== undefined) body.Date_of_Baptism__c = details.baptismDate || null;
+      if (details.anniversaryDate !== undefined) body.Anniversary_Date__c = details.anniversaryDate || null;
 
       const resp = await fetch(`${this.instanceUrl}/services/data/v60.0/sobjects/Contact/${contactId}`, {
         method: 'PATCH',
@@ -560,6 +577,28 @@ spfkUchVp71l4aWpCW50lro=
       return true;
     } catch (error) {
       console.error('❌ [SalesforceService] addFamilyMember Error:', error);
+      throw error;
+    }
+  }
+
+  async updateMemberUserType(contactId: string, userType: string): Promise<boolean> {
+    try {
+      const token = await this.getAccessToken();
+      const body = { User_Type__c: userType };
+
+      const resp = await fetch(`${this.instanceUrl}/services/data/v60.0/sobjects/Contact/${contactId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err[0]?.message || 'Failed to update member user type');
+      }
+      return true;
+    } catch (error) {
+      console.error('❌ [SalesforceService] updateMemberUserType Error:', error);
       throw error;
     }
   }
@@ -1235,6 +1274,17 @@ spfkUchVp71l4aWpCW50lro=
     }
   }
 
+  async getEventsCountThisMonth(): Promise<number> {
+    try {
+      const soql = `SELECT Id FROM Schedule_Event__c WHERE Date__c = THIS_MONTH AND Date__c <= TODAY`;
+      const result = await this.query(soql);
+      return result.totalSize || result.records.length || 0;
+    } catch (error) {
+      console.error('❌ [SalesforceService] getEventsCountThisMonth Error:', error);
+      return 0;
+    }
+  }
+
   async getUpcomingEvents(limit = 10): Promise<any[]> {
     try {
       const soql = `SELECT Id, Name, Title_Telugu__c, Date__c, Time__c, End_Time__c, Location__c, Location_Telugu__c, Address__c, Description__c, Banner_Image_URL__c, YouTube_ID__c FROM Schedule_Event__c WHERE Date__c >= TODAY ORDER BY Date__c ASC, Time__c ASC LIMIT ${limit}`;
@@ -1393,26 +1443,29 @@ spfkUchVp71l4aWpCW50lro=
 
   // --- 🙏 Prayer Wall ---
 
-  async getPrayerRequests(params?: { contactId?: string; isAdmin?: boolean }): Promise<any[]> {
+  async getPrayerRequests(params?: { contactId?: string; isAdmin?: boolean; publicWall?: boolean }): Promise<any[]> {
     try {
-      // Salesforce IDs are always 15 or 18 alphanumeric chars.
-      // Reject placeholder values like 'temp-bypass-id' that would cause SOQL errors.
       const isValidSfId = (id?: string) => !!id && /^[a-zA-Z0-9]{15,18}$/.test(id);
       const safeContactId = isValidSfId(params?.contactId) ? params!.contactId : undefined;
 
       let soql = `SELECT Id, SuppliedName, SuppliedPhone, Description, Detailed_Prayer_Request__c, Subject, Reason, Status, CreatedDate, (SELECT Id, CommentBody, CreatedDate, CreatedBy.Name FROM CaseComments ORDER BY CreatedDate ASC) FROM Case WHERE Type = 'Prayer Request'`;
-      
-      if (!params?.isAdmin) {
+
+      if (params?.publicWall) {
+        // Only show approved/published cards for the public wall
+        soql += ` AND Status = 'Approved'`;
+      } else if (!params?.isAdmin) {
         soql += safeContactId ? ` AND (ContactId = '${safeContactId}' OR ContactId = null)` : ` AND ContactId = null`;
       } else if (safeContactId) {
         soql += ` AND ContactId = '${safeContactId}'`;
       }
-      
+
       soql += ` ORDER BY CreatedDate DESC LIMIT 50`;
 
       const result = await this.query(soql, true).catch(async () => {
         let fallbackSoql = `SELECT Id, SuppliedName, SuppliedPhone, Description, Detailed_Prayer_Request__c, Subject, Reason, Status, CreatedDate FROM Case WHERE Type = 'Prayer Request'`;
-        if (!params?.isAdmin) {
+        if (params?.publicWall) {
+          fallbackSoql += ` AND Status = 'Approved'`;
+        } else if (!params?.isAdmin) {
           fallbackSoql += safeContactId ? ` AND (ContactId = '${safeContactId}' OR ContactId = null)` : ` AND ContactId = null`;
         } else if (safeContactId) {
           fallbackSoql += ` AND ContactId = '${safeContactId}'`;
@@ -1424,12 +1477,18 @@ spfkUchVp71l4aWpCW50lro=
       return result.records.map((rec: any) => {
         const replies = rec.CaseComments?.records?.map((c: any) => {
           const rawBody: string = (c.CommentBody || '').trim();
-          // Extract embedded author prefix: "[Name]: body"
           const prefixMatch = rawBody.match(/^\[([^\]]+)\]:\s*/);
           const author = prefixMatch ? prefixMatch[1] : (c.CreatedBy?.Name || 'Member');
           const body = prefixMatch ? rawBody.replace(prefixMatch[0], '').trim() : rawBody;
           return { id: c.Id, body, date: c.CreatedDate, author };
         }) || [];
+
+        const subject: string = rec.Subject || '';
+        const isPublic = subject.includes('[Public]');
+        const status = rec.Status || 'New';
+        const isPublished = status === 'Approved';
+        const isClosed = status === 'Closed';
+        const isAnswered = isClosed; // backward compat
 
         return {
           id: rec.Id,
@@ -1438,10 +1497,14 @@ spfkUchVp71l4aWpCW50lro=
           text: rec.Description || rec.Subject || 'Shared a prayer request.',
           textTe: rec.Detailed_Prayer_Request__c,
           isAnonymous: !rec.SuppliedName,
+          isPublic,
+          isPublished,
+          isClosed,
+          isAnswered,
           prayCount: Math.floor(Math.random() * 20) + 5,
-          isAnswered: rec.Status === 'Closed',
           createdAt: rec.CreatedDate,
-          category: rec.Reason || (rec.Subject?.includes('[') ? rec.Subject.split(']')[0].replace('[', '') : 'General'),
+          status,
+          category: rec.Reason || (rec.Subject?.includes('[') ? rec.Subject.split(']')[0].replace('[', '').replace('Public', '').trim() : 'General'),
           replies
         };
       });
@@ -1457,6 +1520,51 @@ spfkUchVp71l4aWpCW50lro=
         body: JSON.stringify({ Status: 'Closed' })
       });
       if (!resp.ok) throw new Error('Failed to update status');
+    } catch (error) { throw error; }
+  }
+
+  async approvePrivate(caseId: string) {
+    try {
+      const token = await this.getAccessToken();
+      const resp = await fetch(`${this.instanceUrl}/services/data/v60.0/sobjects/Case/${caseId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Status: 'Working' })
+      });
+      if (!resp.ok) throw new Error('Failed to approve prayer request');
+    } catch (error) { throw error; }
+  }
+
+  async approveAndPublish(caseId: string) {
+    try {
+      const token = await this.getAccessToken();
+      // Try 'Approved' first; if not valid picklist, fall back to 'Escalated'
+      let resp = await fetch(`${this.instanceUrl}/services/data/v60.0/sobjects/Case/${caseId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Status: 'Approved' })
+      });
+      if (!resp.ok) {
+        // Fallback to Escalated if Approved is not a valid picklist value
+        resp = await fetch(`${this.instanceUrl}/services/data/v60.0/sobjects/Case/${caseId}`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ Status: 'Escalated' })
+        });
+        if (!resp.ok) throw new Error('Failed to approve and publish prayer request');
+      }
+    } catch (error) { throw error; }
+  }
+
+  async closePrayerRequest(caseId: string) {
+    try {
+      const token = await this.getAccessToken();
+      const resp = await fetch(`${this.instanceUrl}/services/data/v60.0/sobjects/Case/${caseId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Status: 'Closed' })
+      });
+      if (!resp.ok) throw new Error('Failed to close prayer request');
     } catch (error) { throw error; }
   }
 
@@ -1497,7 +1605,7 @@ spfkUchVp71l4aWpCW50lro=
         firstName: rec.FirstName,
         lastName: rec.LastName,
         email: rec.Email,
-        phone: rec.Phone || rec.MobilePhone
+        phone: rec.MobilePhone || rec.Phone
       }));
     } catch (error) {
       console.error('❌ [SalesforceService] searchMembers Error:', error);
@@ -1554,7 +1662,10 @@ spfkUchVp71l4aWpCW50lro=
         Detailed_Prayer_Request__c: details.requestTe || details.request || '',
         Reason: details.category,
         How_can_we_support_you__c: details.category,
-        Subject: `Prayer Request: ${details.category}`,
+        // Prefix [Public] in Subject so it can be detected later without a custom field
+        Subject: details.isPublic
+          ? `[Public] Prayer Request: ${details.category}`
+          : `Prayer Request: ${details.category}`,
         Type: 'Prayer Request',
         Origin: 'Mobile App',
         Status: 'New'

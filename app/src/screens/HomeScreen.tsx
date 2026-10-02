@@ -19,7 +19,10 @@ import {
   Animated,
   Easing,
   PanResponder,
-  InteractionManager
+  InteractionManager,
+  DeviceEventEmitter,
+  BackHandler,
+  ToastAndroid
 } from 'react-native';
 
 import { 
@@ -53,16 +56,19 @@ import {
   Droplet,
   Image as ImageIcon,
   Video,
+  QrCode
 } from 'lucide-react-native';
 
 import firestore from '@react-native-firebase/firestore';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import * as Location from 'expo-location';
 import { useAuth } from '../context/AuthContext';
 import Theme from '../theme/Theme';
 import SalesforceService, { DailyPromise, ScheduleEvent, SalesforceMember, Sermon } from '../services/SalesforceService';
 import Svg, { Path, Circle, Rect, Polygon, Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import AnimatedCheckCircle from '../components/AnimatedCheckCircle';
 
 const YoutubeIcon = ({ size = 26, color = '#fff' }: { size?: number; color?: string }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
@@ -320,7 +326,7 @@ const InfographicNav = ({ navigation, setShowMorePopup, isDark }: any) => {
   );
 };
 
-const UpcomingEventItem = React.memo(({ item, index, eventsLength, navigation, formatTime, formatTeluguDate }: any) => (
+const UpcomingEventItem = React.memo(({ item, index, eventsLength, navigation, formatTime, formatTeluguDate, isActualAdmin }: any) => (
   <View>
     <TouchableOpacity 
       style={styles.ebItem} 
@@ -362,6 +368,8 @@ const UpcomingEventItem = React.memo(({ item, index, eventsLength, navigation, f
         <Text style={styles.ebDetailsLink}>Details →</Text>
       </View>
     </TouchableOpacity>
+
+
     {index < eventsLength - 1 && <View style={styles.ebDivider} />}
   </View>
 ));
@@ -497,6 +505,8 @@ const AnimatedSweepLine = () => {
   );
 };
 
+let hasDismissedSubModalThisSession = false;
+
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
   const { user, signOut, viewMode, setViewMode, member, setMember } = useAuth();
@@ -513,6 +523,59 @@ export default function HomeScreen() {
   const [showMorePopup, setShowMorePopup] = useState(false);
   const [showDevotionPopup, setShowDevotionPopup] = useState(false);
   const [isLanguageModalVisible, setIsLanguageModalVisible] = useState(false);
+  const { hasAccess } = useAuth(); // from AuthContext
+
+  const [backPressCount, setBackPressCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (backPressCount === 1) {
+          BackHandler.exitApp();
+          return true;
+        }
+        setBackPressCount(1);
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Are you sure you want to exit? Press back again to confirm.', ToastAndroid.SHORT);
+        }
+        setTimeout(() => setBackPressCount(0), 2000);
+        return true;
+      };
+
+      const backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        onBackPress
+      );
+
+      return () => backHandler.remove();
+    }, [backPressCount])
+  );
+
+  const handleRestrictedNavigate = (screenName: string, action?: () => void) => {
+    if (!hasAccess) {
+      DeviceEventEmitter.emit('SHOW_SUB_MODAL');
+    } else {
+      if (action) {
+        action();
+      } else {
+        navigation.navigate(screenName);
+      }
+    }
+  };
+
+  // Popup subscription modal after 3 seconds if not active
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    // We only want to trigger this if we definitively know they are not active
+    if (!hasAccess) {
+      timeout = setTimeout(() => {
+        DeviceEventEmitter.emit('SHOW_SUB_MODAL');
+      }, 3000);
+    }
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [hasAccess]);
 
   const userTypeStr = member?.userType?.toLowerCase() || '';
   const isActualAdmin = userTypeStr === 'admin' || 
@@ -622,16 +685,17 @@ export default function HomeScreen() {
     const interactionPromise = InteractionManager.runAfterInteractions(() => {
       fetchData();
     });
+
     return () => interactionPromise.cancel();
   }, [user]);
 
   // Carousel auto-slide logic
   useEffect(() => {
-    if (!promiseThumbnail) return;
     setCarouselSlide(0);
+    const numSlides = promiseThumbnail ? 3 : 2;
     const interval = setInterval(() => {
       setCarouselSlide(prev => {
-        const next = prev === 0 ? 1 : 0;
+        const next = (prev + 1) % numSlides;
         carouselScrollRef.current?.scrollTo({ x: next * (width - 32), animated: true });
         return next;
       });
@@ -710,6 +774,23 @@ export default function HomeScreen() {
     }
   };
 
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const [headerHeight, setHeaderHeight] = useState(Platform.OS === 'ios' ? 230 : 215);
+  const [topPartHeight, setTopPartHeight] = useState(Platform.OS === 'ios' ? 112 : 97);
+
+  const [animateAttendance, setAnimateAttendance] = useState(false);
+  const attendanceBadgeY = useRef(0);
+
+  useEffect(() => {
+    if (animateAttendance) return;
+    const id = scrollY.addListener(({ value }) => {
+      if (attendanceBadgeY.current > 0 && value + Dimensions.get('window').height * 0.9 > attendanceBadgeY.current) {
+        setAnimateAttendance(true);
+      }
+    });
+    return () => scrollY.removeListener(id);
+  }, [animateAttendance, scrollY]);
+
   if (loading && !refreshing) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: '#1a2d5a' }]}>
@@ -719,10 +800,26 @@ export default function HomeScreen() {
     );
   }
 
+  const headerTranslateY = scrollY.interpolate({
+    inputRange: [0, Math.max(1, topPartHeight)],
+    outputRange: [0, -topPartHeight],
+    extrapolate: 'clamp',
+  });
+
   return (
     <View style={[styles.mainContainer, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
       <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
       
+      <Animated.View style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+        transform: [{ translateY: headerTranslateY }]
+      }}
+      onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
+      >
       <LinearGradient
         colors={isDark ? ['#1e40af', '#3b82f6'] : ['transparent', 'transparent']}
         start={{ x: 0, y: 0 }}
@@ -747,7 +844,10 @@ export default function HomeScreen() {
           style={[styles.appHeader, { elevation: 0, shadowOpacity: 0 }]}
         >
           <Embers />
-          <View style={styles.headerTopRow}>
+          <View 
+            style={styles.headerTopRow}
+            onLayout={(e) => setTopPartHeight(e.nativeEvent.layout.height + (Platform.OS === 'ios' ? 60 : 45))}
+          >
             <View style={styles.headerLeft}>
               <View style={styles.emblemContainer}>
                 <Image 
@@ -769,18 +869,6 @@ export default function HomeScreen() {
                   <Path d="M13.73 21a2 2 0 01-3.46 0" stroke="#e8d9ac" />
                 </Svg>
                 <View style={styles.notifBadge} />
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.avatarWrapper} onPress={() => navigation.navigate('Profile')}>
-                {user?.photoURL ? (
-                  <Image source={{ uri: user.photoURL }} style={styles.avatarImg} />
-                ) : (
-                  <LinearGradient colors={['#d4b26a', '#8a6a2e']} style={styles.avatarPlaceholder}>
-                    <Text style={styles.avatarLetter}>
-                      {(member?.firstName || user?.displayName || 'S').charAt(0).toUpperCase()}
-                    </Text>
-                  </LinearGradient>
-                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -841,15 +929,22 @@ export default function HomeScreen() {
             </View>
           </View>
         </LinearGradient>
-      </LinearGradient>
+        </LinearGradient>
+      </Animated.View>
 
-      <ScrollView 
+      <Animated.ScrollView 
         style={styles.scroll} 
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1a2d5a" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1a2d5a" progressViewOffset={headerHeight} />
         }
       >
+        <View style={{ height: headerHeight }} />
         <EventMarquee events={todayEvents} onEventPress={(event) => navigation.navigate('EventDetails', { event })} />
         <View style={styles.contentPad}>
           {/* ── Daily Promise Carousel ── */}
@@ -946,36 +1041,103 @@ export default function HomeScreen() {
                   </View>
                 </View>
               )}
+              {/* Service Timings Slide */}
+              <LinearGradient 
+                colors={['#0f172a', '#2b4a92']} 
+                start={{ x: 0, y: 0 }} 
+                end={{ x: 1, y: 1 }} 
+                style={[styles.phSlide, styles.phInner, { padding: 24 }]}
+              >
+                <View style={styles.phHeaderCenter}>
+                  <Text style={[styles.phLabelCenter, { color: '#cbd5e1', fontSize: 14 }]}>OUR SERVICE TIMINGS</Text>
+                  <View style={[styles.phRedDivider, { backgroundColor: '#cbd5e1', width: 60, marginTop: 8 }]} />
+                </View>
+
+                <View style={{ marginTop: 20, width: '100%' }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Sunday Service</Text>
+                    <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '500' }}>10:30 AM - 1:00 PM</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Bible Study</Text>
+                    <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '500' }}>6:30 PM - 8:00 PM</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Women's Fasting</Text>
+                    <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '500' }}>11:00 AM - 3:00 PM</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <View>
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Special Meeting</Text>
+                      <Text style={{ color: '#94a3b8', fontSize: 10, marginTop: 2 }}>(2nd Saturday in every month)</Text>
+                    </View>
+                    <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '500' }}>10:00 AM - 4:00 PM</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <View>
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>All Night Prayer</Text>
+                      <Text style={{ color: '#94a3b8', fontSize: 10, marginTop: 2 }}>(Last Friday in every month)</Text>
+                    </View>
+                    <Text style={{ color: '#cbd5e1', fontSize: 13, fontWeight: '500' }}>9:00 PM - 4:00 AM</Text>
+                  </View>
+                </View>
+              </LinearGradient>
             </ScrollView>
 
-            {/* Dot Indicators (only shown when thumbnail exists) */}
-            {promiseThumbnail && (
-              <View style={styles.dotRow}>
-                {[0, 1].map(i => (
-                  <TouchableOpacity key={i} onPress={() => goToSlide(i)} style={styles.dotHit}>
-                    <View style={[styles.dot, carouselSlide === i && styles.dotActive]} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+            {/* Dot Indicators */}
+            <View style={styles.dotRow}>
+              {Array.from({ length: promiseThumbnail ? 3 : 2 }).map((_, i) => (
+                <TouchableOpacity key={i} onPress={() => goToSlide(i)} style={styles.dotHit}>
+                  <View style={[styles.dot, carouselSlide === i && styles.dotActive]} />
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           <Text style={[styles.secLbl, isDark && { color: '#fff' }]}>QUICK ACCESS</Text>
           <View style={styles.iconGrid}>
-            <GridItem icon={<Mic size={26} color="#fff" />} label="Sermons" color="#1a2d5a" onPress={() => navigation.navigate('Sermons')} />
+            <GridItem icon={<Mic size={26} color="#fff" />} label="Sermons" color="#1a2d5a" onPress={() => handleRestrictedNavigate('Sermons')} />
             <GridItem icon={<Heart size={26} color="#fff" />} label="Prayer Wall" color="#c0392b" onPress={() => navigation.navigate('Prayer')} />
-            <GridItem icon={<Calendar size={26} color="#fff" />} label="Events" color="#0F766E" onPress={() => navigation.navigate('Events')} />
+            <GridItem icon={<Calendar size={26} color="#fff" />} label="Events" color="#0F766E" onPress={() => handleRestrictedNavigate('Events')} />
             <GridItem icon={<DollarSign size={26} color="#fff" />} label="Give / Tithe" color="#f0a500" onPress={() => setShowGivePopup(true)} />
             
-            <GridItem icon={<BookOpen size={26} color="#fff" />} label="Bible" color="#7C3AED" onPress={() => navigation.navigate('Bible')} />
-            <GridItem icon={<Music size={26} color="#fff" />} label="Songs" color="#0369a1" onPress={() => navigation.navigate('Songs')} />
+            <GridItem icon={<BookOpen size={26} color="#fff" />} label="Bible" color="#7C3AED" onPress={() => handleRestrictedNavigate('Bible')} />
+            <GridItem icon={<Music size={26} color="#fff" />} label="Songs" color="#0369a1" onPress={() => handleRestrictedNavigate('Songs')} />
             <GridItem icon={<FileText size={26} color="#fff" />} label="Sermon Notes" color="#BE185D" onPress={() => navigation.navigate('MemberNotes')} />
-            <GridItem icon={<Award size={26} color="#fff" />} label="Bible Plans" color="#374151" onPress={() => navigation.navigate('BiblePlans')} />
+            <GridItem icon={<Award size={26} color="#fff" />} label="Bible Plans" color="#374151" onPress={() => handleRestrictedNavigate('BiblePlans')} />
 
             <GridItem icon={<Bell size={26} color="#fff" />} label="Updates" color="#0284c7" onPress={() => navigation.navigate('Updates')} />
-            <GridItem icon={<YoutubeIcon size={26} color="#fff" />} label="YouTube Live" color="#ef4444" onPress={() => Linking.openURL('https://www.youtube.com/@Brothersinchristfellowship/live')} />
+            <GridItem icon={<YoutubeIcon size={26} color="#fff" />} label="YouTube Live" color="#ef4444" onPress={() => handleRestrictedNavigate('', () => Linking.openURL('https://www.youtube.com/@Brothersinchristfellowship/live'))} />
             <GridItem icon={<Users size={26} color="#fff" />} label="Members" color="#db2777" onPress={handleOpenMembers} />
-            <GridItem icon={<Video size={26} color="#fff" />} label="Bible Classes" color="#b45309" onPress={() => navigation.navigate('BibleClasses')} />
+            <GridItem icon={<Video size={26} color="#fff" />} label="Bible Classes" color="#b45309" onPress={() => handleRestrictedNavigate('BibleClasses')} />
+          </View>
+
+          <View 
+            style={{ alignItems: 'center', marginTop: 12, marginBottom: 4 }}
+            onLayout={(e) => {
+              // Add offset since the badge is inside the scrollview content
+              attendanceBadgeY.current = e.nativeEvent.layout.y;
+            }}
+          >
+            <TouchableOpacity 
+              style={{
+                flexDirection: 'row', 
+                alignItems: 'center', 
+                backgroundColor: '#16a34a', 
+                paddingVertical: 10, 
+                paddingHorizontal: 24, 
+                borderRadius: 24,
+                elevation: 2,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 3
+              }} 
+              onPress={() => handleRestrictedNavigate('Attendance')}
+            >
+              <AnimatedCheckCircle size={20} color="#fff" style={{ marginRight: 8 }} animate={animateAttendance} />
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Attendance</Text>
+            </TouchableOpacity>
           </View>
 
           <InfographicNav 
@@ -983,8 +1145,11 @@ export default function HomeScreen() {
             setShowMorePopup={setShowMorePopup} isDark={isDark} />
 
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 24, marginBottom: 12, marginTop: 15 }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: isDark ? '#fff' : '#1a2d5a' }}>Upcoming Events</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Events')}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Calendar size={20} color={isDark ? '#fff' : '#1a2d5a'} style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 18, fontWeight: '800', color: isDark ? '#fff' : '#1a2d5a' }}>Upcoming Events</Text>
+            </View>
+            <TouchableOpacity onPress={() => handleRestrictedNavigate('Events')}>
               <Text style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', fontWeight: '600' }}>See all →</Text>
             </TouchableOpacity>
           </View>
@@ -1001,6 +1166,7 @@ export default function HomeScreen() {
                     navigation={navigation}
                     formatTime={formatTime}
                     formatTeluguDate={formatTeluguDate}
+                    isActualAdmin={isActualAdmin}
                   />
                 ))
               ) : (
@@ -1014,8 +1180,11 @@ export default function HomeScreen() {
           </View>
 
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 24, marginBottom: 12, marginTop: 15 }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: isDark ? '#fff' : '#1a2d5a' }}>Latest Sermon</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Sermons')}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Mic size={20} color={isDark ? '#fff' : '#1a2d5a'} style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 18, fontWeight: '800', color: isDark ? '#fff' : '#1a2d5a' }}>Latest Sermon</Text>
+            </View>
+            <TouchableOpacity onPress={() => handleRestrictedNavigate('Sermons')}>
               <Text style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', fontWeight: '600' }}>See all →</Text>
             </TouchableOpacity>
           </View>
@@ -1039,7 +1208,10 @@ export default function HomeScreen() {
           </View>
 
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: 24, marginBottom: 12, marginTop: 15 }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: isDark ? '#fff' : '#1a2d5a' }}>Prayer Wall</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Heart size={20} color={isDark ? '#fff' : '#1a2d5a'} style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 18, fontWeight: '800', color: isDark ? '#fff' : '#1a2d5a' }}>Prayer Wall</Text>
+            </View>
             <Text style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', fontWeight: '600' }}>{prayerCount} requests</Text>
           </View>
           <View style={[styles.prayerCard, { marginTop: 0, marginBottom: 40 }]}>
@@ -1059,7 +1231,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {isActualAdmin && viewMode === 'member' && (
         <Animated.View
@@ -1640,7 +1812,7 @@ const styles = StyleSheet.create({
   ebSeeAll: { fontSize: 11, color: '#aac4e8', fontWeight: '600' },
   ebList: { padding: 0 },
   ebItem: { flexDirection: 'row', padding: 15, alignItems: 'center' },
-  ebDivider: { height: 1, backgroundColor: '#f1f5f9', marginHorizontal: 15 },
+  ebDivider: { height: 1.5, backgroundColor: '#94a3b8', marginHorizontal: 15, opacity: 0.6 },
   ebThumbnailContainer: { width: 100, height: 56, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
   ebThumbnail: { width: 100, height: 56, borderRadius: 8 },
   ebInfo: { flex: 1 },
@@ -1863,4 +2035,75 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  subModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  subModalCard: {
+    backgroundColor: '#18181b', // very dark gray/black
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#27272a',
+    width: '100%',
+    padding: 32,
+    paddingTop: 48,
+    alignItems: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  subModalClose: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    padding: 4,
+  },
+  subModalIconWrapper: {
+    alignSelf: 'center',
+    marginBottom: 32,
+  },
+  subModalIconGradient: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    transform: [{ rotate: '15deg' }],
+  },
+  subModalExclamation: {
+    color: '#fff',
+    fontSize: 40,
+    fontWeight: '900',
+    transform: [{ rotate: '-15deg' }],
+  },
+  subModalTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 20,
+    lineHeight: 38,
+  },
+  subModalBody: {
+    fontSize: 16,
+    color: '#d4d4d8',
+    lineHeight: 24,
+    marginBottom: 32,
+  },
+  subModalButton: {
+    backgroundColor: '#ffffff',
+    width: '100%',
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  subModalButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '700',
+  }
 });
