@@ -1113,7 +1113,7 @@ export default function HomeScreen() {
           </View>
 
           <View 
-            style={{ alignItems: 'center', marginTop: 12, marginBottom: 4 }}
+            style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 12, marginBottom: 4, gap: 12 }}
             onLayout={(e) => {
               // Add offset since the badge is inside the scrollview content
               attendanceBadgeY.current = e.nativeEvent.layout.y;
@@ -1125,7 +1125,7 @@ export default function HomeScreen() {
                 alignItems: 'center', 
                 backgroundColor: '#16a34a', 
                 paddingVertical: 10, 
-                paddingHorizontal: 24, 
+                paddingHorizontal: 20, 
                 borderRadius: 24,
                 elevation: 2,
                 shadowColor: '#000',

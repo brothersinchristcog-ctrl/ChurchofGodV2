@@ -27,6 +27,12 @@ class NotificationService {
 
   async getFcmToken() {
     try {
+      if (Platform.OS === 'ios') {
+        const isRegistered = messaging().isDeviceRegisteredForRemoteMessages;
+        if (!isRegistered) {
+          await messaging().registerDeviceForRemoteMessages();
+        }
+      }
       const token = await messaging().getToken();
       if (token) {
         console.log('✅ FCM Token Found:', token);

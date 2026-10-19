@@ -490,8 +490,8 @@ spfkUchVp71l4aWpCW50lro=
 
         // Personal
         { Current_Church__c: data.churchName },
-        { Birthdate: data.dob || null },
-        { Gender__c: data.gender },
+        ...(data.dob ? [{ Birthdate: data.dob }] : []),
+        ...(data.gender ? [{ Gender__c: data.gender }] : []),
         // Grouped Marital: Must send together to satisfy Validation Rules
         { 
           Martial_Status__c: data.maritalStatus,

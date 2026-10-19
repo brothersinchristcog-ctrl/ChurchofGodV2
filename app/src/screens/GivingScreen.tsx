@@ -36,7 +36,11 @@ import { useTheme } from '../context/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import firestore from '@react-native-firebase/firestore';
 import functions from '@react-native-firebase/functions';
-import RazorpayCheckout from 'react-native-razorpay';
+
+let RazorpayCheckout: any = null;
+if (Platform.OS !== 'ios') {
+  RazorpayCheckout = require('react-native-razorpay').default;
+}
 import ReceiptModal, { DonationRecord } from '../components/ReceiptModal';
 
 const { width } = Dimensions.get('window');

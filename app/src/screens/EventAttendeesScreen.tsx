@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { 
   StyleSheet, 
   View, 
@@ -15,7 +16,9 @@ import {
   ToastAndroid,
   Image,
   Animated,
-  Linking
+  Linking,
+  BackHandler,
+  Easing
 } from 'react-native';
 import { 
   ArrowLeft,
@@ -27,6 +30,7 @@ import {
   MapPin,
   Phone
 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -55,6 +59,7 @@ interface UnifiedMember {
 export default function EventAttendeesScreen({ navigation, route }: any) {
   const { eventId, eventName } = route.params;
   const { member } = useAuth();
+  const insets = useSafeAreaInsets();
   
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,32 +68,80 @@ export default function EventAttendeesScreen({ navigation, route }: any) {
   const qrRef = useRef<any>(null);
   
   const [allMembers, setAllMembers] = useState<UnifiedMember[]>([]);
-  const [selectedMemberModal, setSelectedMemberModal] = useState<UnifiedMember | null>(null);
-  const slideAnim = useRef(new Animated.Value(500)).current;
+  const [modalMember, setModalMember] = useState<UnifiedMember | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const slideAnim = useRef(new Animated.Value(600)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Accurately compute bottom inset across different Android OEMs and navigation types
+  const screenHeight = Dimensions.get('screen').height;
+  const windowHeight = Dimensions.get('window').height;
+  const navBarHeight = Math.max(screenHeight - windowHeight, 0);
+  const safeBottomPadding = Math.max(
+    insets.bottom,
+    navBarHeight,
+    Platform.OS === 'android' ? 60 : 20
+  ) + 24;
+
+  const openMemberModal = (item: UnifiedMember) => {
+    setModalMember(item);
+    setIsModalOpen(true);
+    slideAnim.setValue(600);
+    fadeAnim.setValue(0);
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 280,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const closeMemberModal = () => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 220,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 600,
+        duration: 240,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setIsModalOpen(false);
+      setModalMember(null);
+    });
+  };
 
   useEffect(() => {
-    if (selectedMemberModal) {
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        damping: 20,
-        stiffness: 150
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: 500,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [selectedMemberModal]);
+    if (!isModalOpen) return;
+    const onBackPress = () => {
+      closeMemberModal();
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [isModalOpen]);
   const [presentCount, setPresentCount] = useState(0);
   const [absentCount, setAbsentCount] = useState(0);
   const [userPhotos, setUserPhotos] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    fetchData();
-  }, [eventId]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [eventId])
+  );
 
   const fetchUserPhotos = async (): Promise<Record<string, string>> => {
     try {
@@ -325,8 +378,8 @@ export default function EventAttendeesScreen({ navigation, route }: any) {
     return (
       <TouchableOpacity 
         style={styles.attendeeCard} 
-        onPress={() => setSelectedMemberModal(item)} 
-        activeOpacity={0.7}
+        onPress={() => openMemberModal(item)} 
+        activeOpacity={0.85}
         disabled={member?.userType !== 'Admin'}
       >
         {photoUrl ? (
@@ -473,70 +526,105 @@ export default function EventAttendeesScreen({ navigation, route }: any) {
           data={displayList}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 40 : 20) + 20 }]}
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => <View style={styles.divider} />}
         />
       )}
 
-      {/* Member Details Modal */}
-      <Modal visible={!!selectedMemberModal} transparent={true} animationType="fade" onRequestClose={() => setSelectedMemberModal(null)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }}>
-          <TouchableOpacity style={{ flex: 1, justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setSelectedMemberModal(null)}>
+      {/* Member Details Bottom Sheet (In-screen overlay to prevent backdrop blinking) */}
+      {isModalOpen && (
+        <View style={[StyleSheet.absoluteFillObject, { zIndex: 9999, elevation: 12 }]}>
+          {/* Hardware-accelerated solid black fade to avoid RGBA alpha re-render blink */}
+          <Animated.View 
+            style={[
+              StyleSheet.absoluteFillObject, 
+              { 
+                backgroundColor: '#000000', 
+                opacity: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 0.52],
+                  extrapolate: 'clamp'
+                }) 
+              }
+            ]} 
+          />
+          <TouchableOpacity 
+            style={{ flex: 1, justifyContent: 'flex-end' }} 
+            activeOpacity={1} 
+            onPress={closeMemberModal}
+          >
+            {/* Smooth bottom slide card */}
             <Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
-              <TouchableOpacity activeOpacity={1} style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24 }}>
-                <View style={{ width: 40, height: 4, backgroundColor: '#e2e8f0', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
-            
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
-              {selectedMemberModal?.profilePicture ? (
-                <Image source={{ uri: selectedMemberModal.profilePicture }} style={{ width: 64, height: 64, borderRadius: 32, marginRight: 16 }} />
-              ) : (
-                <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
-                  <Text style={{ fontSize: 24, fontWeight: '700', color: '#64748b' }}>{getInitials(selectedMemberModal?.name || '')}</Text>
-                </View>
-              )}
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: '#0f172a', marginBottom: 4 }}>{selectedMemberModal?.name}</Text>
-                <View style={[styles.badge, { alignSelf: 'flex-start', backgroundColor: selectedMemberModal?.status === 'Present' ? '#dcfce7' : '#f1f5f9' }]}>
-                  <Text style={[styles.badgeText, { color: selectedMemberModal?.status === 'Present' ? '#16a34a' : '#64748b' }]}>{selectedMemberModal?.status}</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={{ gap: 16 }}>
               <TouchableOpacity 
-                style={{ flexDirection: 'row', alignItems: 'center' }}
-                activeOpacity={0.7}
-                onPress={() => {
-                  if (selectedMemberModal?.mobile) {
-                    Linking.openURL(`tel:${selectedMemberModal.mobile}`);
-                  }
+                activeOpacity={1} 
+                style={{ 
+                  backgroundColor: '#fff', 
+                  borderTopLeftRadius: 24, 
+                  borderTopRightRadius: 24, 
+                  padding: 24, 
+                  paddingBottom: safeBottomPadding 
                 }}
               >
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                  <Phone size={18} color="#0f172a" />
+                <View style={{ width: 40, height: 4, backgroundColor: '#e2e8f0', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
+            
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
+                  {modalMember?.profilePicture ? (
+                    <Image source={{ uri: modalMember.profilePicture }} style={{ width: 64, height: 64, borderRadius: 32, marginRight: 16 }} />
+                  ) : (
+                    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+                      <Text style={{ fontSize: 24, fontWeight: '700', color: '#64748b' }}>{getInitials(modalMember?.name || '')}</Text>
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 20, fontWeight: '700', color: '#0f172a', marginBottom: 4 }}>{modalMember?.name}</Text>
+                    <View style={[styles.badge, { alignSelf: 'flex-start', backgroundColor: modalMember?.status === 'Present' ? '#dcfce7' : '#f1f5f9' }]}>
+                      <Text style={[styles.badgeText, { color: modalMember?.status === 'Present' ? '#16a34a' : '#64748b' }]}>{modalMember?.status}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={closeMemberModal}
+                    style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <X size={18} color="#64748b" />
+                  </TouchableOpacity>
                 </View>
-                <View>
-                  <Text style={{ fontSize: 13, color: '#64748b', marginBottom: 2 }}>Mobile Number</Text>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#2563eb' }}>{selectedMemberModal?.mobile || 'Not available'}</Text>
+
+                <View style={{ gap: 16 }}>
+                  <TouchableOpacity 
+                    style={{ flexDirection: 'row', alignItems: 'center' }}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      if (modalMember?.mobile) {
+                        Linking.openURL(`tel:${modalMember.mobile}`);
+                      }
+                    }}
+                  >
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                      <Phone size={18} color="#0f172a" />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 13, color: '#64748b', marginBottom: 2 }}>Mobile Number</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: '#2563eb' }}>{modalMember?.mobile || 'Not available'}</Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                      <MapPin size={18} color="#0f172a" />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 13, color: '#64748b', marginBottom: 2 }}>Village / Location</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: '#0f172a' }}>{modalMember?.village || 'Not available'}</Text>
+                    </View>
+                  </View>
                 </View>
               </TouchableOpacity>
-
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                  <MapPin size={18} color="#0f172a" />
-                </View>
-                <View>
-                  <Text style={{ fontSize: 13, color: '#64748b', marginBottom: 2 }}>Village / Location</Text>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#0f172a' }}>{selectedMemberModal?.village || 'Not available'}</Text>
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-          </Animated.View>
+            </Animated.View>
           </TouchableOpacity>
         </View>
-      </Modal>
+      )}
 
     </View>
   );

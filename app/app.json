@@ -3,17 +3,20 @@
     "name": "Church of God",
     "slug": "app",
     "scheme": "com.brothersinchrist.churchofgod",
-    "version": "1.0.5",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
-
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.brothersinchrist.churchofgod",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "This app requires access to the camera so you can take and upload a profile picture.",
+        "NSPhotoLibraryUsageDescription": "This app requires access to your photo library to select and upload a profile picture.",
+        "NSPhotoLibraryAddUsageDescription": "This app requires permission to save photos to your photo library.",
+        "NSContactsUsageDescription": "This app allows church administrators to select and invite contacts to the church community."
       }
     },
     "android": {
@@ -33,17 +36,25 @@
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
       ],
       "softwareKeyboardLayoutMode": "pan",
-      "versionCode": 9
+      "versionCode": 10
     },
     "web": {
       "favicon": "./assets/logo.png"
     },
     "plugins": [
+      "@react-native-firebase/app/app.plugin.js",
+      "@react-native-firebase/auth/app.plugin.js",
       "@react-native-community/datetimepicker",
       [
         "expo-media-library",
         {
           "saveOnly": true
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "This app allows church administrators to select and invite contacts to the church community."
         }
       ],
       "expo-font",
@@ -57,7 +68,16 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      "./plugins/with-rnfb-fix.js"
     ],
     "extra": {
       "eas": {

@@ -8,6 +8,8 @@ export interface AttendanceRecord {
   memberName: string;
   locationName?: string;
   timestamp: Date;
+  markedBy?: string;
+  markedByName?: string;
 }
 
 class AttendanceService {
@@ -16,7 +18,18 @@ class AttendanceService {
   /**
    * Log attendance for a member at a specific event.
    */
-  async logAttendance(eventId: string, eventName: string, memberId: string, memberName: string, locationName?: string): Promise<boolean> {
+  async logAttendance(
+    eventId: string, 
+    eventName: string, 
+    memberId: string, 
+    memberName: string, 
+    locationName?: string,
+    markedBy?: { id: string; name: string }
+  ): Promise<boolean> {
+    if (!eventId || !memberId) {
+      console.warn('⚠️ [AttendanceService] Cannot log attendance: missing eventId or memberId', { eventId, memberId });
+      return false;
+    }
     try {
       // Check if attendance already logged to avoid duplicates
       const existing = await this.collection
@@ -29,14 +42,21 @@ class AttendanceService {
         return true; // Return true as they are already marked as attended
       }
 
-      await this.collection.add({
+      const docData: any = {
         eventId,
         eventName,
         memberId,
         memberName,
         locationName: locationName || 'Unspecified',
         timestamp: firestore.FieldValue.serverTimestamp(),
-      });
+      };
+
+      if (markedBy?.id) {
+        docData.markedBy = markedBy.id;
+        docData.markedByName = markedBy.name || '';
+      }
+
+      await this.collection.add(docData);
 
       console.log('✅ Attendance logged successfully!');
       return true;
@@ -70,6 +90,7 @@ class AttendanceService {
    * Check if a specific member has already logged attendance for an event
    */
   async hasAttended(eventId: string, memberId: string): Promise<boolean> {
+    if (!eventId || !memberId) return false;
     try {
       const existing = await this.collection
         .where('eventId', '==', eventId)

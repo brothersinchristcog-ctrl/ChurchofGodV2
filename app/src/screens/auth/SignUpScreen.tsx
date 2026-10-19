@@ -45,7 +45,7 @@ export default function SignUpScreen({ navigation }: any) {
     dob: '',
     phone: '',
     email: '',
-    gender: 'Male',
+    gender: '',
     maritalStatus: 'Single',
     anniversaryDate: '',
     numberOfChildren: '',
@@ -253,56 +253,53 @@ export default function SignUpScreen({ navigation }: any) {
                 />
               </View>
 
-              {/* DATE OF BIRTH & GENDER ROW */}
-              <View style={styles.rowGrid}>
-                {/* DATE OF BIRTH */}
-                <View style={[styles.inputGroup, { flex: 1.1 }]}>
-                  <Text style={styles.fieldLabel}>DATE OF BIRTH</Text>
-                  <TouchableOpacity
-                    style={styles.datePickerBtn}
-                    activeOpacity={0.8}
-                    onPress={() => showDatePicker('dob')}
+              {/* DATE OF BIRTH (OPTIONAL) */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>DATE OF BIRTH (OPTIONAL)</Text>
+                <TouchableOpacity
+                  style={styles.datePickerBtn}
+                  activeOpacity={0.8}
+                  onPress={() => showDatePicker('dob')}
+                >
+                  <Text
+                    style={[
+                      styles.datePickerTxt,
+                      !formData.dob && { color: '#4a5b78' }
+                    ]}
                   >
-                    <Text
-                      style={[
-                        styles.datePickerTxt,
-                        !formData.dob && { color: '#4a5b78' }
-                      ]}
-                    >
-                      {formData.dob ? formatDisplayDate(formData.dob) : 'DD-MM-YYYY'}
-                    </Text>
-                    <Calendar size={16} color="#e0c38c" />
-                  </TouchableOpacity>
-                </View>
+                    {formData.dob ? formatDisplayDate(formData.dob) : 'DD-MM-YYYY (Optional)'}
+                  </Text>
+                  <Calendar size={16} color="#e0c38c" />
+                </TouchableOpacity>
+              </View>
 
-                {/* GENDER SELECTOR */}
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.fieldLabel}>GENDER</Text>
-                  <View style={styles.genderContainer}>
-                    {['Male', 'Female'].map((g) => {
-                      const isSelected = formData.gender === g;
-                      return (
-                        <TouchableOpacity
-                          key={g}
+              {/* GENDER SELECTOR (OPTIONAL) */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>GENDER (OPTIONAL)</Text>
+                <View style={styles.genderContainer}>
+                  {['Male', 'Female'].map((g) => {
+                    const isSelected = formData.gender === g;
+                    return (
+                      <TouchableOpacity
+                        key={g}
+                        style={[
+                          styles.genderTab,
+                          isSelected && styles.genderTabActive
+                        ]}
+                        activeOpacity={0.8}
+                        onPress={() => handleInputChange('gender', isSelected ? '' : g)}
+                      >
+                        <Text
                           style={[
-                            styles.genderTab,
-                            isSelected && styles.genderTabActive
+                            styles.genderTabTxt,
+                            isSelected && styles.genderTabTxtActive
                           ]}
-                          activeOpacity={0.8}
-                          onPress={() => handleInputChange('gender', g)}
                         >
-                          <Text
-                            style={[
-                              styles.genderTabTxt,
-                              isSelected && styles.genderTabTxtActive
-                            ]}
-                          >
-                            {g}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
+                          {g}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
 

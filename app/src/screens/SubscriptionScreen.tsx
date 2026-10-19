@@ -17,7 +17,11 @@ import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop } from 'reac
 import firestore from '@react-native-firebase/firestore';
 import functions from '@react-native-firebase/functions';
 import firebase from '@react-native-firebase/app';
-import RazorpayCheckout from 'react-native-razorpay';
+import { Platform } from 'react-native';
+let RazorpayCheckout: any = null;
+if (Platform.OS !== 'ios') {
+  RazorpayCheckout = require('react-native-razorpay').default;
+}
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';

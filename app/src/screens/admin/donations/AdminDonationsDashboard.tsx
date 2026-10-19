@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, DeviceEventEmitter } from 'react-native';
 import { ArrowLeft, ChevronRight, PlusSquare, FileText, Heart, CheckCircle } from 'lucide-react-native';
 import { COLORS, formatCurrency } from './AdminDonationsUtils';
 
@@ -32,9 +32,7 @@ export default function AdminDonationsDashboard({ donations, onNavigate }: any) 
         <View style={[styles.topbarRow, { justifyContent: 'space-between', width: '100%' }]}>
           <View style={{ width: 40, alignItems: 'flex-start' }}>
             <TouchableOpacity style={styles.backBtn} onPress={() => {
-              import('react-native').then(({ DeviceEventEmitter }) => {
-                DeviceEventEmitter.emit('NAVIGATE_ADMIN', 0);
-              });
+              DeviceEventEmitter.emit('NAVIGATE_ADMIN', 0);
             }}>
               <ArrowLeft color="#fff" size={20} />
             </TouchableOpacity>

@@ -5,19 +5,36 @@ import {
   Text, 
   TouchableOpacity, 
   Dimensions, 
-  StatusBar,
-  Platform,
-  Alert,
-  ActivityIndicator,
-  Animated,
-  Vibration
+  StatusBar, 
+  Platform, 
+  Alert, 
+  ActivityIndicator, 
+  Animated, 
+  Vibration,
+  ScrollView,
+  ToastAndroid
 } from 'react-native';
 import { Camera, CameraView, useCameraPermissions } from 'expo-camera';
 import Svg, { Defs, LinearGradient, Stop, Rect, Mask } from 'react-native-svg';
-import { ArrowLeft, CheckCircle2, MapPinOff, X, AlertCircle } from 'lucide-react-native';
+import { 
+  ArrowLeft, 
+  CheckCircle2, 
+  MapPinOff, 
+  X, 
+  AlertCircle, 
+  Users, 
+  Check, 
+  UserCheck, 
+  Sparkles,
+  MapPin,
+  Calendar,
+  Clock
+} from 'lucide-react-native';
 import * as Location from 'expo-location';
 import firestore from '@react-native-firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import AttendanceService from '../services/AttendanceService';
+import SalesforceService from '../services/SalesforceService';
 import { getDistanceInMeters } from '../utils/geoUtils';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -33,9 +50,181 @@ export default function QRScannerScreen({ navigation, route }: any) {
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [alreadyMarked, setAlreadyMarked] = useState(false);
   const [errorDetails, setErrorDetails] = useState<{title: string, message: string, type: 'location' | 'qr'} | null>(null);
+
+  // Family attendance states
+  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
+  const [loadingFamily, setLoadingFamily] = useState(false);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<{ [id: string]: boolean }>({});
+  const [alreadyAttendedFamilyIds, setAlreadyAttendedFamilyIds] = useState<{ [id: string]: boolean }>({});
+  const [savingFamily, setSavingFamily] = useState(false);
+  const [familySaveSuccess, setFamilySaveSuccess] = useState(false);
+  const [resolvedLocation, setResolvedLocation] = useState<string>('');
   
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const getContactId = (c: any): string => {
+    return (c?.Id || c?.id || '').toString();
+  };
+
+  const getContactName = (c: any): string => {
+    return c?.Name || `${c?.FirstName || ''} ${c?.LastName || ''}`.trim() || c?.name || 'Family Member';
+  };
+
+  // Load family members belonging to current user's household (from cache + Salesforce)
+  useEffect(() => {
+    let isMounted = true;
+    const loadFamily = async () => {
+      if (!member?.accountId) return;
+      const currentUserId = (member.id || '').toString();
+      const cacheKey = `cache_members_${member.accountId}`;
+      try {
+        // 1. Read from cache first for instant display
+        try {
+          const cached = await AsyncStorage.getItem(cacheKey);
+          if (cached && isMounted) {
+            const list = JSON.parse(cached);
+            if (Array.isArray(list)) {
+              setFamilyMembers(list.filter((c: any) => {
+                const cId = getContactId(c);
+                return cId && cId !== currentUserId;
+              }));
+            }
+          }
+        } catch (e) {}
+
+        // 2. Fetch fresh household members from Salesforce
+        const fresh = await SalesforceService.getRelatedContacts(member.accountId);
+        if (isMounted && Array.isArray(fresh)) {
+          setFamilyMembers(fresh.filter((c: any) => {
+            const cId = getContactId(c);
+            return cId && cId !== currentUserId;
+          }));
+          AsyncStorage.setItem(cacheKey, JSON.stringify(fresh)).catch(() => {});
+        }
+      } catch (err) {
+        console.warn('Could not load household family members:', err);
+      }
+    };
+
+    loadFamily();
+    return () => { isMounted = false; };
+  }, [member?.accountId, member?.id]);
+
+  // When attendance succeeds, check which family members have already attended this event
+  useEffect(() => {
+    if (success && familyMembers.length > 0) {
+      let isMounted = true;
+      const checkExistingFamilyAttendance = async () => {
+        setLoadingFamily(true);
+        try {
+          const statusMap: { [id: string]: boolean } = {};
+          await Promise.all(
+            familyMembers.map(async (fam) => {
+              const cId = getContactId(fam);
+              if (!cId) return;
+              const attended = await AttendanceService.hasAttended(eventId, cId);
+              if (attended) {
+                statusMap[cId] = true;
+              }
+            })
+          );
+          if (isMounted) {
+            setAlreadyAttendedFamilyIds(statusMap);
+          }
+        } catch (e) {
+          console.warn('Failed checking family attendance status:', e);
+        } finally {
+          if (isMounted) setLoadingFamily(false);
+        }
+      };
+      checkExistingFamilyAttendance();
+      return () => { isMounted = false; };
+    }
+  }, [success, familyMembers, eventId]);
+
+  const getInitials = (name: string) => {
+    if (!name) return 'F';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return name[0].toUpperCase();
+  };
+
+  const handleToggleMember = (id: string) => {
+    if (!id || alreadyAttendedFamilyIds[id]) return;
+    setSelectedMemberIds(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  const handleToggleSelectAll = () => {
+    const unAttended = familyMembers.filter(m => {
+      const cId = getContactId(m);
+      return cId && !alreadyAttendedFamilyIds[cId];
+    });
+    const allSelected = unAttended.length > 0 && unAttended.every(m => selectedMemberIds[getContactId(m)]);
+    const newSelected: { [id: string]: boolean } = {};
+    if (!allSelected) {
+      unAttended.forEach(m => {
+        const cId = getContactId(m);
+        if (cId) newSelected[cId] = true;
+      });
+    }
+    setSelectedMemberIds(newSelected);
+  };
+
+  const handleSaveFamilyAttendance = async (): Promise<boolean> => {
+    const idsToMark = Object.keys(selectedMemberIds).filter(
+      id => selectedMemberIds[id] && !alreadyAttendedFamilyIds[id]
+    );
+    if (idsToMark.length === 0) return true;
+
+    setSavingFamily(true);
+    try {
+      const locationToUse = resolvedLocation || locationName || 'Unspecified';
+      const currentUserAudit = member ? { 
+        id: (member.id || '').toString(), 
+        name: (member.name || '').toString() 
+      } : undefined;
+
+      await Promise.all(
+        idsToMark.map(async (contactId) => {
+          if (!contactId) return;
+          const contact = familyMembers.find(f => getContactId(f) === contactId);
+          const contactName = getContactName(contact);
+          await AttendanceService.logAttendance(
+            eventId,
+            eventName,
+            contactId,
+            contactName,
+            locationToUse,
+            currentUserAudit
+          );
+        })
+      );
+
+      const updated = { ...alreadyAttendedFamilyIds };
+      idsToMark.forEach(id => {
+        updated[id] = true;
+      });
+      setAlreadyAttendedFamilyIds(updated);
+      setSelectedMemberIds({});
+      setFamilySaveSuccess(true);
+      Vibration.vibrate(100);
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('Family attendance recorded successfully!', ToastAndroid.SHORT);
+      }
+      return true;
+    } catch (err) {
+      console.error('Error saving family attendance:', err);
+      Alert.alert('Error', 'Failed to save attendance for some family members. Please try again.');
+      return false;
+    } finally {
+      setSavingFamily(false);
+    }
+  };
 
   useEffect(() => {
     Animated.loop(
@@ -167,21 +356,18 @@ export default function QRScannerScreen({ navigation, route }: any) {
       // Check for duplicate attendance
       const alreadyAttended = await AttendanceService.hasAttended(eventId, member.id);
       
+      const rawLocationName = customLocationName || locationName || 'Unspecified';
+      // Strip any Plus Codes (e.g., 68J7+53M, ) from the string
+      const finalLocationName = rawLocationName.replace(/[0-9A-Z]{2,6}\+[0-9A-Z]{2,4}(,\s*)?/g, '').trim() || 'Unspecified';
+      setResolvedLocation(finalLocationName);
+
       if (alreadyAttended) {
         setLoading(false);
-        Alert.alert(
-          'Already Checked In',
-          'You have already successfully recorded your attendance for this event.',
-          [{ text: 'OK', onPress: () => navigation.goBack() }]
-        );
+        setAlreadyMarked(true);
         return;
       }
 
       // Log attendance
-      const rawLocationName = customLocationName || locationName || 'Unspecified';
-      // Strip any Plus Codes (e.g., 68J7+53M, ) from the string
-      const finalLocationName = rawLocationName.replace(/[0-9A-Z]{2,6}\+[0-9A-Z]{2,4}(,\s*)?/g, '').trim() || 'Unspecified';
-      
       await AttendanceService.logAttendance(
         eventId,
         eventName,
@@ -220,55 +406,354 @@ export default function QRScannerScreen({ navigation, route }: any) {
     );
   }
 
-  if (success) {
+  if (alreadyMarked) {
     const today = new Date();
     const formattedDate = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const formattedTime = today.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 
     return (
-      <View style={[styles.container, { backgroundColor: '#f4f6f8', paddingHorizontal: 24, justifyContent: 'center' }]}>
-        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-        
-        <View style={styles.successIconContainer}>
-          <CheckCircle2 size={40} color="#16a34a" />
-        </View>
-
-        <Text style={styles.successTitle}>You're marked present</Text>
-        <Text style={styles.successSubtitle}>Your attendance has been recorded.</Text>
-
-        <View style={styles.detailsCard}>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Event</Text>
-            <Text style={styles.detailValue}>{eventName}</Text>
-          </View>
-          <View style={styles.detailDivider} />
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Date</Text>
-            <Text style={styles.detailValue}>{formattedDate}</Text>
-          </View>
-          <View style={styles.detailDivider} />
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Time</Text>
-            <Text style={styles.detailValue}>{formattedTime}</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity 
-          style={styles.doneBtn}
-          onPress={() => navigation.goBack()}
+      <View style={[styles.container, { backgroundColor: '#ffffff' }]}>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="transparent"
+          translucent
+        />
+        <ScrollView
+          contentContainerStyle={[
+            styles.successScrollContainer,
+            { paddingTop: Platform.OS === 'ios' ? 60 : 45, alignItems: 'center' }
+          ]}
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.doneBtnText}>Done</Text>
-        </TouchableOpacity>
+          {/* Already-marked badge */}
+          <View style={[
+            styles.successIconContainer,
+            { backgroundColor: '#e0f2fe', borderColor: '#93c5fd' }
+          ]}>
+            <UserCheck size={40} color="#2563eb" />
+          </View>
 
-        <TouchableOpacity 
-          style={styles.viewAttendanceBtn}
-          onPress={() => {
-            navigation.goBack();
-            navigation.navigate('EventAttendees', { eventId, eventName });
-          }}
+          <Text style={styles.successTitle}>
+            You're Already Checked In
+          </Text>
+          <Text style={styles.successSubtitle}>
+            Your attendance for this event has already been recorded. No action needed.
+          </Text>
+
+          {/* Event Details Card */}
+          <View style={styles.detailsCard}>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Event</Text>
+              <Text style={styles.detailValue} numberOfLines={1}>
+                {eventName}
+              </Text>
+            </View>
+            <View style={styles.detailDivider} />
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Date</Text>
+              <Text style={styles.detailValue}>{formattedDate}</Text>
+            </View>
+            <View style={styles.detailDivider} />
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Time</Text>
+              <Text style={styles.detailValue}>{formattedTime}</Text>
+            </View>
+          </View>
+
+          {/* Info notice */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: '#eff6ff',
+            borderRadius: 14,
+            padding: 14,
+            marginBottom: 28,
+            borderWidth: 1,
+            borderColor: '#bfdbfe',
+            width: '100%',
+          }}>
+            <CheckCircle2 size={20} color="#2563eb" style={{ marginRight: 10 }} />
+            <Text style={{ flex: 1, fontSize: 13, color: '#1d4ed8', lineHeight: 19 }}>
+              Duplicate attendance is not allowed. Your presence is already confirmed for this event.
+            </Text>
+          </View>
+
+          {/* Family members — if any — still let them mark */}
+          {familyMembers.length > 0 && (
+            <TouchableOpacity
+              onPress={() => { setAlreadyMarked(false); setSuccess(true); }}
+              style={[
+                styles.familyActionBtn,
+                { backgroundColor: '#f1f5f9', borderColor: '#cbd5e1', marginBottom: 12 }
+              ]}
+            >
+              <Users size={18} color="#475569" />
+              <Text style={{ marginLeft: 8, fontWeight: '600', fontSize: 15, color: '#475569' }}>
+                Mark Family Members
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.successDoneBtn}
+          >
+            <Text style={styles.successDoneBtnText}>Done</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  if (success) {
+    const today = new Date();
+    const formattedDate = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const formattedTime = today.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    const selectedCount = Object.keys(selectedMemberIds).filter(
+      id => selectedMemberIds[id] && !alreadyAttendedFamilyIds[id]
+    ).length;
+
+    const unAttendedFamily = familyMembers.filter(m => !alreadyAttendedFamilyIds[m.Id]);
+    const isAllSelected = unAttendedFamily.length > 0 && unAttendedFamily.every(m => selectedMemberIds[m.Id]);
+
+    return (
+      <View style={[styles.container, { backgroundColor: '#ffffff' }]}>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="transparent"
+          translucent
+        />
+
+        <ScrollView
+          contentContainerStyle={[
+            styles.successScrollContainer,
+            { paddingTop: Platform.OS === 'ios' ? 60 : 45, paddingBottom: 100 }
+          ]}
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.viewAttendanceText}>View my attendance</Text>
-        </TouchableOpacity>
+          {/* Success Check Badge */}
+          <View style={styles.successIconContainer}>
+            <CheckCircle2 size={40} color="#16a34a" />
+          </View>
+
+          <Text style={styles.successTitle}>
+            You're marked present
+          </Text>
+          <Text style={styles.successSubtitle}>
+            Your attendance has been recorded successfully.
+          </Text>
+
+          {/* Event Details Card */}
+          <View style={styles.detailsCard}>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Event</Text>
+              <Text style={styles.detailValue} numberOfLines={1}>
+                {eventName}
+              </Text>
+            </View>
+            <View style={styles.detailDivider} />
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Date</Text>
+              <Text style={styles.detailValue}>{formattedDate}</Text>
+            </View>
+            <View style={styles.detailDivider} />
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Time</Text>
+              <Text style={styles.detailValue}>{formattedTime}</Text>
+            </View>
+            {resolvedLocation ? (
+              <>
+                <View style={styles.detailDivider} />
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Location</Text>
+                  <Text style={styles.detailValue} numberOfLines={1}>
+                    {resolvedLocation}
+                  </Text>
+                </View>
+              </>
+            ) : null}
+          </View>
+
+          {/* Optional Family Members Attendance Section */}
+          {familyMembers.length > 0 && (
+            <View style={styles.familySection}>
+              <View style={styles.familyHeaderRow}>
+                <View style={styles.familyIconWrap}>
+                  <Users size={18} color="#3b82f6" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.familyTitle}>
+                    Family Attendance
+                  </Text>
+                  <Text style={styles.familyTitleTe}>
+                    కుటుంబ సభ్యుల హాజరు
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.familySub}>
+                Select children or family members who attended with you:
+              </Text>
+
+              {loadingFamily ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color="#3b82f6" />
+                  <Text style={{ marginTop: 8, fontSize: 13, color: '#64748b' }}>
+                    Checking family attendance status...
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {unAttendedFamily.length > 0 && (
+                    <View style={styles.familyActionBar}>
+                      <Text style={styles.familyCountText}>
+                        {familyMembers.length} family member{familyMembers.length > 1 ? 's' : ''} in household
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.selectAllBtn}
+                        onPress={handleToggleSelectAll}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.selectAllBtnText}>
+                          {isAllSelected ? 'Deselect All' : 'Select All'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  <View style={styles.familyList}>
+                    {familyMembers.map((fam) => {
+                      const cId = getContactId(fam);
+                      const isAttended = !!alreadyAttendedFamilyIds[cId];
+                      const isSelected = !!selectedMemberIds[cId];
+                      const fullName = getContactName(fam);
+                      const relation = fam.Title || fam.User_Type__c || 'Family Member';
+
+                      return (
+                        <TouchableOpacity
+                          key={cId || fullName}
+                          style={[
+                            styles.memberItem,
+                            isSelected && { backgroundColor: '#f0fdf4' },
+                            isAttended && { opacity: 0.85 }
+                          ]}
+                          onPress={() => handleToggleMember(cId)}
+                          disabled={isAttended || savingFamily}
+                          activeOpacity={0.7}
+                        >
+                          <View style={styles.memberAvatar}>
+                            <Text style={styles.memberAvatarText}>
+                              {getInitials(fullName)}
+                            </Text>
+                          </View>
+
+                          <View style={styles.memberInfo}>
+                            <Text style={styles.memberName} numberOfLines={1}>
+                              {fullName}
+                            </Text>
+                            <View style={styles.relationPill}>
+                              <Text style={styles.relationText}>
+                                {relation}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {isAttended ? (
+                            <View style={styles.attendedBadge}>
+                              <UserCheck size={14} color="#16a34a" />
+                              <Text style={styles.attendedBadgeText}>Attended</Text>
+                            </View>
+                          ) : (
+                            <View style={[
+                              styles.checkbox,
+                              isSelected && styles.checkboxSelected
+                            ]}>
+                              {isSelected && <Check size={15} color="#fff" strokeWidth={3} />}
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {familySaveSuccess && (
+                    <View style={styles.saveSuccessBanner}>
+                      <CheckCircle2 size={16} color="#16a34a" />
+                      <Text style={styles.saveSuccessText}>
+                        Family attendance marked successfully!
+                      </Text>
+                    </View>
+                  )}
+
+                  {selectedCount > 0 && (
+                    <TouchableOpacity
+                      style={styles.saveFamilyBtn}
+                      onPress={handleSaveFamilyAttendance}
+                      disabled={savingFamily}
+                      activeOpacity={0.8}
+                    >
+                      {savingFamily ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <ActivityIndicator size="small" color="#fff" />
+                          <Text style={styles.saveFamilyBtnText}>Recording Attendance...</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.saveFamilyBtnText}>
+                          Mark Attendance for {selectedCount} Member{selectedCount > 1 ? 's' : ''}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </View>
+          )}
+
+          {/* Action Buttons — always visible */}
+          <View style={{
+            flexDirection: 'row',
+            gap: 12,
+            marginTop: 8,
+            marginBottom: 20,
+          }}>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                paddingVertical: 14,
+                borderRadius: 50,
+                borderWidth: 1.5,
+                borderColor: '#cbd5e1',
+                backgroundColor: '#f8fafc',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.75}
+            >
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#334155' }}>Done</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                paddingVertical: 14,
+                borderRadius: 50,
+                borderWidth: 1.5,
+                borderColor: '#cbd5e1',
+                backgroundColor: '#f8fafc',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onPress={() => {
+                navigation.goBack();
+                navigation.navigate('EventAttendees', { eventId, eventName });
+              }}
+              activeOpacity={0.75}
+            >
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#334155', textAlign: 'center' }}>View Attendees</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -623,6 +1108,195 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  successScrollContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  familySection: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  familyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  familyIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  familyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  familyTitleTe: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    marginTop: 1,
+  },
+  familySub: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 6,
+    marginBottom: 14,
+    lineHeight: 18,
+  },
+  familyActionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    marginBottom: 10,
+  },
+  familyCountText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  selectAllBtn: {
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+  },
+  selectAllBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  familyList: {
+    marginTop: 4,
+  },
+  memberItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: 'transparent',
+  },
+  memberAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  memberAvatarText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1d4ed8',
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0f172a',
+    marginBottom: 3,
+  },
+  relationPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  relationText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  checkboxSelected: {
+    backgroundColor: '#16a34a',
+    borderColor: '#16a34a',
+  },
+  attendedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  attendedBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#15803d',
+  },
+  saveFamilyBtn: {
+    backgroundColor: '#16a34a',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    shadowColor: '#16a34a',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  saveFamilyBtnText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  saveSuccessBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginTop: 10,
+    gap: 8,
+  },
+  saveSuccessText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#166534',
+    flex: 1,
+  },
   loader: {
     position: 'absolute',
   },
@@ -636,6 +1310,33 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
     lineHeight: 20,
+  },
+  successDoneBtn: {
+    backgroundColor: '#1e293b',
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  successDoneBtnText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  familyActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    width: '100%',
   },
 
 });

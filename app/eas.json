@@ -23,7 +23,8 @@
       "channel": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_GOOGLE_MAPS_KEY": "AIzaSyClqd_LjvZZ-TqEEXDL1Q7APvc9svkewRI"
+        "EXPO_PUBLIC_GOOGLE_MAPS_KEY": "AIzaSyClqd_LjvZZ-TqEEXDL1Q7APvc9svkewRI",
+        "RCT_NEW_ARCH_ENABLED": "1"
       }
     },
     "production-apk": {
