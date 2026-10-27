@@ -55,8 +55,8 @@ export declare const notifyMembers: import("firebase-functions/v2/https").Callab
     failed?: never;
 } | {
     success: boolean;
-    sent: any;
-    failed: any;
+    sent: number;
+    failed: number;
     message?: never;
 }>, unknown>;
 /**
@@ -64,6 +64,35 @@ export declare const notifyMembers: import("firebase-functions/v2/https").Callab
  * Scheduled to run every day at 07:00 AM IST (01:30 AM UTC)
  */
 export declare const automatedDailyPromise: import("firebase-functions/v2/scheduler").ScheduleFunction;
+/**
+ * 📖 Send Daily Scripture Challenge Push Reminders
+ * Sends every day at 8:00 AM IST to church members who have NOT completed today's daily scripture challenge yet.
+ */
+export declare function sendDailyScriptureQuizReminders(forceAll?: boolean): Promise<{
+    totalMembers: number;
+    completedMembers: number;
+    targetCount: number;
+    sentCount: number;
+}>;
+/**
+ * ⏰ 8:00 AM IST Daily Scripture Challenge Scheduler
+ * Automatically runs every day at 8:00 AM Indian Standard Time (Asia/Kolkata).
+ */
+export declare const automatedDailyScriptureQuizReminder: import("firebase-functions/v2/scheduler").ScheduleFunction;
+/**
+ * 🧪 HTTP / On-Demand Trigger for Daily Scripture Challenge Reminder
+ * Allows admin to trigger or test on demand: GET /triggerDailyScriptureQuizReminder
+ */
+export declare const triggerDailyScriptureQuizReminder: import("firebase-functions/v2/https").HttpsFunction;
+/**
+ * 📱 Firebase onCall Trigger for Admin App
+ */
+export declare const callSendDailyScriptureQuizReminder: import("firebase-functions/v2/https").CallableFunction<any, Promise<{
+    totalMembers: number;
+    completedMembers: number;
+    targetCount: number;
+    sentCount: number;
+}>, unknown>;
 /**
  * ⏰ AUTOMATED DAILY BIRTHDAYS SCHEDULER
  * Scheduled to run every day at 08:00 AM IST (02:30 AM UTC)
@@ -107,8 +136,8 @@ export declare const triggerTestYouTubeLive: import("firebase-functions/v2/https
     broadcastId?: never;
 } | {
     success: boolean;
-    sent: any;
-    failed: any;
+    sent: number;
+    failed: number;
     broadcastId: any;
     message?: never;
 }>, unknown>;
@@ -131,4 +160,43 @@ export declare const bibleClassNotificationsScheduler: import("firebase-function
  * Collects wishes per recipient in 5-minute sliding windows to prevent push spam.
  */
 export declare const onCelebrationWishCreated: functionsCompat.CloudFunction<functionsCompat.firestore.QueryDocumentSnapshot>;
+/**
+ * Create a Razorpay Order
+ * Type can be 'donation' (church keys) or 'subscription' (company keys)
+ */
+export declare const createRazorpayOrder: import("firebase-functions/v2/https").CallableFunction<any, Promise<{
+    success: boolean;
+    order: import("razorpay/dist/types/orders.js").Orders.RazorpayOrder;
+    key_id: string;
+}>, unknown>;
+/**
+ * Verify Razorpay Payment Signature
+ */
+export declare const verifyRazorpayPayment: import("firebase-functions/v2/https").CallableFunction<any, Promise<{
+    success: boolean;
+    message: string;
+}>, unknown>;
+/**
+ * ⏰ SUBSCRIPTION EXPIRY CRON JOB
+ * Runs daily at midnight to expire subscriptions that have passed their end date.
+ */
+export declare const checkSubscriptionExpiries: import("firebase-functions/v2/scheduler").ScheduleFunction;
+/**
+ * Razorpay Webhook Endpoint
+ * Listens for payment.captured or order.paid events
+ */
+export declare const razorpayWebhook: import("firebase-functions/v2/https").HttpsFunction;
+/**
+ * Aggregates new sessions into a daily summary document.
+ */
+export declare const onSessionCreated: import("firebase-functions/core").CloudFunction<import("firebase-functions/v2/firestore").FirestoreEvent<import("firebase-functions/v2/firestore").QueryDocumentSnapshot | undefined, {
+    sessionId: string;
+}>>;
+/**
+ * Aggregates new events into the daily summary document feature breakdown.
+ */
+export declare const onEventCreated: import("firebase-functions/core").CloudFunction<import("firebase-functions/v2/firestore").FirestoreEvent<import("firebase-functions/v2/firestore").QueryDocumentSnapshot | undefined, {
+    eventId: string;
+}>>;
+export * from './zoom.js';
 //# sourceMappingURL=index.d.ts.map

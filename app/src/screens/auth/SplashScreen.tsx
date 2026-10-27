@@ -63,8 +63,10 @@ export default function SplashScreen() {
         
         <Text style={styles.titleTelugu}>క్రీస్తు నందు సహోదరుల సహవాసము</Text>
         <Text style={styles.titleTeluguEn}>KRISTHU NANDU SAHODARULU SAHAVASAMU</Text>
-        
+      </Animated.View>
 
+      <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
+        <Text style={styles.footerTxt}>POWERED BY COVENANT SYNERGY PRIVATE LIMITED</Text>
       </Animated.View>
     </View>
   );
@@ -131,7 +133,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     position: 'absolute',
-    bottom: -height * 0.15,
+    bottom: 65,
     alignItems: 'center',
   },
   footerTxt: {

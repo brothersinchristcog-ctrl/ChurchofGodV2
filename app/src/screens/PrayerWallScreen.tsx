@@ -24,10 +24,13 @@ import {
   CheckCircle, 
   MessageCircle, 
   CheckCircle2,
-  Trash2
+  Trash2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import firestore from '@react-native-firebase/firestore';
 import SalesforceService, { SalesforceMember } from '../services/SalesforceService';
 import { PrayerRequest } from '../types/schema';
 
@@ -39,6 +42,10 @@ interface PrayerFormProps {
   categories: any[];
   isSubmitting: boolean;
   handleSubmit: () => void;
+  isPublic: boolean;
+  setIsPublic: (val: boolean) => void;
+  activeTab: 'request' | 'mine';
+  setActiveTab: (tab: 'request' | 'mine') => void;
 }
 
 const PrayerForm = ({ 
@@ -48,14 +55,35 @@ const PrayerForm = ({
   setCategory, 
   categories, 
   isSubmitting, 
-  handleSubmit 
+  handleSubmit,
+  isPublic,
+  setIsPublic,
+  activeTab,
+  setActiveTab
 }: PrayerFormProps) => (
-  <View style={styles.composeCard}>
-    <View style={styles.composeHeader}>
-      <CheckCircle size={16} color="#fff" />
-      <Text style={styles.composeHeaderText}>SUBMIT PRAYER REQUEST</Text>
+  <View>
+    {/* Tab Badge */}
+    <View style={styles.badgeContainer}>
+      <TouchableOpacity 
+        style={[styles.badgeBtn, activeTab === 'mine' && styles.badgeBtnActive]}
+        onPress={() => setActiveTab('mine')}
+      >
+        <Text style={[styles.badgeText, activeTab === 'mine' && styles.badgeTextActive]}>My Prayers</Text>
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={[styles.badgeBtn, activeTab === 'request' && styles.badgeBtnActive]}
+        onPress={() => setActiveTab('request')}
+      >
+        <Text style={[styles.badgeText, activeTab === 'request' && styles.badgeTextActive]}>Public Prayer Requests</Text>
+      </TouchableOpacity>
     </View>
-    <View style={styles.composeBody}>
+
+    <View style={styles.composeCard}>
+      <View style={styles.composeHeader}>
+        <CheckCircle size={16} color="#fff" />
+        <Text style={styles.composeHeaderText}>SUBMIT PRAYER REQUEST</Text>
+      </View>
+      <View style={styles.composeBody}>
       <Text style={styles.inputLabel}>Select Category</Text>
       <ScrollView 
         horizontal 
@@ -88,6 +116,16 @@ const PrayerForm = ({
         blurOnSubmit={false}
       />
       <View style={styles.composeFooter}>
+        <View style={styles.publicToggleRow}>
+          <Text style={styles.publicToggleText}>Public</Text>
+          <TouchableOpacity 
+            style={[styles.customToggle, isPublic ? styles.customToggleActive : styles.customToggleInactive]}
+            onPress={() => setIsPublic(!isPublic)}
+            activeOpacity={0.9}
+          >
+            <View style={[styles.customToggleKnob, isPublic ? styles.customToggleKnobActive : styles.customToggleKnobInactive]} />
+          </TouchableOpacity>
+        </View>
         <View style={{ flex: 1 }} />
         <TouchableOpacity 
           style={[styles.submitBtn, isSubmitting && { opacity: 0.7 }]}
@@ -110,6 +148,7 @@ const PrayerForm = ({
       <View style={styles.wallHeaderLine} />
     </View>
   </View>
+  </View>
 );
 
 const PrayerItem = React.memo(({ 
@@ -122,8 +161,11 @@ const PrayerItem = React.memo(({
   handlePray, 
   handleReplySubmit, 
   handleDelete,
-  getTimeAgo
+  getTimeAgo,
+  isPublicWall,
+  handlePublicPray
 }: any) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const isAnswered = item.isAnswered;
   const initial = item.name.charAt(0).toUpperCase();
   const isOwner = !!(userPhone && item.phone && userPhone === item.phone);
@@ -194,7 +236,34 @@ const PrayerItem = React.memo(({
       )}
 
       <View style={styles.cardFooter}>
-        {isOwner ? (
+        {isPublicWall ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity 
+              style={[styles.iprayedBtn, (prayedSet.has(item.id) || isAnswered || isOwner) && styles.iprayedBtnActive]}
+              onPress={() => handlePublicPray(item.id)}
+              disabled={prayedSet.has(item.id) || isAnswered || isOwner}
+            >
+              <CheckCircle2 size={14} color={prayedSet.has(item.id) || isAnswered || isOwner ? '#16a34a' : '#2563eb'} />
+              <Text style={[styles.iprayedText, (prayedSet.has(item.id) || isAnswered || isOwner) ? styles.iprayedTextAnswered : { color: '#2563eb' }]}>
+                {prayedSet.has(item.id) || isAnswered || isOwner ? `Praying (${item.prayCount})` : `I will pray for you (${item.prayCount})`}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[
+                styles.iprayedBtn, 
+                { 
+                  paddingHorizontal: 12, 
+                  borderWidth: 1,
+                  borderColor: '#cbd5e1',
+                  backgroundColor: '#fff'
+                }
+              ]} 
+              onPress={() => setIsExpanded(!isExpanded)}
+            >
+              {isExpanded ? <ChevronUp size={16} color="#1a2d5a" /> : <ChevronDown size={16} color="#1a2d5a" />}
+            </TouchableOpacity>
+          </View>
+        ) : isOwner ? (
           isAnswered ? (
             <View style={[styles.iprayedBtn, styles.iprayedBtnActive, { backgroundColor: '#dcfce7', borderColor: '#dcfce7' }]}>
               <CheckCircle2 size={14} color="#16a34a" />
@@ -219,21 +288,39 @@ const PrayerItem = React.memo(({
         )}
 
         <View style={{ flexDirection: 'row', gap: 14, alignItems: 'center' }}>
-          {isOwner && (
+          {isOwner && !isPublicWall && (
             <TouchableOpacity onPress={() => handleDelete(item.id)}>
               <Trash2 size={20} color="#ef4444" />
             </TouchableOpacity>
           )}
-          <Text style={styles.footerDate}>
-            {new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-          </Text>
+          {!isPublicWall && (
+            <Text style={styles.footerDate}>
+              {new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </Text>
+          )}
         </View>
       </View>
+
+      {/* WHO PRAYED INLINE LIST */}
+      {isExpanded && item.prayingUsers && item.prayingUsers.length > 0 && (
+        <View style={styles.prayingList}>
+          <Text style={styles.prayingListHeader}>Members praying for you:</Text>
+          {item.prayingUsers.map((u: any, idx: number) => {
+            const name = typeof u === 'string' ? 'Anonymous Member' : u.name;
+            return (
+              <View key={idx} style={styles.prayingListItem}>
+                <View style={styles.prayingListDot} />
+                <Text style={styles.prayingListText}>{name}</Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 });
 
-export default function PrayerWallScreen({ navigation }: any) {
+export default function PrayerWallScreen({ navigation, route }: any) {
   const { user } = useAuth();
   const { isDark, toggleTheme, colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -250,6 +337,16 @@ export default function PrayerWallScreen({ navigation }: any) {
   const [category, setCategory] = useState('Pray for me');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
+  const [activeTab, setActiveTab] = useState<'request' | 'mine'>('mine');
+  const [publicPrayers, setPublicPrayers] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (route?.params?.openPublicWall) {
+      setActiveTab('request');
+      navigation.setParams({ openPublicWall: undefined });
+    }
+  }, [route?.params?.openPublicWall]);
 
   const categories = [
     { label: 'Pray for me', icon: '👤' },
@@ -263,12 +360,73 @@ export default function PrayerWallScreen({ navigation }: any) {
     if (!isRefreshing) setLoading(true);
     try {
       const data = await SalesforceService.getPrayerRequests({ contactId });
-      setPrayers(data);
+      
+      // Fetch Firestore reactions safely
+      let reactions: Record<string, any> = {};
+      try {
+        const snapshot = await firestore().collection('prayer_reactions').get();
+        snapshot.docs.forEach(doc => {
+          reactions[doc.id] = doc.data();
+        });
+      } catch (err) {
+        console.log('Firebase reactions fetch failed', err);
+      }
+
+      // Merge Salesforce data with Firebase reactions
+      const mergedData = data.map((p: any) => {
+        const reactionData = reactions[p.id] || { count: 0, users: [] };
+        return {
+          ...p,
+          prayCount: reactionData.count || 0,
+          prayingUsers: reactionData.users || []
+        };
+      });
+
+      setPrayers(mergedData);
     } catch (error) {
       console.error('Error fetching prayers:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const fetchPublicPrayers = async () => {
+    try {
+      const data = await SalesforceService.getPrayerRequests({ publicWall: true });
+      
+      // Fetch Firestore reactions safely
+      let reactions: Record<string, any> = {};
+      try {
+        const snapshot = await firestore().collection('prayer_reactions').get();
+        snapshot.docs.forEach(doc => {
+          reactions[doc.id] = doc.data();
+        });
+      } catch (err) {
+        console.log('Firebase reactions fetch failed, likely due to security rules. Continuing with 0 reactions.', err);
+      }
+
+      // Merge Salesforce data with Firebase reactions
+      const mergedData = data.map((p: any) => {
+        const reactionData = reactions[p.id] || { count: 0, users: [] };
+        let hasPrayed = false;
+        if (user?.uid) {
+           hasPrayed = reactionData.users.some((u: any) => typeof u === 'string' ? u === user.uid : u.uid === user.uid);
+        }
+        if (hasPrayed) {
+          // Pre-populate prayed set if the user already clicked "I will pray for you"
+          setPrayedSet(prev => new Set(prev).add(p.id));
+        }
+        return {
+          ...p,
+          prayCount: reactionData.count || 0,
+          prayingUsers: reactionData.users || []
+        };
+      });
+
+      setPublicPrayers(mergedData);
+    } catch (error) {
+      console.error('Error fetching public prayers:', error);
     }
   };
 
@@ -302,7 +460,15 @@ export default function PrayerWallScreen({ navigation }: any) {
   const onRefresh = () => {
     setRefreshing(true);
     fetchPrayers(member?.id || undefined, true);
+    if (activeTab === 'request') fetchPublicPrayers();
   };
+
+  // Fetch public prayers when switching to that tab
+  useEffect(() => {
+    if (activeTab === 'request') {
+      fetchPublicPrayers();
+    }
+  }, [activeTab]);
 
   const handleSubmit = async () => {
     if (!prayerInput.trim()) {
@@ -318,11 +484,13 @@ export default function PrayerWallScreen({ navigation }: any) {
         contactId: member?.id || null,
         request: prayerInput,
         category: category,
-        isAnonymous: false
+        isAnonymous: !isPublic,
+        isPublic: isPublic
       });
-      
+
       setShowSuccess(true);
       setPrayerInput('');
+      setIsPublic(false);
       fetchPrayers(member?.id || undefined, true);
     } catch (err) {
       Alert.alert('Error', 'Unable to submit request. Please try again.');
@@ -348,6 +516,28 @@ export default function PrayerWallScreen({ navigation }: any) {
     setPrayers(prevPrayers => 
       prevPrayers.map(p => p.id === id ? { ...p, prayCount: (p.prayCount || 0) + 1 } : p)
     );
+  };
+
+  const handlePublicPray = async (id: string) => {
+    if (prayedSet.has(id) || !user?.uid) return;
+    
+    // Optimistic UI update
+    setPrayedSet(prev => new Set(prev).add(id));
+    setPublicPrayers(prevPrayers => 
+      prevPrayers.map(p => p.id === id ? { ...p, prayCount: (p.prayCount || 0) + 1 } : p)
+    );
+
+    try {
+      const authorName = member?.name || user?.displayName || 'Member';
+      // Store reaction in Firebase
+      await firestore().collection('prayer_reactions').doc(id).set({
+        count: firestore.FieldValue.increment(1),
+        users: firestore.FieldValue.arrayUnion({ uid: user.uid, name: authorName })
+      }, { merge: true });
+    } catch (error) {
+      console.error('Error recording prayer reaction:', error);
+      Alert.alert('Error', 'Unable to record your reaction. Please try again.');
+    }
   };
 
   const handleReplySubmit = async (caseId: string) => {
@@ -396,16 +586,18 @@ export default function PrayerWallScreen({ navigation }: any) {
   const renderPrayerItem = ({ item }: { item: PrayerRequest }) => {
     return (
       <PrayerItem 
-        item={item}
+        item={item} 
         userPhone={user?.phoneNumber}
         prayedSet={prayedSet}
         replyInput={replyInputs[item.id]}
-        setReplyInput={handleSetReplyInput}
+        setReplyInput={(id: string, text: string) => setReplyInputs(prev => ({...prev, [id]: text}))}
         submittingReplyId={submittingReplyId}
         handlePray={handlePray}
         handleReplySubmit={handleReplySubmit}
         handleDelete={handleDelete}
         getTimeAgo={getTimeAgo}
+        isPublicWall={activeTab === 'request'}
+        handlePublicPray={handlePublicPray}
       />
     );
   };
@@ -463,7 +655,7 @@ export default function PrayerWallScreen({ navigation }: any) {
       </LinearGradient>
 
       <FlatList
-        data={prayers}
+        data={activeTab === 'request' ? publicPrayers : prayers}
         renderItem={renderPrayerItem}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContainer}
@@ -474,22 +666,51 @@ export default function PrayerWallScreen({ navigation }: any) {
         removeClippedSubviews={Platform.OS === 'android'}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1a2d5a" />}
         ListHeaderComponent={
-          <PrayerForm 
-            prayerInput={prayerInput}
-            setPrayerInput={setPrayerInput}
-            category={category}
-            setCategory={setCategory}
-            categories={categories}
-            isSubmitting={isSubmitting}
-            handleSubmit={handleSubmit}
-          />
+          activeTab === 'mine' ? (
+            <PrayerForm 
+              prayerInput={prayerInput}
+              setPrayerInput={setPrayerInput}
+              category={category}
+              setCategory={setCategory}
+              categories={categories}
+              isSubmitting={isSubmitting}
+              handleSubmit={handleSubmit}
+              isPublic={isPublic}
+              setIsPublic={setIsPublic}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+            />
+          ) : (
+            <View style={styles.badgeContainer}>
+              <TouchableOpacity 
+                style={[styles.badgeBtn]}
+                onPress={() => setActiveTab('mine')}
+              >
+                <Text style={[styles.badgeText]}>My Prayers</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.badgeBtn, styles.badgeBtnActive]}
+                onPress={() => setActiveTab('request')}
+              >
+                <Text style={[styles.badgeText, styles.badgeTextActive]}>Public Prayer Requests</Text>
+              </TouchableOpacity>
+            </View>
+          )
         }
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <MessageCircle size={50} color="#cbd5e1" />
-            <Text style={styles.emptyTitle}>No prayer requests yet</Text>
-            <Text style={styles.emptySub}>Be the first to share your burden with the community.</Text>
-          </View>
+          activeTab === 'request' ? (
+            <View style={styles.emptyState}>
+              <MessageCircle size={50} color="#cbd5e1" />
+              <Text style={styles.emptyTitle}>No Public Prayer Requests</Text>
+              <Text style={styles.emptySub}>Approved prayer requests from church members will appear here.</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <MessageCircle size={50} color="#cbd5e1" />
+              <Text style={styles.emptyTitle}>No prayer requests yet</Text>
+              <Text style={styles.emptySub}>Be the first to share your burden with the community.</Text>
+            </View>
+          )
         }
       />
 
@@ -540,6 +761,72 @@ const styles = StyleSheet.create({
   },
   themeToggleText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   listContainer: { paddingBottom: 150 },
+
+  badgeContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#e2e8f0',
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 24, // Added spacing below badge
+    borderRadius: 25,
+    padding: 4,
+  },
+  badgeBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  badgeBtnActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#000'
+  },
+  badgeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b'
+  },
+  badgeTextActive: {
+    color: '#1a2d5a',
+    fontWeight: '800'
+  },
+
+  // Custom Toggle Button
+  customToggle: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  customToggleActive: {
+    backgroundColor: '#1a2d5a',
+  },
+  customToggleInactive: {
+    backgroundColor: '#cbd5e1',
+  },
+  customToggleKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  customToggleKnobActive: {
+    alignSelf: 'flex-end',
+  },
+  customToggleKnobInactive: {
+    alignSelf: 'flex-start',
+  },
 
   // Compose Card
   composeCard: { 
@@ -615,38 +902,55 @@ const styles = StyleSheet.create({
     gap: 8
   },
   submitBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  publicToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  publicToggleText: { fontSize: 13, fontWeight: '700', color: '#1a2d5a' },
 
   // Prayer Card
   prayerCard: { 
     backgroundColor: '#fff', 
-    borderRadius: 22, 
-    padding: 18, 
+    borderRadius: 16, 
+    padding: 16, 
     marginHorizontal: 20, 
     marginBottom: 16,
-    elevation: 4,
-    shadowColor: '#1a2d5a',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    elevation: 2,
+    shadowColor: '#64748b',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
     borderWidth: 1,
-    borderColor: '#f1f5f9'
+    borderColor: '#e2e8f0'
   },
   cardAnswered: { borderColor: '#bbf7d0', borderWidth: 2 },
-  cardHeader: { flexDirection: 'row', gap: 14, marginBottom: 15 },
-  avatar: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: '#fff', fontWeight: '800', fontSize: 18 },
-  headerInfo: { flex: 1 },
-  nameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  name: { fontSize: 15, fontWeight: '800', color: '#1e293b' },
+  cardHeader: { flexDirection: 'row', gap: 12, marginBottom: 12, alignItems: 'center' },
+  avatar: { 
+    width: 40, 
+    height: 40, 
+    borderRadius: 20, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    elevation: 1,
+    shadowColor: '#7c3aed',
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 }
+  },
+  avatarText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  headerInfo: { flex: 1, justifyContent: 'center' },
+  nameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+  name: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
   nameAnswered: { color: '#166534' },
   answeredBadge: { color: '#16a34a', fontWeight: '800', fontSize: 13 },
   countBadge: { backgroundColor: '#f0fdf4', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   countText: { fontSize: 11, color: '#16a34a', fontWeight: '700' },
   countTextAnswered: { color: '#166534', backgroundColor: '#dcfce7' },
-  metaText: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
+  metaText: { fontSize: 12, color: '#64748b', fontWeight: '400' },
   
-  textContainer: { backgroundColor: '#f8fafc', padding: 18, borderRadius: 18, marginBottom: 15, borderWidth: 1, borderColor: '#f1f5f9' },
-  textContainerAnswered: { backgroundColor: '#f0fdf4', borderColor: '#dcfce7' },
-  prayerText: { fontSize: 15, color: '#334155', lineHeight: 24, fontStyle: 'italic' },
+  textContainer: { 
+    marginBottom: 16, 
+    paddingHorizontal: 2
+  },
+  textContainerAnswered: { },
+  prayerText: { fontSize: 15, color: '#334155', lineHeight: 22 },
   prayerTextAnswered: { color: '#166534', fontWeight: '600' },
 
   repliesContainer: { marginBottom: 15, marginLeft: 15, paddingLeft: 15, borderLeftWidth: 2, borderLeftColor: '#e2e8f0' },
@@ -698,20 +1002,57 @@ const styles = StyleSheet.create({
 
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   iprayedBtn: { 
-    backgroundColor: '#f1f5f9', 
-    paddingHorizontal: 18, 
-    paddingVertical: 10, 
-    borderRadius: 12, 
+    backgroundColor: '#f8fafc', 
+    paddingHorizontal: 20, 
+    paddingVertical: 12, 
+    borderRadius: 14, 
     flexDirection: 'row', 
     alignItems: 'center', 
-    gap: 8,
+    gap: 10,
     borderWidth: 1,
-    borderColor: '#e2e8f0'
+    borderColor: '#e2e8f0',
+    elevation: 2,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 }
   },
   iprayedBtnActive: { backgroundColor: '#1a2d5a', borderColor: '#1a2d5a' },
-  iprayedText: { fontSize: 13, color: '#fff', fontWeight: '800' },
+  iprayedText: { fontSize: 14, color: '#1a2d5a', fontWeight: '800' },
   iprayedTextAnswered: { color: '#16a34a' },
   footerDate: { fontSize: 12, color: '#94a3b8' },
+
+  prayingList: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9'
+  },
+  prayingListHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
+  prayingListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4
+  },
+  prayingListDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#1a2d5a'
+  },
+  prayingListText: {
+    fontSize: 14,
+    color: '#334155',
+    fontWeight: '500'
+  },
 
   // Empty State
   emptyState: { padding: 40, alignItems: 'center', marginTop: 40 },

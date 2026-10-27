@@ -1,8 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Pressable, Text, StyleSheet, LayoutChangeEvent, Platform, Animated, Dimensions } from 'react-native';
+import { View, Pressable, Text, StyleSheet, LayoutChangeEvent, Platform, Animated, Dimensions, DeviceEventEmitter } from 'react-native';
 import { Home, BookOpen, Mic, Heart, User } from 'lucide-react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import firestore from '@react-native-firebase/firestore';
 
 const TABS = [
   { key: 'Home',    label: 'Home',    Icon: Home,     bg: '#1a2d5a', fg: '#1a2d5a' },
@@ -31,9 +33,84 @@ export default function PillNavBar({ state, descriptors, navigation }: BottomTab
   const pillX = useRef(new Animated.Value(0)).current;
   const pillWidth = useRef(new Animated.Value(0)).current;
   const colorProgress = useRef(new Animated.Value(0)).current;
+  const waveAnim = useRef(new Animated.Value(0)).current;
 
   // Track if initial layout is done
   const [isInitialized, setIsInitialized] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const globalCountRef = useRef(0);
+
+  useEffect(() => {
+    const unsubscribe = firestore().collection('prayer_reactions').doc('global_stats')
+      .onSnapshot(async (doc) => {
+        const data = doc.data();
+        if (data && typeof data.publishCount === 'number') {
+          const publishCount = data.publishCount;
+          const totalActive = data.totalActivePrayers || publishCount;
+          globalCountRef.current = publishCount;
+          
+          try {
+            const lastSeenStr = await AsyncStorage.getItem('lastSeenPublishCount');
+            const lastSeenCount = lastSeenStr ? parseInt(lastSeenStr, 10) : 0;
+            
+            if (publishCount > lastSeenCount) {
+              setUnreadCount(totalActive);
+            } else {
+              setUnreadCount(0);
+            }
+          } catch (err) {}
+        }
+      }, (error) => {
+        console.log('Error listening to public prayers:', error);
+      });
+      
+    return () => unsubscribe();
+  }, []);
+
+  // Fallback for local admin testing
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('NEW_PRAYER_PUBLISHED', () => {
+      setUnreadCount(prev => prev + 1);
+    });
+    return () => sub.remove();
+  }, []);
+
+  const markAsRead = async () => {
+    setUnreadCount(0);
+    try {
+      await AsyncStorage.setItem('lastSeenPublishCount', globalCountRef.current.toString());
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    // Auto-clear if they land on or are already on the Prayer tab
+    const activeRoute = state.routes[state.index]?.name || state.routes[state.index]?.key;
+    if (activeRoute === 'Prayer') {
+      markAsRead();
+    }
+  }, [state.index]);
+
+  useEffect(() => {
+    if (unreadCount > 0) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(waveAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(waveAnim, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          })
+        ])
+      ).start();
+    } else {
+      waveAnim.stopAnimation();
+      waveAnim.setValue(0);
+    }
+  }, [unreadCount]);
 
   const handleTabLayout = (index: number) => (e: LayoutChangeEvent) => {
     const { x, width } = e.nativeEvent.layout;
@@ -78,16 +155,23 @@ export default function PillNavBar({ state, descriptors, navigation }: BottomTab
     }
   }, [state.index, layouts]);
 
-  const selectTab = (index: number, routeName: string) => {
+  const selectTab = async (index: number, routeName: string) => {
     const isFocused = state.index === index;
     const event = navigation.emit({
       type: 'tabPress',
       target: state.routes[index].key,
       canPreventDefault: true,
     });
+    
+    const shouldOpenPublicWall = routeName === 'Prayer' && unreadCount > 0;
+
+    if (routeName === 'Prayer') {
+      markAsRead();
+    }
+
     if (!isFocused && !event.defaultPrevented) {
       requestAnimationFrame(() => {
-        navigation.navigate(routeName);
+        navigation.navigate(routeName, routeName === 'Prayer' ? { openPublicWall: shouldOpenPublicWall } : undefined);
       });
     }
   };
@@ -124,11 +208,52 @@ export default function PillNavBar({ state, descriptors, navigation }: BottomTab
               accessibilityLabel={tab.label}
               accessibilityState={{ selected: isActive }}
             >
-              <Icon
-                size={20}
-                color={isActive ? tab.fg : INACTIVE_COLOR}
-                strokeWidth={isActive ? 2.5 : 2}
-              />
+              <View style={{ position: 'relative', width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
+                {tab.key === 'Prayer' && unreadCount > 0 && !isActive && (
+                  <>
+                    <Animated.View style={[
+                      StyleSheet.absoluteFillObject,
+                      {
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderColor: '#ef4444',
+                        borderRadius: 14,
+                        transform: [{
+                          scale: waveAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 2.5]
+                          })
+                        }],
+                        opacity: waveAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.8, 0]
+                        })
+                      }
+                    ]} />
+                    
+                    <View style={{
+                      position: 'absolute',
+                      top: -6,
+                      right: -8,
+                      backgroundColor: '#ef4444',
+                      borderRadius: 10,
+                      minWidth: 16,
+                      height: 16,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      paddingHorizontal: 4,
+                      zIndex: 10
+                    }}>
+                      <Text style={{ color: '#fff', fontSize: 9, fontWeight: 'bold' }}>{unreadCount}</Text>
+                    </View>
+                  </>
+                )}
+                <Icon
+                  size={20}
+                  color={isActive ? tab.fg : INACTIVE_COLOR}
+                  strokeWidth={isActive ? 2.5 : 2}
+                />
+              </View>
               <Text style={[styles.label, { color: isActive ? tab.fg : INACTIVE_COLOR }]}>
                 {tab.label}
               </Text>
@@ -153,7 +278,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 999,
-    paddingVertical: 8,
+    paddingVertical: 6, // decreased from 8
     paddingHorizontal: 8,
     position: 'relative',
     elevation: 20,
@@ -164,8 +289,8 @@ const styles = StyleSheet.create({
   },
   pill: {
     position: 'absolute',
-    top: 6,
-    bottom: 6,
+    top: 4, // decreased from 6
+    bottom: 4, // decreased from 6
     backgroundColor: '#fff',
     borderRadius: 999,
   },
@@ -173,8 +298,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    paddingVertical: 10,
+    gap: 2, // slightly decreased from 3
+    paddingVertical: 6, // decreased from 10
     paddingHorizontal: 2,
     borderRadius: 999,
   },

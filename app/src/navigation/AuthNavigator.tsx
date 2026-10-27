@@ -7,7 +7,7 @@ import RegistrationSuccessScreen from '../screens/auth/RegistrationSuccessScreen
 import Theme from '../theme/Theme';
 
 export type AuthStackParamList = {
-  Login: undefined;
+  Login: { showPhoneInput?: boolean } | undefined;
   SignUp: undefined;
   RegistrationSuccess: undefined;
   VerifyOtp: { confirmation: any, phoneNumber: string, contactId?: string, memberName?: string };
@@ -27,7 +27,7 @@ export default function AuthNavigator() {
       <Stack.Screen 
         name="Login" 
         component={LoginScreen} 
-        options={{ title: 'Welcome to Church' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen 
         name="SignUp" 
@@ -42,7 +42,7 @@ export default function AuthNavigator() {
       <Stack.Screen 
         name="VerifyOtp" 
         component={VerifyOtpScreen} 
-        options={{ title: 'Verification' }}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

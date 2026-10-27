@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, ScrollView, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Video, PlusCircle, Calendar, Menu, Users, Plus, ArrowLeft, Book } from 'lucide-react-native';
@@ -9,6 +9,7 @@ import { db } from '../../../services/firebaseConfig';
 import { useAuth } from '../../../context/AuthContext';
 import AdminBibleClassesCreate from './AdminBibleClassesCreate';
 import AdminBibleClassHost from './AdminBibleClassHost';
+import AdminZoomMeetingsCreate from '../zoom_meetings/AdminZoomMeetingsCreate';
 
 const { width } = Dimensions.get('window');
 
@@ -29,7 +30,7 @@ export default function AdminBibleClassesMain() {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
 
   // New states for the requested features
-  const [createMode, setCreateMode] = useState(false);
+  const [createMode, setCreateMode] = useState<'google' | 'zoom' | null>(null);
   const [historyFilter, setHistoryFilter] = useState<'ALL' | 'UPCOMING' | 'LIVE'>('ALL');
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -165,20 +166,72 @@ export default function AdminBibleClassesMain() {
           <Text style={styles.clockDate}>{dateString}</Text>
         </View>
         
+        {/* Google Meet Card */}
         <TouchableOpacity 
-          style={[styles.bigActionCard, { backgroundColor: '#f97316' }]}
-          onPress={() => setCreateMode(true)}
+          style={[styles.platformCard, { backgroundColor: isDark ? '#202124' : '#ffffff', borderColor: isDark ? '#3c4043' : '#dadce0' }]}
+          onPress={() => setCreateMode('google')}
           activeOpacity={0.8}
         >
-          <View style={styles.bigActionCardHeader}>
-            <View style={styles.bigActionCardIconWrapper}>
-              <Video size={32} color="#f97316" />
-            </View>
-            <Text style={styles.bigActionCardTitle}>Schedule New Class</Text>
+          <View style={[styles.platformIconContainer, { backgroundColor: 'transparent' }]}>
+            <Image 
+              source={{ uri: 'https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v1/web-96dp/logo_meet_2020q4_color_2x_web_96dp.png' }} 
+              style={{ width: 48, height: 48 }} 
+              resizeMode="contain" 
+            />
           </View>
-          <Text style={styles.bigActionCardDesc}>
-            Guide your congregation deeper into the Word. Tap here to schedule a new Bible class, automatically generate a Google Meet link, and invite members to join in fellowship and study.
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.platformTitle, { color: isDark ? '#e8eaed' : '#3c4043' }]}>Google Meet</Text>
+            <Text style={[styles.platformDesc, { color: isDark ? '#9aa0a6' : '#5f6368' }]}>
+              Schedule a new class and automatically generate a Google Meet link.
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Zoom Meet Card */}
+        <TouchableOpacity 
+          style={[styles.platformCard, { backgroundColor: isDark ? '#202124' : '#ffffff', borderColor: isDark ? '#3c4043' : '#dadce0' }]}
+          onPress={() => setCreateMode('zoom')}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.platformIconContainer, { backgroundColor: 'transparent' }]}>
+            <View style={{
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              backgroundColor: '#fff',
+              justifyContent: 'center',
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: isDark ? '#475569' : '#e2e8f0',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 2,
+            }}>
+              <View style={{
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                backgroundColor: '#0B5CFF',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+                <Text style={{
+                  color: '#fff',
+                  fontWeight: '800',
+                  fontSize: 18,
+                  letterSpacing: -0.5,
+                }}>zm</Text>
+              </View>
+            </View>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.platformTitle, { color: isDark ? '#e8eaed' : '#3c4043' }]}>Zoom Meet</Text>
+            <Text style={[styles.platformDesc, { color: isDark ? '#9aa0a6' : '#5f6368' }]}>
+              Connect with your congregation online by scheduling a Zoom Meeting.
+            </Text>
+          </View>
         </TouchableOpacity>
 
       </View>
@@ -194,7 +247,7 @@ export default function AdminBibleClassesMain() {
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
     if (tabId === 'history') setHistoryFilter('ALL');
-    if (tabId === 'create') setCreateMode(false);
+    if (tabId === 'create') setCreateMode(null);
   };
 
   return (
@@ -206,7 +259,7 @@ export default function AdminBibleClassesMain() {
           {activeTab === 'host' || createMode ? (
             <TouchableOpacity 
               onPress={() => {
-                if (createMode) setCreateMode(false);
+                if (createMode) setCreateMode(null);
                 else { setActiveTab('dashboard'); setSelectedClassId(null); }
               }} 
               style={styles.menuBtn}
@@ -237,8 +290,10 @@ export default function AdminBibleClassesMain() {
           {activeTab === 'dashboard' ? renderDashboard() : null}
           
           {activeTab === 'create' ? (
-            createMode ? (
-              <AdminBibleClassesCreate onBack={() => { setActiveTab('dashboard'); setCreateMode(false); }} />
+            createMode === 'google' ? (
+              <AdminBibleClassesCreate onBack={() => { setActiveTab('dashboard'); setCreateMode(null); }} />
+            ) : createMode === 'zoom' ? (
+              <AdminZoomMeetingsCreate onBack={() => { setActiveTab('dashboard'); setCreateMode(null); }} />
             ) : (
               renderCreateLanding()
             )
@@ -505,42 +560,51 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontWeight: '500',
   },
-  bigActionCard: {
+  platformCard: {
     width: '100%',
-    padding: 24,
+    backgroundColor: '#fff',
     borderRadius: 24,
-    shadowColor: '#f97316',
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.08,
     shadowRadius: 15,
-    elevation: 8,
-    marginBottom: 24,
-  },
-  bigActionCardHeader: {
+    elevation: 4,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    gap: 16
   },
-  bigActionCardIconWrapper: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#fff',
+  platformCardDark: {
+    backgroundColor: '#1e293b',
+    borderColor: '#334155',
+  },
+  platformIconContainer: {
+    width: 68,
+    height: 68,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
   },
-  bigActionCardTitle: {
-    color: '#fff',
-    fontSize: 24,
+  platformTitle: {
+    fontSize: 22,
     fontWeight: '800',
-    flex: 1,
+    color: '#0f172a',
+    marginBottom: 6,
   },
-  bigActionCardDesc: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 16,
+  platformTitleDark: {
+    color: '#f8fafc',
+  },
+  platformDesc: {
+    fontSize: 14,
+    color: '#64748b',
+    lineHeight: 20,
     fontWeight: '500',
-    lineHeight: 24,
+  },
+  platformDescDark: {
+    color: '#94a3b8',
   },
   
   // History Filter Pill

@@ -30,7 +30,8 @@ import {
   Gift,
   Heart,
   AlertTriangle,
-  Menu
+  Menu,
+  BookOpen
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AdminTabContext } from '../../context/AdminTabContext';
@@ -99,6 +100,15 @@ export default function AdminNotificationBroadcast() {
     greeting: 'Wishing you a wonderful wedding anniversary! May God bless your home with love, joy, and peace. 💐💒'
   });
 
+  // --- State for Daily Scripture Challenge Notification ---
+  const [dailyQuizNotif, setDailyQuizNotif] = useState({
+    enabled: true,
+    sendTime: '08:00',
+    title: '📖 Daily Scripture Challenge · నేటి వాక్యం',
+    message: "Good morning! Spend 2 minutes in God's Word today. Complete your Daily Scripture Challenge and earn points! 🪙"
+  });
+  const [testingQuizNotif, setTestingQuizNotif] = useState(false);
+
   // --- State for Manual Broadcast ---
   const [manualBroadcast, setManualBroadcast] = useState({
     title: '',
@@ -142,6 +152,7 @@ export default function AdminNotificationBroadcast() {
           if (data?.sermonNotif) setSermonNotif(data.sermonNotif);
           if (data?.birthdayNotif) setBirthdayNotif(data.birthdayNotif);
           if (data?.anniversaryNotif) setAnniversaryNotif(data.anniversaryNotif);
+          if (data?.dailyQuizNotif) setDailyQuizNotif(data.dailyQuizNotif);
           if (data?.lastBroadcast) setLastBroadcast(data.lastBroadcast);
         }
       } catch (err: any) {
@@ -179,6 +190,7 @@ export default function AdminNotificationBroadcast() {
         sermonNotif,
         birthdayNotif,
         anniversaryNotif,
+        dailyQuizNotif,
         updatedAt: serverTimestamp()
       }, { merge: true });
       
@@ -532,6 +544,89 @@ export default function AdminNotificationBroadcast() {
               return d;
             })()}
           />
+        </View>
+
+        {/* ── Daily Scripture Challenge Notification (8:00 AM IST) ── */}
+        <View style={[styles.sectionHeader, { borderLeftColor: '#7c3aed' }]}>
+          <BookOpen size={14} color="#7c3aed" />
+          <Text style={[styles.sectionTitle, { color: '#7c3aed' }]}>Daily Scripture Challenge Notification (8:00 AM)</Text>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={styles.fLabel}>Automated 8:00 AM Scripture Quiz Push</Text>
+              <Text style={[styles.fLabelSmall, { color: isDark ? '#94a3b8' : '#64748b', marginTop: 2 }]}>
+                Automatically targets members who have not yet completed today's scripture challenge.
+              </Text>
+            </View>
+            <Switch 
+              value={dailyQuizNotif.enabled} 
+              onValueChange={(v) => setDailyQuizNotif({...dailyQuizNotif, enabled: v})} 
+              trackColor={{ false: '#cbd5e1', true: '#7c3aed' }}
+              thumbColor="#fff"
+            />
+          </View>
+
+          <View style={[styles.inputGroup, { marginTop: 10 }]}>
+            <Text style={styles.fLabelSmall}>Notification Title</Text>
+            <TextInput 
+              style={[styles.inputBoxAlt, { height: 42, paddingHorizontal: 12 }]} 
+              value={dailyQuizNotif.title}
+              onChangeText={(text) => setDailyQuizNotif({ ...dailyQuizNotif, title: text })}
+              placeholder="Notification Title"
+              placeholderTextColor="#94a3b8"
+            />
+          </View>
+
+          <View style={[styles.inputGroup, { marginTop: 10 }]}>
+            <Text style={styles.fLabelSmall}>Notification Message</Text>
+            <TextInput 
+              style={[styles.inputBoxAlt, { height: 60, textAlignVertical: 'top', paddingTop: 8, paddingHorizontal: 12 }]} 
+              multiline
+              value={dailyQuizNotif.message}
+              onChangeText={(text) => setDailyQuizNotif({ ...dailyQuizNotif, message: text })}
+              placeholder="Notification Message"
+              placeholderTextColor="#94a3b8"
+            />
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.sendBtn, { backgroundColor: '#7c3aed', marginTop: 14 }]} 
+            onPress={async () => {
+              if (testingQuizNotif) return;
+              setTestingQuizNotif(true);
+              try {
+                const response = await fetch(
+                  'https://asia-south1-church-mobile-app-b7e27.cloudfunctions.net/triggerDailyScriptureQuizReminder?forceAll=false'
+                );
+                const resData = await response.json();
+                if (resData.success) {
+                  Alert.alert(
+                    'Daily Challenge Notification Sent',
+                    `Dispatched to ${resData.sentCount} members!\n\n(${resData.completedMembers || 0} members had already completed today's challenge and were skipped)`
+                  );
+                } else {
+                  Alert.alert('Notice', resData.error || 'Failed to dispatch notification.');
+                }
+              } catch (err: any) {
+                Alert.alert('Notice', 'Triggered Daily Scripture Challenge reminder. Check logs for delivery.');
+              } finally {
+                setTestingQuizNotif(false);
+              }
+            }}
+            disabled={testingQuizNotif}
+            activeOpacity={0.85}
+          >
+            {testingQuizNotif ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <Send size={15} color="#fff" style={{ marginRight: 6 }} />
+                <Text style={styles.sendBtnTxt}>Send Daily Quiz Reminder Now (Test)</Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* ── 2. Automated Birthdays & Anniversaries ── */}

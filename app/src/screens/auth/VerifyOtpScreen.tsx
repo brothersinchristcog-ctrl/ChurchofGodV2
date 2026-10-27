@@ -88,20 +88,16 @@ export default function VerifyOtpScreen({ route, navigation }: VerifyOtpScreenPr
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <StatusBar barStyle="light-content" backgroundColor="#1a2d5a" />
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       <SafeAreaView style={styles.safeArea}>
         
-        {/* ── Page Header ── */}
-        <View style={styles.pageHeader}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <ChevronLeft size={20} color="#aac4e8" />
-            <Text style={styles.backBtnTxt}>Change Number</Text>
+        {/* ── Top Header Section ── */}
+        <View style={styles.headerSection}>
+          <TouchableOpacity style={styles.inlineBackBtn} onPress={() => navigation.goBack()}>
+            <ChevronLeft size={22} color="#1a2d5a" />
           </TouchableOpacity>
-          <View style={styles.titleCol}>
-            <Text style={styles.pageTitle}>OTP Verification</Text>
-            <Text style={styles.pageSub}>ధృవీకరణ</Text>
-          </View>
-          <View style={{ width: 60 }} />
+          <Text style={styles.cursiveHeading}>Verification</Text>
+          <View style={{ width: 40 }} />
         </View>
 
         <ScrollView 
@@ -115,7 +111,12 @@ export default function VerifyOtpScreen({ route, navigation }: VerifyOtpScreenPr
               </View>
               <Text style={styles.authTitle}>Verify your phone</Text>
               <Text style={styles.authSub}>We sent a 6-digit code to</Text>
-              <Text style={styles.phoneTxt}>{phoneNumber}</Text>
+              <View style={styles.phoneBadge}>
+                <Text style={styles.phoneTxt}>{phoneNumber}</Text>
+                <TouchableOpacity onPress={() => navigation.goBack()}>
+                  <Text style={styles.changeNumTxt}>Change</Text>
+                </TouchableOpacity>
+              </View>
 
               {memberName ? (
                 <View style={styles.memberBanner}>
@@ -156,11 +157,6 @@ export default function VerifyOtpScreen({ route, navigation }: VerifyOtpScreenPr
             </TouchableOpacity>
 
             {status ? <Text style={styles.statusTxt}>{status}</Text> : null}
-
-            <TouchableOpacity style={styles.resendBtn} disabled={loading}>
-              <RefreshCw size={16} color="#6B7280" />
-              <Text style={styles.resendTxt}>Resend Code</Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -172,30 +168,52 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   safeArea: { flex: 1 },
   
-  // Header
-  pageHeader: {
-    backgroundColor: '#1a2d5a',
-    paddingTop: Platform.OS === 'ios' ? 0 : 20,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
+  // Header (New Inline Design)
+  headerSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 20,
+    width: '100%',
   },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 60 },
-  backBtnTxt: { color: '#aac4e8', fontSize: 12, fontWeight: '500' },
-  titleCol: { flex: 1, alignItems: 'center' },
-  pageTitle: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  pageSub: { color: '#aac4e8', fontSize: 9, marginTop: 1 },
+  inlineBackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cursiveHeading: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1a2d5a',
+  },
 
-  content: { width: '100%', paddingHorizontal: 25, paddingTop: 40, alignItems: 'center', paddingBottom: 40 },
+  content: { width: '100%', paddingHorizontal: 25, paddingTop: 20, alignItems: 'center', paddingBottom: 40 },
   scrollContent: { flexGrow: 1 },
   
   infoSection: { alignItems: 'center', marginBottom: 40 },
   iconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#f0f2f7', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   authTitle: { fontSize: 24, fontWeight: '800', color: '#1a2d5a', marginBottom: 8 },
   authSub: { fontSize: 14, color: '#6B7280' },
-  phoneTxt: { fontSize: 16, fontWeight: '700', color: '#111827', marginTop: 4 },
+  
+  phoneBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 24,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 12
+  },
+  phoneTxt: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  changeNumTxt: { fontSize: 13, fontWeight: '600', color: '#3b82f6', textDecorationLine: 'underline' },
 
   inputSection: { width: '100%', marginBottom: 30 },
   inputLabel: { fontSize: 10, fontWeight: '800', color: '#1a2d5a', letterSpacing: 1, marginBottom: 12, textAlign: 'center' },

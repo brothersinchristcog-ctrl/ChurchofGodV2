@@ -46,6 +46,35 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 import SalesforceService from '../../services/SalesforceService';
 
+const LOCAL_TELUGU_BIBLE: any = require('../../../assets/telugu_bible.json');
+
+const ENGLISH_NAMES = [
+  'Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy', 'Joshua', 'Judges', 'Ruth', '1 Samuel', '2 Samuel',
+  '1 Kings', '2 Kings', '1 Chronicles', '2 Chronicles', 'Ezra', 'Nehemiah', 'Esther', 'Job', 'Psalms', 'Proverbs',
+  'Ecclesiastes', 'Song of Solomon', 'Isaiah', 'Jeremiah', 'Lamentations', 'Ezekiel', 'Daniel', 'Hosea', 'Joel', 'Amos',
+  'Obadiah', 'Jonah', 'Micah', 'Nahum', 'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi',
+  'Matthew', 'Mark', 'Luke', 'John', 'Acts', 'Romans', '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians',
+  'Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians', '1 Timothy', '2 Timothy', 'Titus', 'Philemon', 'Hebrews', 'James',
+  '1 Peter', '2 Peter', '1 John', '2 John', '3 John', 'Jude', 'Revelation'
+];
+
+const TELUGU_NAMES = [
+  'ఆదికాండము', 'నిర్గమకాండము', 'లేవీయకాండము', 'సంఖ్యాకాండము', 'ద్వితీయోపదేశకాండము',
+  'యెహోషువ', 'న్యాయాధిపతులు', 'రూతు', '1 సమూయేలు', '2 సమూయేలు',
+  '1 రాజులు', '2 రాజులు', '1 దినవృత్తాంతములు', '2 దినవృత్తాంతములు', 'ఎజ్రా',
+  'నెహెమ్యా', 'ఎస్తేరు', 'యోబు', 'కీర్తనల గ్రంథము', 'సామెతలు',
+  'ప్రసంగి', 'పరమగీతము', 'యెషయా', 'యిర్మియా', 'విలాపవాక్యములు',
+  'యెహెజ్కేలు', 'దానియేలు', 'హోషేయ', 'యోవేలు', 'ఆమోసు',
+  'ఓబద్యా', 'యోనా', 'మీకా', 'నహూము', 'హబక్కూకు',
+  'జెఫన్యా', 'హగ్గయి', 'జెకర్యా', 'మలాకీ',
+  'మత్తయి సువార్త', 'మార్కు సువార్త', 'లూకా సువార్త', 'యోహాను సువార్త', 'అపొస్తలుల కార్యములు',
+  'రోమీయులకు వ్రాసిన పత్రిక', '1 కొరింథీయులకు', '2 కొరింథీయులకు', 'గలతీయులకు', 'ఎఫెసీయులకు',
+  'ఫిలిప్పీయులకు', 'కొలొస్సయులకు', '1 థెస్సలొనీకయులకు', '2 థెస్సలొనీకయులకు', '1 తిమోతికి',
+  '2 తిమోతికి', 'తీతుకు', 'ఫిలేమోనుకు', 'హెబ్రీయులకు', 'యాకోబు',
+  '1 పేతురు', '2 పేతురు', '1 యోహాను', '2 యోహాను', '3 యోహాను',
+  'యూదా', 'ప్రకటన గ్రంథము'
+];
+
 const { width } = Dimensions.get('window');
 
 const THEME_COLORS = [
@@ -208,6 +237,14 @@ export default function AdminPromiseEditor() {
   const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const [loading, setLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  
+  // Bible Picker State
+  const [showBiblePicker, setShowBiblePicker] = useState(false);
+  const [pickerStep, setPickerStep] = useState<'Book' | 'Chapter' | 'Verse'>('Book');
+  const [selectedBookIndex, setSelectedBookIndex] = useState<number | null>(null);
+  const [selectedChapter, setSelectedChapter] = useState<number | null>(null);
+  const [isFetchingEnglish, setIsFetchingEnglish] = useState(false);
+
   const dashOffset = useRef(new Animated.Value(500)).current;
 
   useEffect(() => {
@@ -442,6 +479,126 @@ export default function AdminPromiseEditor() {
     );
   };
 
+  const handleVerseSelect = async (verseNumber: number) => {
+    if (selectedBookIndex === null || selectedChapter === null) return;
+    setShowBiblePicker(false);
+    
+    // 1. Fetch Telugu locally
+    const teluguText = LOCAL_TELUGU_BIBLE?.Book?.[selectedBookIndex]?.Chapter?.[selectedChapter - 1]?.Verse?.[verseNumber - 1]?.Verse || '';
+    const teRefStr = `${TELUGU_NAMES[selectedBookIndex]} ${selectedChapter}:${verseNumber}`;
+    const enRefStr = `${ENGLISH_NAMES[selectedBookIndex]} ${selectedChapter}:${verseNumber}`;
+    
+    setForm(prev => ({
+      ...prev,
+      teVerse: teluguText,
+      teRef: teRefStr,
+      enRef: enRefStr,
+      enVerse: 'Fetching English verse...'
+    }));
+    
+    // 2. Fetch English from API
+    try {
+      setIsFetchingEnglish(true);
+      const url = `https://bolls.life/get-text/KJV/${selectedBookIndex + 1}/${selectedChapter}/`;
+      const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (response.ok) {
+        const result = await response.json();
+        const verseItem = result.find((v: any) => v.verse === verseNumber);
+        if (verseItem && verseItem.text) {
+          const cleanText = verseItem.text
+            .replace(/<S>\d*<\/S>/gi, '')
+            .replace(/<sup[^>]*>.*?<\/sup>/gi, '')
+            .replace(/<[^>]+>/g, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+            
+          setForm(prev => ({
+            ...prev,
+            enVerse: cleanText
+          }));
+        } else {
+          setForm(prev => ({ ...prev, enVerse: 'Error parsing English verse' }));
+        }
+      } else {
+        setForm(prev => ({ ...prev, enVerse: 'Error fetching English verse' }));
+      }
+    } catch (err) {
+      setForm(prev => ({ ...prev, enVerse: 'Network error fetching English verse' }));
+    } finally {
+      setIsFetchingEnglish(false);
+    }
+  };
+
+  const openPicker = () => {
+    setPickerStep('Book');
+    setSelectedBookIndex(null);
+    setSelectedChapter(null);
+    setShowBiblePicker(true);
+  };
+
+  const renderBiblePicker = () => {
+    return (
+      <Modal visible={showBiblePicker} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.pickerCard, { height: '80%', padding: 0 }]}>
+            <View style={[styles.pickerHd, { padding: 20, paddingBottom: 15, borderBottomWidth: 1, borderColor: colors.border }]}>
+              <Text style={styles.pickerTitle}>
+                {pickerStep === 'Book' ? 'Select Book' : pickerStep === 'Chapter' ? 'Select Chapter' : 'Select Verse'}
+              </Text>
+              <TouchableOpacity onPress={() => setShowBiblePicker(false)}><X size={20} color={colors.text} /></TouchableOpacity>
+            </View>
+            <ScrollView style={{ flex: 1 }}>
+              {pickerStep === 'Book' && ENGLISH_NAMES.map((enName, idx) => (
+                <TouchableOpacity 
+                  key={idx} 
+                  style={{ padding: 15, borderBottomWidth: 1, borderColor: colors.border, flexDirection: 'row', justifyContent: 'space-between' }}
+                  onPress={() => {
+                    setSelectedBookIndex(idx);
+                    setPickerStep('Chapter');
+                  }}
+                >
+                  <Text style={{ fontSize: 14, color: colors.text, fontWeight: '600' }}>{enName}</Text>
+                  <Text style={{ fontSize: 14, color: colors.textSecondary, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' }}>{TELUGU_NAMES[idx]}</Text>
+                </TouchableOpacity>
+              ))}
+              
+              {pickerStep === 'Chapter' && selectedBookIndex !== null && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 15, gap: 10 }}>
+                  {LOCAL_TELUGU_BIBLE?.Book?.[selectedBookIndex]?.Chapter?.map((_: any, idx: number) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={{ width: 45, height: 45, borderRadius: 8, backgroundColor: isDark ? '#334155' : '#f1f5f9', justifyContent: 'center', alignItems: 'center' }}
+                      onPress={() => {
+                        setSelectedChapter(idx + 1);
+                        setPickerStep('Verse');
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: '700' }}>{idx + 1}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {pickerStep === 'Verse' && selectedBookIndex !== null && selectedChapter !== null && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', padding: 15, gap: 10 }}>
+                  {LOCAL_TELUGU_BIBLE?.Book?.[selectedBookIndex]?.Chapter?.[selectedChapter - 1]?.Verse?.map((_: any, idx: number) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={{ width: 45, height: 45, borderRadius: 8, backgroundColor: isDark ? '#3b82f6' : '#bfdbfe', justifyContent: 'center', alignItems: 'center' }}
+                      onPress={() => handleVerseSelect(idx + 1)}
+                    >
+                      <Text style={{ color: isDark ? '#fff' : '#1e3a8a', fontWeight: '700' }}>{idx + 1}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -474,6 +631,7 @@ export default function AdminPromiseEditor() {
             </TouchableOpacity>
           </View>
           {renderDatePicker()}
+          {renderBiblePicker()}
           
           <View style={styles.fGroup}>
             <Text style={styles.fLabel}>Background theme</Text>
@@ -487,27 +645,7 @@ export default function AdminPromiseEditor() {
           </View>
         </View>
 
-        {/* 2. English Promise */}
-        <View style={[styles.section, styles.secBlue]}>
-          <View style={styles.secHd}>
-            <BookOpen size={14} color={isDark ? '#60a5fa' : '#2563eb'} />
-            <Text style={[styles.secHdTXT, { color: isDark ? '#60a5fa' : '#2563eb' }]}>English Promise</Text>
-          </View>
-          <View style={styles.fGroup}>
-            <Text style={styles.fLabel}>Verse reference <Text style={{color:'#c0392b'}}>*</Text> <Text style={styles.fHint}>e.g. John 3:16</Text></Text>
-            <TextInput style={styles.input} value={form.enRef} onChangeText={(v) => setForm({...form, enRef: v})} placeholder="Book Chapter:Verse" />
-          </View>
-          <View style={styles.fGroup}>
-            <Text style={styles.fLabel}>Verse text — English <Text style={{color:'#c0392b'}}>*</Text></Text>
-            <TextInput style={[styles.input, styles.textarea]} multiline value={form.enVerse} onChangeText={(v) => setForm({...form, enVerse: v})} placeholder="Type or paste the Bible verse in English…" />
-          </View>
-          <View style={styles.fGroup}>
-            <Text style={styles.fLabel}>Devotional note — English <Text style={styles.fHint}>Optional</Text></Text>
-            <TextInput style={[styles.input, styles.textarea]} multiline value={form.enNote} onChangeText={(v) => setForm({...form, enNote: v})} placeholder="Pastor's reflection in English…" />
-          </View>
-        </View>
-
-        {/* 3. Telugu Promise */}
+        {/* 2. Telugu Promise */}
         <View style={[styles.section, styles.secViolet]}>
           <View style={styles.secHd}>
             <Languages size={14} color={isDark ? '#c4b5fd' : '#7c3aed'} />
@@ -515,7 +653,12 @@ export default function AdminPromiseEditor() {
           </View>
           <View style={styles.fGroup}>
             <Text style={styles.fLabel}>Verse reference — Telugu <Text style={styles.fHint}>e.g. యోహాను 3:16</Text></Text>
-            <TextInput style={[styles.input, styles.teIn]} value={form.teRef} onChangeText={(v) => setForm({...form, teRef: v})} placeholder="పుస్తకం అధ్యాయం:వచనం" />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TextInput style={[styles.input, styles.teIn, { flex: 1 }]} value={form.teRef} onChangeText={(v) => setForm({...form, teRef: v})} placeholder="పుస్తకం అధ్యాయం:వచనం" />
+              <TouchableOpacity style={{ backgroundColor: '#1a2d5a', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 15, borderRadius: 8 }} onPress={openPicker}>
+                <BookOpen size={16} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={styles.fGroup}>
             <Text style={styles.fLabel}>Verse text — Telugu <Text style={{color:'#c0392b'}}>*</Text></Text>
@@ -524,6 +667,31 @@ export default function AdminPromiseEditor() {
           <View style={styles.fGroup}>
             <Text style={styles.fLabel}>Devotional note — Telugu <Text style={styles.fHint}>ఐచ్ఛికం</Text></Text>
             <TextInput style={[styles.input, styles.textarea, styles.teIn]} multiline value={form.teNote} onChangeText={(v) => setForm({...form, teNote: v})} placeholder="పాస్టర్ గారి వ్యాఖ్యానం తెలుగులో…" />
+          </View>
+        </View>
+
+        {/* 3. English Promise */}
+        <View style={[styles.section, styles.secBlue]}>
+          <View style={styles.secHd}>
+            <BookOpen size={14} color={isDark ? '#60a5fa' : '#2563eb'} />
+            <Text style={[styles.secHdTXT, { color: isDark ? '#60a5fa' : '#2563eb' }]}>English Promise</Text>
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Verse reference <Text style={{color:'#c0392b'}}>*</Text> <Text style={styles.fHint}>e.g. John 3:16</Text></Text>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TextInput style={[styles.input, { flex: 1 }]} value={form.enRef} onChangeText={(v) => setForm({...form, enRef: v})} placeholder="Book Chapter:Verse" />
+              <TouchableOpacity style={{ backgroundColor: '#1a2d5a', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 15, borderRadius: 8 }} onPress={openPicker}>
+                <BookOpen size={16} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Verse text — English <Text style={{color:'#c0392b'}}>*</Text></Text>
+            <TextInput style={[styles.input, styles.textarea]} multiline value={form.enVerse} onChangeText={(v) => setForm({...form, enVerse: v})} placeholder="Type or paste the Bible verse in English…" />
+          </View>
+          <View style={styles.fGroup}>
+            <Text style={styles.fLabel}>Devotional note — English <Text style={styles.fHint}>Optional</Text></Text>
+            <TextInput style={[styles.input, styles.textarea]} multiline value={form.enNote} onChangeText={(v) => setForm({...form, enNote: v})} placeholder="Pastor's reflection in English…" />
           </View>
         </View>
 

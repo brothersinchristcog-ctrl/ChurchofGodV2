@@ -101,7 +101,7 @@ export default function SongsScreen({ navigation }: any) {
   // ── My Songbook ───────────────────────────────────
   const [savedIds, setSavedIds] = useState<string[]>([]);
 
-  // ── Lyrics Modal ──────────────────────────────────
+  // ── Lyrics View ──────────────────────────────────
   const [selectedSong, setSelectedSong] = useState<WorshipSong | null>(null);
 
   // ── Load songs ────────────────────────────────────
@@ -203,12 +203,13 @@ export default function SongsScreen({ navigation }: any) {
   });
 
   // ── Song Card ─────────────────────────────────────
-  const renderSongCard = ({ item }: { item: WorshipSong & { displayNumber: number } }) => {
+  const renderSongCard = ({ item, index }: { item: WorshipSong & { displayNumber: number }, index: number }) => {
     const isSaved = savedIds.includes(item.id);
+    const currentList = activeTab === 'browse' ? filteredBrowse : activeTab === 'songbook' ? filteredSongbook : filteredTheme;
     return (
       <TouchableOpacity
         style={[styles.songCard, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e5e7eb' }]}
-        onPress={() => setSelectedSong(item)}
+        onPress={() => navigation.navigate('SongView', { songs: currentList, initialIndex: index })}
         onLongPress={() => toggleSave(item)}
         delayLongPress={400}
       >
@@ -422,46 +423,7 @@ export default function SongsScreen({ navigation }: any) {
         )
       )}
 
-      {/* ── Lyrics Modal ── */}
-      {selectedSong && (
-        <Modal visible animationType="slide" transparent onRequestClose={() => setSelectedSong(null)}>
-          <View style={styles.modalBg}>
-            <View style={[styles.modalCard, { backgroundColor: isDark ? '#1e293b' : '#fff' }]}>
-              <View style={styles.modalHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.modalTitleEn, { color: isDark ? '#fff' : '#0f172a' }]} numberOfLines={2}>
-                    {selectedSong.title}
-                  </Text>
-                  <Text style={styles.modalTitleTe}>
-                    {selectedSong.titleTe || ''}
-                  </Text>
-                  <Text style={styles.modalCategory}>{selectedSong.category || 'Other'}</Text>
-                </View>
-                <View style={{ gap: 8, alignItems: 'flex-end' }}>
-                  <TouchableOpacity style={[styles.modalCloseBtn, { backgroundColor: isDark ? '#334155' : '#f1f5f9' }]}
-                    onPress={() => setSelectedSong(null)}>
-                    <X size={20} color={isDark ? '#fff' : '#475569'} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.bookmarkBtn, savedIds.includes(selectedSong.id) && styles.bookmarkBtnActive]}
-                    onPress={() => toggleSave(selectedSong)}>
-                    <Bookmark size={16} color={savedIds.includes(selectedSong.id) ? '#fff' : '#c0392b'} />
-                  </TouchableOpacity>
-                </View>
-              </View>
 
-              <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-                <Text style={[styles.modalSecHeader, { color: isDark ? '#94a3b8' : '#1a2d5a' }]}>LYRICS & SCRIPTS · సాహిత్యం</Text>
-                <View style={[styles.lyricsBox, { backgroundColor: isDark ? '#0f172a' : '#f8fafc' }]}>
-                  <Text style={[styles.lyricsText, { color: isDark ? '#e2e8f0' : '#334155' }]}>
-                    {selectedSong.lyrics || 'Lyrics are being updated by the administrator. Please check back soon.'}
-                  </Text>
-                </View>
-                <View style={{ height: 60 }} />
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-      )}
 
       {/* ── Custom Toast Modal ── */}
       {toast.visible && (
@@ -574,18 +536,4 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 15, fontWeight: '800', marginTop: 12 },
   emptySub: { fontSize: 12, color: '#94a3b8', textAlign: 'center', marginTop: 4 },
 
-  // Lyrics Modal
-  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalCard: { borderTopLeftRadius: 25, borderTopRightRadius: 25, height: height * 0.87, padding: 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', borderBottomWidth: 0.5, borderColor: '#cbd5e1', paddingBottom: 14, marginBottom: 14 },
-  modalTitleEn: { fontSize: 17, fontWeight: '900' },
-  modalTitleTe: { fontSize: 11, color: '#94a3b8', marginTop: 3, fontWeight: '700' },
-  modalCategory: { fontSize: 10, color: '#c0392b', fontWeight: '800', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
-  modalCloseBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  bookmarkBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: '#c0392b', alignItems: 'center', justifyContent: 'center' },
-  bookmarkBtnActive: { backgroundColor: '#c0392b', borderColor: '#c0392b' },
-  modalScroll: { flex: 1 },
-  modalSecHeader: { fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, color: '#1a2d5a' },
-  lyricsBox: { borderRadius: 14, padding: 16, borderWidth: 0.5, borderColor: '#e2e8f0' },
-  lyricsText: { fontSize: 13, lineHeight: 23, fontWeight: '500', fontStyle: 'italic' },
 });

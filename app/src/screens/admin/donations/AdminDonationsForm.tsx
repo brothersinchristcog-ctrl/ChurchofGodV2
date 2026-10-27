@@ -241,15 +241,14 @@ export default function AdminDonationsForm({ editData, onNavigate }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
-        <View style={styles.topbarBgCircle} pointerEvents="none" />
-        <View style={styles.topbarRow}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => onNavigate(editData ? 'details' : 'dashboard', editData)}>
-            <ArrowLeft color="#fff" size={20} />
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.eyebrow}>{editData ? 'EDIT RECORD' : 'NEW RECORD'}</Text>
-            <Text style={styles.title}>{editData ? 'Edit Donation' : 'Create Donation'}</Text>
+        <View style={[styles.topbarRow, { justifyContent: 'space-between', width: '100%' }]}>
+          <View style={{ width: 40, alignItems: 'flex-start' }}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => onNavigate(editData ? 'details' : 'dashboard', editData)}>
+              <ArrowLeft color="#fff" size={20} />
+            </TouchableOpacity>
           </View>
+          <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>{editData ? 'Edit Donation' : 'Create Donation'}</Text>
+          <View style={{ width: 40 }} />
         </View>
       </View>
 
@@ -494,12 +493,18 @@ const receiptModalStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.parchment },
-  topbar: { backgroundColor: COLORS.indigo, paddingTop: 45, paddingBottom: 25, paddingHorizontal: 20, overflow: 'hidden' },
-  topbarBgCircle: { position: 'absolute', right: -40, top: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(201,162,39,0.18)' },
+  topbar: {
+    backgroundColor: COLORS.indigo,
+    paddingTop: 45,
+    paddingBottom: 25,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    position: 'relative',
+  },
   topbarRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.18)', borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { fontSize: 11, letterSpacing: 1.4, color: COLORS.goldLight, fontWeight: '600' },
-  title: { fontSize: 22, fontWeight: '600', color: '#fff', marginTop: 2 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 22, fontWeight: '700', color: '#fff' },
   content: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
   formCard: { backgroundColor: COLORS.paper, borderColor: COLORS.line, borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 14 },
   fieldRow: { marginBottom: 14 },

@@ -4,7 +4,7 @@ import firestore from '@react-native-firebase/firestore';
 import functions from '@react-native-firebase/functions';
 import auth from '@react-native-firebase/auth';
 import SalesforceService from '../../services/SalesforceService';
-import { ChevronLeft, ArrowLeft, Send, MessageCircle, Phone as PhoneIcon, Video, MoreVertical, User, Check, CheckCheck, Search } from 'lucide-react-native';
+import { ChevronLeft, ArrowLeft, Send, MessageCircle, Phone as PhoneIcon, Video, MoreVertical, User, Check, CheckCheck, Search, Trash2 } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 
 interface ChatMessage {
@@ -48,6 +48,32 @@ export default function AdminInbox() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewTab, setViewTab] = useState<'my_chats' | 'all_chats'>('my_chats');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const executeDeleteChats = async () => {
+    if (!activeChat) return;
+    setShowDeleteConfirm(false);
+    setLoading(true);
+    try {
+      const querySnapshot = await firestore()
+        .collection('whatsapp_messages')
+        .where('fromPhone', '==', activeChat.phone)
+        .get();
+      
+      const batch = firestore().batch();
+      querySnapshot.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+      setActiveChat(null);
+    } catch (error) {
+      console.error("Error deleting chat:", error);
+      Alert.alert("Error", "Failed to delete chat messages.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -434,7 +460,17 @@ export default function AdminInbox() {
           </View>
           <View style={styles.chatHeaderIcons}>
             <PhoneIcon size={20} color="#fff" style={styles.headerIcon} />
-            <MoreVertical size={20} color="#fff" />
+            <TouchableOpacity onPress={() => setShowMenu(!showMenu)}>
+              <MoreVertical size={20} color="#fff" />
+            </TouchableOpacity>
+            {showMenu && (
+              <View style={{ position: 'absolute', top: 40, right: 10, backgroundColor: '#233138', borderRadius: 8, paddingVertical: 6, minWidth: 160, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 }}>
+                <TouchableOpacity onPress={() => { setShowMenu(false); setShowDeleteConfirm(true); }} style={{ paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Trash2 size={18} color="#ff6b6b" />
+                  <Text style={{ color: '#ff6b6b', fontSize: 16, fontWeight: '500' }}>Delete chat</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
 
@@ -489,6 +525,30 @@ export default function AdminInbox() {
           ) : previewImage ? (
             <Image source={{ uri: previewImage }} style={styles.previewImage} resizeMode="contain" />
           ) : null}
+        </View>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal visible={showDeleteConfirm} transparent={true} animationType="fade" onRequestClose={() => setShowDeleteConfirm(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(11, 20, 26, 0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: '#fff', width: '100%', maxWidth: 340, borderRadius: 24, padding: 28, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10 }}>
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#fee2e2', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+              <Trash2 size={30} color="#ef4444" />
+            </View>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: '#0f172a', marginBottom: 10, textAlign: 'center' }}>Delete Conversation?</Text>
+            <Text style={{ fontSize: 15, color: '#64748b', textAlign: 'center', marginBottom: 28, lineHeight: 22 }}>
+              This will permanently delete all messages with <Text style={{ fontWeight: '700', color: '#334155' }}>{activeChat?.name && activeChat.name !== 'Unknown' ? activeChat.name : activeChat?.phone}</Text>. This action cannot be undone.
+            </Text>
+            
+            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+              <TouchableOpacity style={{ flex: 1, paddingVertical: 15, borderRadius: 14, backgroundColor: '#f1f5f9', alignItems: 'center' }} onPress={() => setShowDeleteConfirm(false)}>
+                <Text style={{ color: '#475569', fontWeight: '700', fontSize: 15 }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, paddingVertical: 15, borderRadius: 14, backgroundColor: '#ef4444', alignItems: 'center', shadowColor: '#ef4444', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 }} onPress={executeDeleteChats}>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
       </>

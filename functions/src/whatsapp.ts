@@ -18,7 +18,6 @@ const getSf = () => {
   return _sfBackend;
 };
 
-setGlobalOptions({ region: 'asia-south1' });
 
 export const sendWhatsAppWish = onCall({ invoker: 'public' }, async (request) => {
   try {
@@ -49,7 +48,7 @@ export const sendWhatsAppWish = onCall({ invoker: 'public' }, async (request) =>
     if (imageBase64) {
       // Convert base64 to Blob/Buffer
       const buffer = Buffer.from(imageBase64, 'base64');
-      const blob = new Blob([buffer], { type: 'image/jpeg' });
+      const blob = new Blob([new Uint8Array(buffer)], { type: 'image/jpeg' });
       
       const formData = new FormData();
       formData.append('messaging_product', 'whatsapp');

@@ -9,18 +9,18 @@ async function padIcon() {
     // Read the original logo
     const image = await Jimp.read(inputPath);
     
-    // Resize the logo to fit within the safe zone (600x600)
-    image.resize(600, 600);
+    // Resize the logo to fit comfortably within the safe zone (Android safe zone is 720px diameter)
+    image.resize(650, 650);
     
-    // Create a new 1024x1024 transparent image
-    const padded = new Jimp(1024, 1024, 0x00000000);
+    // Create a new 1080x1080 transparent image (Standard adaptive icon size)
+    const padded = new Jimp(1080, 1080, 0x00000000);
     
     // Composite the resized logo into the center
-    padded.composite(image, (1024 - 600) / 2, (1024 - 600) / 2);
+    padded.composite(image, (1080 - 650) / 2, (1080 - 650) / 2);
     
     // Save the new padded icon
     await padded.writeAsync(outputPath);
-    console.log('Successfully created adaptive-icon.png');
+    console.log('Successfully created adaptive-icon.png with proper padding');
   } catch (error) {
     console.error('Error creating padded icon:', error);
   }
