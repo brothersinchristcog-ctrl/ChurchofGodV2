@@ -62,6 +62,13 @@ import AppActivityScreen from '../screens/member/AppActivityScreen';
 import AttendanceScreen from '../screens/AttendanceScreen';
 import QRScannerScreen from '../screens/QRScannerScreen';
 import EventAttendeesScreen from '../screens/EventAttendeesScreen';
+import BibleQuizSplashScreen from '../screens/member/quiz/BibleQuizSplashScreen';
+import BibleQuizHomeScreen from '../screens/member/quiz/BibleQuizHomeScreen';
+import QuizPlayScreen from '../screens/member/quiz/QuizPlayScreen';
+import QuizResultScreen from '../screens/member/quiz/QuizResultScreen';
+import QuizHistoryScreen from '../screens/member/quiz/QuizHistoryScreen';
+import QuizLeaderboardScreen from '../screens/member/quiz/QuizLeaderboardScreen';
+import QuizCategoryDetailScreen from '../screens/member/quiz/QuizCategoryDetailScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -486,6 +493,17 @@ function Navigation() {
       <Stack.Screen name="Attendance" component={AttendanceScreen} />
       <Stack.Screen name="QRScanner" component={QRScannerScreen} />
       <Stack.Screen name="EventAttendees" component={EventAttendeesScreen} />
+      <Stack.Screen name="BibleQuizSplash" component={BibleQuizSplashScreen} />
+      <Stack.Screen 
+        name="BibleQuizHome" 
+        component={BibleQuizHomeScreen} 
+        options={{ animation: 'none' }}
+      />
+      <Stack.Screen name="QuizPlay" component={QuizPlayScreen} />
+      <Stack.Screen name="QuizResult" component={QuizResultScreen} />
+      <Stack.Screen name="QuizHistory" component={QuizHistoryScreen} />
+      <Stack.Screen name="QuizLeaderboard" component={QuizLeaderboardScreen} />
+      <Stack.Screen name="QuizCategoryDetail" component={QuizCategoryDetailScreen} />
     </Stack.Navigator>
   );
 

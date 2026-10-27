@@ -10,6 +10,7 @@ import { GreatVibes_400Regular } from '@expo-google-fonts/great-vibes';
 
 import RootNavigator from './src/navigation/RootNavigator';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Import Firebase config to initialize it on app start
 import './src/services/firebaseConfig';
@@ -41,25 +42,27 @@ export default function App() {
   }
 
   return (
-    <ErrorBoundary>
-      <NavigationContainer
-        ref={navigationRef}
-        onReady={() => {
-          routeNameRef.current = navigationRef.current?.getCurrentRoute()?.name;
-        }}
-        onStateChange={() => {
-          const previousRouteName = routeNameRef.current;
-          const currentRouteName = navigationRef.current?.getCurrentRoute()?.name;
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <NavigationContainer
+          ref={navigationRef}
+          onReady={() => {
+            routeNameRef.current = navigationRef.current?.getCurrentRoute()?.name;
+          }}
+          onStateChange={() => {
+            const previousRouteName = routeNameRef.current;
+            const currentRouteName = navigationRef.current?.getCurrentRoute()?.name;
 
-          if (previousRouteName !== currentRouteName && currentRouteName) {
-            ActivityTracker.logEvent("SCREEN_VIEW", currentRouteName);
-          }
-          routeNameRef.current = currentRouteName;
-        }}
-      >
-        <StatusBar style="light" />
-        <RootNavigator />
-      </NavigationContainer>
-    </ErrorBoundary>
+            if (previousRouteName !== currentRouteName && currentRouteName) {
+              ActivityTracker.logEvent("SCREEN_VIEW", currentRouteName);
+            }
+            routeNameRef.current = currentRouteName;
+          }}
+        >
+          <StatusBar style="light" />
+          <RootNavigator />
+        </NavigationContainer>
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }

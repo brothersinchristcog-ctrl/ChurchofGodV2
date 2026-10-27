@@ -65,6 +65,35 @@ export declare const notifyMembers: import("firebase-functions/v2/https").Callab
  */
 export declare const automatedDailyPromise: import("firebase-functions/v2/scheduler").ScheduleFunction;
 /**
+ * 📖 Send Daily Scripture Challenge Push Reminders
+ * Sends every day at 8:00 AM IST to church members who have NOT completed today's daily scripture challenge yet.
+ */
+export declare function sendDailyScriptureQuizReminders(forceAll?: boolean): Promise<{
+    totalMembers: number;
+    completedMembers: number;
+    targetCount: number;
+    sentCount: number;
+}>;
+/**
+ * ⏰ 8:00 AM IST Daily Scripture Challenge Scheduler
+ * Automatically runs every day at 8:00 AM Indian Standard Time (Asia/Kolkata).
+ */
+export declare const automatedDailyScriptureQuizReminder: import("firebase-functions/v2/scheduler").ScheduleFunction;
+/**
+ * 🧪 HTTP / On-Demand Trigger for Daily Scripture Challenge Reminder
+ * Allows admin to trigger or test on demand: GET /triggerDailyScriptureQuizReminder
+ */
+export declare const triggerDailyScriptureQuizReminder: import("firebase-functions/v2/https").HttpsFunction;
+/**
+ * 📱 Firebase onCall Trigger for Admin App
+ */
+export declare const callSendDailyScriptureQuizReminder: import("firebase-functions/v2/https").CallableFunction<any, Promise<{
+    totalMembers: number;
+    completedMembers: number;
+    targetCount: number;
+    sentCount: number;
+}>, unknown>;
+/**
  * ⏰ AUTOMATED DAILY BIRTHDAYS SCHEDULER
  * Scheduled to run every day at 08:00 AM IST (02:30 AM UTC)
  */
@@ -169,4 +198,5 @@ export declare const onSessionCreated: import("firebase-functions/core").CloudFu
 export declare const onEventCreated: import("firebase-functions/core").CloudFunction<import("firebase-functions/v2/firestore").FirestoreEvent<import("firebase-functions/v2/firestore").QueryDocumentSnapshot | undefined, {
     eventId: string;
 }>>;
+export * from './zoom.js';
 //# sourceMappingURL=index.d.ts.map

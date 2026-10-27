@@ -1216,16 +1216,21 @@ spfkUchVp71l4aWpCW50lro=
     }
   }
 
-  async createNotificationBroadcast(details: { title: string; message: string; type: string; sendTo: string }) {
+  async createNotificationBroadcast(details: { title: string; message: string; type: string; sendTo: string }): Promise<boolean> {
     try {
       const token = await this.getAccessToken();
       const url = `${this.instanceUrl}/services/data/v60.0/sobjects/Notification_Broadcast__c`;
 
+      // Salesforce Broadcast_Type__c is a restricted picklist: ['Announcement', 'Emergency']
+      const broadcastType = details.type === 'Emergency' ? 'Emergency' : 'Announcement';
+      const safeTitle = (details.title || 'Church Notification').trim().slice(0, 80);
+      const safeTarget = (details.sendTo || 'All').trim().slice(0, 255);
+
       const body = {
-        Name: details.title,
-        Message_content__c: details.message,
-        Broadcast_Type__c: details.type,
-        Target_Auidence__c: details.sendTo,
+        Name: safeTitle,
+        Message_content__c: details.message || '',
+        Broadcast_Type__c: broadcastType,
+        Target_Auidence__c: safeTarget,
         Sent_Date__c: new Date().toISOString()
       };
 
@@ -1244,9 +1249,9 @@ spfkUchVp71l4aWpCW50lro=
 
       console.log('✅ [SalesforceService] Broadcast logged in Salesforce successfully!');
       return true;
-    } catch (error) {
-      console.error('❌ [SalesforceService] createNotificationBroadcast Error:', error);
-      throw error;
+    } catch (error: any) {
+      console.warn('⚠️ [SalesforceService] createNotificationBroadcast Notice:', error?.message || error);
+      return false;
     }
   }
   async getTodayEvents(): Promise<any[]> {

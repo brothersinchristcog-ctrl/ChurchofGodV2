@@ -341,6 +341,236 @@ export const automatedDailyPromise = onSchedule({ schedule: '0 5 * * *', timeZon
 });
 
 /**
+ * 📖 Send Daily Scripture Challenge Push Reminders
+ * Sends every day at 8:00 AM IST to church members who have NOT completed today's daily scripture challenge yet.
+ */
+export async function sendDailyScriptureQuizReminders(forceAll: boolean = false): Promise<{
+  totalMembers: number;
+  completedMembers: number;
+  targetCount: number;
+  sentCount: number;
+}> {
+  console.log('⏰ Running sendDailyScriptureQuizReminders...');
+  const db = getDb();
+
+  // 1. Check if notifications enabled in settings
+  const settingsDoc = await db.collection('settings').doc('notifications').get();
+  const settings = settingsDoc.data();
+  if (settings && settings.dailyQuizNotif && settings.dailyQuizNotif.enabled === false && !forceAll) {
+    console.log('🛑 Daily Scripture Quiz notification automation is disabled in settings.');
+    return { totalMembers: 0, completedMembers: 0, targetCount: 0, sentCount: 0 };
+  }
+
+  // 2. Determine today's date in IST (Asia/Kolkata)
+  const now = new Date();
+  const istDateString = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // e.g. "2026-10-26"
+
+  console.log(`📅 Checking daily quiz attempts for IST date: ${istDateString}`);
+
+  // 3. Find all members who already completed today's daily scripture quiz
+  const completedUids = new Set<string>();
+  const completedPhones = new Set<string>();
+  const completedNames = new Set<string>();
+
+  if (!forceAll) {
+    try {
+      const attemptsSnap = await db.collection('quiz_attempts')
+        .where('quizType', '==', 'daily')
+        .get();
+
+      attemptsSnap.forEach((doc: any) => {
+        const att = doc.data();
+        if (!att) return;
+
+        // Check if attempt was completed today
+        let isToday = false;
+        if (att.completedAt) {
+          const d = new Date(att.completedAt);
+          if (!isNaN(d.getTime())) {
+            const attIstDate = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+            if (attIstDate === istDateString) {
+              isToday = true;
+            }
+          }
+        }
+
+        if (isToday) {
+          if (att.uid) completedUids.add(String(att.uid).trim());
+          if (att.userId) completedUids.add(String(att.userId).trim());
+          if (att.userPhone) {
+            const raw = String(att.userPhone).replace(/\D/g, '').slice(-10);
+            if (raw) completedPhones.add(raw);
+          }
+          if (att.userName) {
+            completedNames.add(String(att.userName).trim().toLowerCase());
+          }
+        }
+      });
+      console.log(`✅ Found ${completedUids.size} users who already completed today's daily quiz.`);
+    } catch (err) {
+      console.warn('⚠️ Error querying quiz_attempts, proceeding to notify all members:', err);
+    }
+  }
+
+  // 4. Query all users from Firestore
+  const usersSnap = await db.collection('users').get();
+  const tokenSet = new Set<string>();
+  let totalMembersWithTokens = 0;
+  let skippedCompleted = 0;
+
+  usersSnap.forEach((doc: any) => {
+    const uData = doc.data();
+    if (!uData || !uData.fcmToken) return;
+    totalMembersWithTokens++;
+
+    const uid = doc.id;
+    const rawPhone = uData.phone ? String(uData.phone).replace(/\D/g, '').slice(-10) : '';
+    const name = uData.name ? String(uData.name).trim().toLowerCase() : '';
+
+    const alreadyDone =
+      completedUids.has(uid) ||
+      (rawPhone && completedPhones.has(rawPhone)) ||
+      (name && completedNames.has(name));
+
+    if (alreadyDone && !forceAll) {
+      skippedCompleted++;
+      return;
+    }
+
+    tokenSet.add(uData.fcmToken);
+  });
+
+  const tokens = Array.from(tokenSet);
+  console.log(`🎯 Target notification recipients: ${tokens.length} members (${skippedCompleted} skipped as already completed).`);
+
+  if (tokens.length === 0) {
+    console.log('ℹ️ No pending members to notify.');
+    return {
+      totalMembers: totalMembersWithTokens,
+      completedMembers: skippedCompleted,
+      targetCount: 0,
+      sentCount: 0
+    };
+  }
+
+  // 5. Build push message
+  const notifTitle = settings?.dailyQuizNotif?.title || '📖 Daily Scripture Challenge · నేటి వాక్యం';
+  const notifBody = settings?.dailyQuizNotif?.message ||
+    'Good morning! Spend 2 minutes in God\'s Word today. Complete your Daily Scripture Challenge and earn points! 🪙';
+
+  const message = {
+    notification: {
+      title: notifTitle,
+      body: notifBody
+    },
+    data: {
+      type: 'daily_scripture_challenge',
+      screen: 'BibleQuizHome',
+      autoStartDaily: 'true',
+      date: istDateString
+    },
+    android: {
+      priority: 'high' as const,
+      notification: {
+        sound: 'default',
+        priority: 'max' as const,
+        channelId: 'default'
+      }
+    },
+    apns: {
+      headers: {
+        'apns-priority': '10'
+      },
+      payload: {
+        aps: {
+          sound: 'default',
+          badge: 1
+        }
+      }
+    },
+    tokens
+  };
+
+  // 6. Record to broadcasts collection so it appears in the updates feed
+  try {
+    const dateFormatted = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    await db.collection('broadcasts').add({
+      title: notifTitle,
+      content: notifBody,
+      date: dateFormatted,
+      type: 'quiz',
+      silent: true,
+      createdAt: FieldValue.serverTimestamp()
+    });
+  } catch (err) {
+    console.warn('⚠️ Error recording broadcast:', err);
+  }
+
+  // 7. Send in chunks of 500
+  await sendInChunks(tokens, {
+    notification: message.notification,
+    data: message.data,
+    android: message.android,
+    apns: message.apns
+  });
+
+  console.log(`🚀 Successfully dispatched Daily Scripture Challenge reminder to ${tokens.length} members.`);
+
+  return {
+    totalMembers: totalMembersWithTokens,
+    completedMembers: skippedCompleted,
+    targetCount: tokens.length,
+    sentCount: tokens.length
+  };
+}
+
+/**
+ * ⏰ 8:00 AM IST Daily Scripture Challenge Scheduler
+ * Automatically runs every day at 8:00 AM Indian Standard Time (Asia/Kolkata).
+ */
+export const automatedDailyScriptureQuizReminder = onSchedule(
+  { schedule: '0 8 * * *', timeZone: 'Asia/Kolkata' },
+  async (event) => {
+    try {
+      await sendDailyScriptureQuizReminders();
+    } catch (error) {
+      console.error('Error in automatedDailyScriptureQuizReminder:', error);
+    }
+  }
+);
+
+/**
+ * 🧪 HTTP / On-Demand Trigger for Daily Scripture Challenge Reminder
+ * Allows admin to trigger or test on demand: GET /triggerDailyScriptureQuizReminder
+ */
+export const triggerDailyScriptureQuizReminder = onRequest(
+  { invoker: 'public', timeoutSeconds: 300 },
+  async (req, res) => {
+    try {
+      const forceAll = req.query.forceAll === 'true';
+      const result = await sendDailyScriptureQuizReminders(forceAll);
+      res.status(200).json({ success: true, ...result });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+);
+
+/**
+ * 📱 Firebase onCall Trigger for Admin App
+ */
+export const callSendDailyScriptureQuizReminder = onCall(async (request) => {
+  try {
+    const forceAll = request.data?.forceAll === true;
+    return await sendDailyScriptureQuizReminders(forceAll);
+  } catch (err: any) {
+    throw new HttpsError('internal', err.message);
+  }
+});
+
+
+
+/**
  * ⏰ AUTOMATED DAILY BIRTHDAYS SCHEDULER
  * Scheduled to run every day at 08:00 AM IST (02:30 AM UTC)
  */
@@ -2408,3 +2638,5 @@ export const onEventCreated = onDocumentCreated('activity_events/{eventId}', asy
 
 
 
+
+export * from './zoom.js';

@@ -56,7 +56,8 @@ import {
   Droplet,
   Image as ImageIcon,
   Video,
-  QrCode
+  QrCode,
+  HelpCircle
 } from 'lucide-react-native';
 
 import firestore from '@react-native-firebase/firestore';
@@ -1125,7 +1126,7 @@ export default function HomeScreen() {
                 alignItems: 'center', 
                 backgroundColor: '#16a34a', 
                 paddingVertical: 10, 
-                paddingHorizontal: 20, 
+                paddingHorizontal: 18, 
                 borderRadius: 24,
                 elevation: 2,
                 shadowColor: '#000',
@@ -1136,7 +1137,27 @@ export default function HomeScreen() {
               onPress={() => handleRestrictedNavigate('Attendance')}
             >
               <AnimatedCheckCircle size={20} color="#fff" style={{ marginRight: 8 }} animate={animateAttendance} />
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Attendance</Text>
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold' }}>Attendance</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={{
+                flexDirection: 'row', 
+                alignItems: 'center', 
+                backgroundColor: '#7c3aed', 
+                paddingVertical: 10, 
+                paddingHorizontal: 18, 
+                borderRadius: 24,
+                elevation: 2,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 3
+              }} 
+              onPress={() => handleRestrictedNavigate('BibleQuizSplash')}
+            >
+              <BookOpen size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold' }}>Bible Quiz</Text>
             </TouchableOpacity>
           </View>
 

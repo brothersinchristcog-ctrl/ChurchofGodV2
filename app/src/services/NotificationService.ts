@@ -1,7 +1,19 @@
 import { Platform, PermissionsAndroid, Alert, Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { messaging, firestore, auth } from './firebaseConfig';
 
 class NotificationService {
+  constructor() {
+    try {
+      messaging().onTokenRefresh(token => {
+        if (token) {
+          console.log('🔄 [NotificationService] FCM Token Refreshed:', token);
+          this.saveTokenToFirestore(token);
+        }
+      });
+    } catch (_) {}
+  }
+
   messaging() {
     return messaging();
   }
@@ -49,23 +61,59 @@ class NotificationService {
 
   async saveTokenToFirestore(token: string) {
     try {
+      if (!token) return;
+      await AsyncStorage.setItem('@last_fcm_token', token);
+
       const user = auth().currentUser;
-      if (!user) {
-        console.log('⚠️ Cannot save token: No user logged in');
-        return;
+      if (user) {
+        console.log('📤 Saving token to Firestore for UID:', user.uid);
+        await firestore().collection('users').doc(user.uid).set({
+          fcmToken: token,
+          lastTokenUpdate: firestore.FieldValue.serverTimestamp(),
+          platform: Platform.OS,
+          onboardingComplete: true
+        }, { merge: true });
+        console.log('✨ Token saved successfully for UID:', user.uid);
+      } else {
+        console.log('ℹ️ No active Firebase Auth user yet, cached token in local storage.');
       }
 
-      console.log('📤 Saving token to Firestore for UID:', user.uid);
-      await firestore().collection('users').doc(user.uid).set({
-        fcmToken: token,
-        lastTokenUpdate: firestore.FieldValue.serverTimestamp(),
-        platform: Platform.OS,
-        onboardingComplete: true // Ensure this record exists correctly
-      }, { merge: true });
-      console.log('✨ Token saved successfully!');
+      // Also ensure matching phone record in Firestore gets the token
+      try {
+        const cachedMember = await AsyncStorage.getItem('@cached_member');
+        if (cachedMember) {
+          const parsed = JSON.parse(cachedMember);
+          const rawPhone = (parsed?.phone || user?.phoneNumber || '').replace(/\D/g, '');
+          const last10 = rawPhone.slice(-10);
+          if (last10.length === 10) {
+            const querySnap = await firestore().collection('users')
+              .where('phone', '>=', last10)
+              .where('phone', '<=', last10 + '\uf8ff')
+              .get();
+            querySnap.forEach(docSnap => {
+              docSnap.ref.set({
+                fcmToken: token,
+                lastTokenUpdate: firestore.FieldValue.serverTimestamp(),
+                platform: Platform.OS
+              }, { merge: true }).catch(() => {});
+            });
+          }
+        }
+      } catch (_) {}
     } catch (err) {
       console.error('❌ Firestore Token Save Error:', err);
     }
+  }
+
+  async syncTokenIfLoggedIn() {
+    try {
+      const cachedToken = await AsyncStorage.getItem('@last_fcm_token');
+      if (cachedToken) {
+        await this.saveTokenToFirestore(cachedToken);
+      } else {
+        await this.getFcmToken();
+      }
+    } catch (_) {}
   }
 
   // Handle navigation when a notification is clicked
@@ -115,6 +163,14 @@ class NotificationService {
             highlightCelebrationId: celebrationId
           });
         }
+        break;
+      case 'daily_scripture_challenge':
+      case 'bible_quiz':
+      case 'quiz':
+        navigation.navigate('BibleQuizHome', {
+          autoStartDaily: remoteMessage.data?.autoStartDaily === 'true' || true,
+          fromNotification: true
+        });
         break;
       default:
         // Fallback: navigate to Updates if it has a broadcast ID

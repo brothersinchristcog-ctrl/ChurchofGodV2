@@ -18,7 +18,8 @@ import {
   BookOpen, Edit3, Calendar, Mic, PlusSquare, Music, 
   Bell, MapPin, Heart, Users, MessageCircle, Gift, 
   ImageIcon, Info, Phone, Smartphone, LogOut, Sun, Moon,
-  Video
+  Video,
+  Award
 } from 'lucide-react-native';
 import { AdminTabContext } from '../../context/AdminTabContext';
 import { useAuth } from '../../context/AuthContext';
@@ -86,7 +87,9 @@ const DASHBOARD_SECTIONS = [
   },
   {
     title: 'Online Bible Classes & Feedback',
+    layout: 'featured-bottom',
     items: [
+      { id: 23, label: 'Quiz', icon: Award, image: require('../../../assets/images/admin_dashboard/quiz.png'), featured: true },
       { id: 20, label: 'Bible Classes', icon: Video, image: require('../../../assets/images/admin_dashboard/bible_classes.png') },
       { id: 21, label: 'Feedback', icon: MessageCircle, image: require('../../../assets/images/admin_dashboard/feedback.png') }
     ]
@@ -233,6 +236,11 @@ export default function AdminDashboard() {
         </Svg>
         <View style={styles.cardContent}>
           <Text style={styles.cardTitle} numberOfLines={1}>{item.label}</Text>
+          {item.id === 23 && (
+            <Text style={{ color: '#fcd34d', fontSize: 11, fontWeight: '700', marginTop: 2 }}>
+              Create & Manage Quizzes for Church Members
+            </Text>
+          )}
         </View>
       </View>
     );

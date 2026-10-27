@@ -18,7 +18,6 @@ const getSf = () => {
   return _sfBackend;
 };
 
-setGlobalOptions({ region: 'asia-south1' });
 
 export const sendWhatsAppWish = onCall({ invoker: 'public' }, async (request) => {
   try {

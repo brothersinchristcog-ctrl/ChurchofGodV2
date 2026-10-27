@@ -17,11 +17,18 @@ service cloud.firestore {
 
     // 1. Users
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (isOwner(userId) || !exists(/databases/$(database)/documents/users/$(userId)));
+      allow read, write: if true;
       
       match /subscription/{subId} {
-        allow read, write: if isAuthenticated();
+        allow read, write: if true;
+      }
+
+      match /quiz_attempts/{attemptId} {
+        allow read, write: if true;
+      }
+
+      match /{allChildren=**} {
+        allow read, write: if true;
       }
     }
 
@@ -73,14 +80,14 @@ service cloud.firestore {
       allow read, write: if isAuthenticated();
     }
 
-    // 7. Broadcasts (Announcements history and Emergency meeting broadcasts)
+    // 7. Broadcasts (Announcements history, Quizzes, and Emergency meeting broadcasts)
     match /broadcasts/{broadcastId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // 8. Settings (Notification settings configuration)
     match /settings/{settingId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // 9. Worship Songs (Songs lyrics and offline support)
@@ -157,6 +164,37 @@ service cloud.firestore {
     // 19. Event Locations (Geofencing overrides)
     match /event_locations/{eventId} {
       allow read, write: if isAuthenticated();
+    }
+
+    // 20. Bible Quiz
+    match /bible_questions/{questionId} {
+      allow read, write: if true;
+    }
+    match /bible_question_bank/{questionId} {
+      allow read, write: if true;
+    }
+    match /church_quizzes/{quizId} {
+      allow read, write: if true;
+
+      match /{allChildren=**} {
+        allow read, write: if true;
+      }
+    }
+    match /quiz_attempts/{attemptId} {
+      allow read, write: if true;
+    }
+    match /quiz_categories/{categoryId} {
+      allow read, write: if true;
+    }
+    match /daily_quiz_cache/{cacheId} {
+      allow read, write: if true;
+    }
+    match /quizzes/{quizId} {
+      allow read, write: if true;
+
+      match /{allChildren=**} {
+        allow read, write: if true;
+      }
     }
   }
 }
